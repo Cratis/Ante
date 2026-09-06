@@ -14,9 +14,15 @@ using MongoDB.Driver;
 
 namespace Ante.Organization.Registration.when_registering;
 
-public class and_values_are_valid : Specification
+class configured_legal_source(LegalDocumentSet documents) : ILegalDocumentSource
+{
+    public Task<LegalDocumentSet?> GetCurrent() => Task.FromResult<LegalDocumentSet?>(documents);
+}
+
+public class and_legal_terms_are_accepted_with_the_current_version : Specification
 {
     static readonly InvitationId _registrationId = InvitationId.New();
+    static readonly LegalDocumentSet _currentDocuments = new("# Terms", "# Privacy", "2026-01");
 
     readonly CommandScenario<RegisterOrganization> _scenario = new();
     CommandResult _result = null!;
@@ -29,23 +35,19 @@ public class and_values_are_valid : Specification
         _scenario.Services.AddSingleton(acceptedNames);
         _scenario.Services.AddSingleton(Substitute.For<IHttpContextAccessor>());
         _scenario.Services.AddSingleton(Substitute.For<IIdentityProviderResolver>());
-        _scenario.Services.AddSingleton<ILegalDocumentSource>(new NoLegalDocumentSource());
+        _scenario.Services.AddSingleton<ILegalDocumentSource>(new configured_legal_source(_currentDocuments));
         _scenario.Services.AddSingleton(new OrganizationSetupStatusSubscriptions());
     }
 
     async Task Because() =>
-        _result = await _scenario.Execute(new RegisterOrganization(_registrationId, "Acme", "Jane", null, "Doe", false, LegalVersion.NotSet));
+        _result = await _scenario.Execute(new RegisterOrganization(_registrationId, "Acme", "Jane", null, "Doe", true, _currentDocuments.Version));
 
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
 
     [Fact]
-    async Task should_have_appended_the_registration_completed_event() =>
-        await _scenario.ShouldHaveAppendedEvent<RegisterOrganization, OrganizationRegistrationCompleted>(
+    async Task should_have_appended_the_legal_terms_accepted_event() =>
+        await _scenario.ShouldHaveAppendedEvent<RegisterOrganization, LegalTermsAccepted>(
             _registrationId,
-            e => e.TenantName == "Acme" && e.FirstName == "Jane" && e.LastName == "Doe");
-
-    [Fact]
-    void should_not_have_appended_a_legal_terms_accepted_event() =>
-        Assert.DoesNotContain(_scenario.AppendedEvents, e => e.Event.Content is LegalTermsAccepted);
+            e => e.TenantName == "Acme" && e.Version == _currentDocuments.Version);
 }
 #endif
