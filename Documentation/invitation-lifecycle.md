@@ -71,7 +71,23 @@ Three commands complete onboarding, one per journey — see [Wizards](./wizards.
 
 Each acceptance is also guarded by a one-use constraint scoped to the invitation itself — `OneUseJoinTenantInvitation` on `InvitationToJoinTenantAccepted` and `OneUseCreateTenantInvitation` on `InvitationToCreateTenantAccepted` — so at most one acceptance can ever be appended per invitation, no matter how many times a client retries or double-submits. `AcceptInvitation` and `SetupOrganization` still read the pending-invitation projection first for a friendly "no longer pending" rejection, but that read model is eventually consistent and cannot by itself prevent two concurrent submits of the same invitation from both observing it as pending; the append-time constraint is what actually makes acceptance one-of-a-kind. A rejection from either constraint surfaces as a normal validation failure on the command result, not an exception.
 
-A reactor per journey (`JoinTenantAcceptanceOutbox`, `OrganizationSetupOutbox`, `OrganizationRegistrationOutbox`) forwards the resulting event to Ante's outbox for the host to observe.
+A reactor per journey (`JoinTenantAcceptanceOutbox`, `OrganizationSetupOutbox`, `OrganizationRegistrationOutbox`) forwards the resulting event to Ante's outbox for the host to observe, alongside the shared `LegalTermsAcceptanceOutbox` for the optional legal fact. None of these reactors mark a command's own success as the end state — see [Publication and durable status](#publication-and-durable-status) below.
+
+## Publication and durable status
+
+Ante distinguishes two states for every acceptance and registration:
+
+- **Recorded** — the local event (`InvitationToJoinTenantAccepted`, `InvitationToCreateTenantAccepted`, or `OrganizationRegistrationCompleted`, plus `LegalTermsAccepted` when one was part of the same append) has committed to Ante's own event log. This is durable, but it is not yet anything the host can see.
+- **Published** — those same facts have reached Ante's own outbox, where the host's own observer can pick them up. This is the state the wizards' status polling reports as complete, never Recorded alone: a client that only sees Recorded and nothing else must keep waiting.
+
+Two durable read models per flow back this distinction: `UserSetupProgress` / `OrganizationSetupProgress` project the local event log (the Recorded boundary — `OrganizationSetupProgress` is shared by both the invited-tenant-creation and self-service-registration journeys), and `JoinTenantAcceptancePublished` / `OrganizationSetupPublished` project Ante's own outbox sequence (the Published boundary) for the same event types. A flow counts as fully published only once its own accept/registration fact **and** its legal fact, when one was recorded, have both reached the outbox — a legal fact that lands after the acceptance itself never displays as complete in between.
+
+The four outbox-forwarding reactors (the three above, plus `LegalTermsAcceptanceOutbox`) share one `OutboxForwarder.PublishToOutbox` helper that:
+
+- Preserves the original event's correlation id, occurrence time, and compliance subject on the outboxed copy, rather than picking up fresh defaults from the reactor's own execution context — a host comparing the two copies sees identical values on every field.
+- Verifies the append actually succeeded and throws when it did not, so Chronicle pauses and retries the failing partition instead of silently treating an unpublished fact as done. This still leaves forwarding **at-least-once**, exactly like every other Chronicle reactor (see [Host Integration](./host-integration.md#correlation-and-delivery)) — a retried forward can still append the same fact to the outbox more than once, and the host must still deduplicate. What changes is that a failed append is never silently lost; it is retried instead.
+
+Because status is derived from this durable evidence rather than an in-memory flag set at command time, a dropped connection, an Ante restart, or a reconnect landing on a different replica all resume correctly by reading the same two read models — never from process-local state that only the replica handling the original command ever knew about.
 
 ## Revocation
 
