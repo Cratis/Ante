@@ -3,6 +3,27 @@
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <AssemblyName>Ante.Contracts</AssemblyName>
         <RootNamespace>Ante.Contracts</RootNamespace>
+
+        <!-- NuGet package identity - the only packable project in this repo, published via
+             trusted publishing from .github/workflows/publish.yml on every push to main.
+             Source/Directory.Build.props sets IsPackable false for everything under Source/
+             ("nothing under Source is published as a NuGet package"); this is the one
+             project that overrides it back to true. -->
+        <IsPackable>true</IsPackable>
+        <PackageId>Cratis.Ante.Contracts</PackageId>
+        <Authors>all contributors</Authors>
+        <Copyright>Copyright Cratis</Copyright>
+        <Description>The invitation and lobby event contracts for Ante — Cratis's signed-invitation system and tenant lobby.</Description>
+        <PackageTags>cratis;ante;invitations;event-sourcing;chronicle</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <RepositoryType>git</RepositoryType>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <RepositoryUrl>https://github.com/Cratis/Ante</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/Cratis/Ante</PackageProjectUrl>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <GenerateAssemblyTitleAttribute>true</GenerateAssemblyTitleAttribute>
+        <GenerateAssemblyDescriptionAttribute>true</GenerateAssemblyDescriptionAttribute>
     </PropertyGroup>
 
     <ItemGroup>
@@ -13,5 +34,9 @@
         <AssemblyAttribute Include="Cratis.Chronicle.Events.EventStoreAttribute">
             <_Parameter1>Ante</_Parameter1>
         </AssemblyAttribute>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="$(MSBuildThisFileDirectory)../../README.md" Pack="true" PackagePath="/" />
     </ItemGroup>
 </Project>
