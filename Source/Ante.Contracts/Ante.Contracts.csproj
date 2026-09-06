@@ -1,7 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
-        <AssemblyName>Ante.Contracts</AssemblyName>
+
+        <!-- Must match PackageId below. The .NET SDK records a project reference's "project" library
+             in the referencing project's deps.json under its NuGet package identity (PackageId, or
+             AssemblyName when PackageId is unset) - not under AssemblyName when the two diverge.
+             Cratis.Fundamentals' type-discovery (ProjectReferencedAssemblies, used by every Chronicle
+             app to find [EventType]/[Reactor]/[ReadModel] types) resolves that deps.json library name
+             with Assembly.Load(name). With AssemblyName "Ante.Contracts" and PackageId
+             "Cratis.Ante.Contracts", the deps.json project entry was "Cratis.Ante.Contracts" while the
+             physical output was Ante.Contracts.dll - Assembly.Load("Cratis.Ante.Contracts") failed to
+             resolve, so every event type, reactor, and read model defined in this project was silently
+             invisible to discovery everywhere: the running app, and every Chronicle*Scenario spec.
+             Aligning AssemblyName to PackageId makes the physical assembly resolvable by the name the
+             deps.json actually records. -->
+        <AssemblyName>Cratis.Ante.Contracts</AssemblyName>
         <RootNamespace>Ante.Contracts</RootNamespace>
 
         <!-- NuGet package identity - the only packable project in this repo, published via
