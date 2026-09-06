@@ -43,6 +43,29 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
     const [statusResult] = StatusForInvitation.use({ invitationId: resolvedInvitationId });
     const [hostUrlResult] = HostUrl.use();
     const [legalStatus] = LegalDocumentsCurrent.use();
+
+    // Memoized so an unrelated re-render - opening the terms dialog, a status poll tick - does not
+    // recreate this object: CommandForm reasserts initialValues/currentValues onto the command whenever
+    // their identity changes, and a fresh literal on every render would otherwise silently uncheck the
+    // acceptance box or blank the version as often as the page re-renders.
+    const initialValues = useMemo(() => ({ invitationId: resolvedInvitationId }), [resolvedInvitationId]);
+
+    // The legal version comes from a query, so it arrives after mount - it has to be a reactive overlay
+    // rather than part of the synchronous baseline, or the command would submit an empty version and be
+    // rejected. Memoized on the configured/version pair rather than recreated every render, so it is
+    // only reapplied when the document the host presents actually changes - at which point
+    // acceptedLegalTerms is deliberately reset to false too, renewing review: a version bump the user
+    // has not seen forces a fresh acceptance instead of silently carrying the old one forward. Only
+    // these two legal fields are ever included here, so a version change never touches the name fields
+    // the user has already filled in. If the source stops being configured entirely, this becomes
+    // undefined and any previously accepted value is left as-is on the command; that submission is
+    // rejected server-side as unsolicited acceptance rather than silently recorded or silently dropped.
+    const currentValues = useMemo(
+        () => (legalStatus.data?.isConfigured
+            ? { acceptedLegalTerms: false, acceptedLegalVersion: legalStatus.data.version }
+            : undefined),
+        [legalStatus.data?.isConfigured, legalStatus.data?.version]);
+
     const legalDocuments = useLegalDocumentViewer({
         termsAndConditions: legalStatus.data?.termsAndConditions ?? '',
         privacyPolicy: legalStatus.data?.privacyPolicy ?? ''
@@ -118,11 +141,8 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
                     command={SetupOrganization}
                     validateOnInit
                     okLabel={strings.organizationSetup.setupOrganization}
-                    initialValues={{ invitationId: resolvedInvitationId, acceptedLegalTerms: false, acceptedLegalVersion: '' }}
-                    // The legal version comes from a query, so it arrives after mount - it has to be a reactive
-                    // overlay rather than part of the synchronous baseline, or the command would submit an empty
-                    // version and be rejected.
-                    currentValues={legalStatus.data?.isConfigured ? { acceptedLegalVersion: legalStatus.data.version } : undefined}
+                    initialValues={initialValues}
+                    currentValues={currentValues}
                     onBeforeExecute={(values) => {
                         orgNameRef.current = values.organizationName ?? '';
                         return values;
