@@ -48,8 +48,20 @@ public class SetupOrganizationValidator : CommandValidator<SetupOrganization>
     /// </summary>
     /// <param name="legalDocumentSource">The legal document source the onboarding user has to accept, when the host has configured one.</param>
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
-    public SetupOrganizationValidator(ILegalDocumentSource legalDocumentSource, IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames)
+    /// <param name="signedInIdentity">The identity the user is signed in with for this request.</param>
+    public SetupOrganizationValidator(
+        ILegalDocumentSource legalDocumentSource,
+        IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
+        ISignedInIdentity signedInIdentity)
     {
+        // The invitation id travels in the open - a URL, a token, an invite link - so knowing it must
+        // never be enough to act on it. Only a caller who has verifiably exchanged this exact invitation
+        // may use it to set up the organization; the same message the pending-invitation check below
+        // uses, so a mismatched owner is indistinguishable from an invitation that is no longer pending.
+        RuleFor(c => c.InvitationId)
+            .Must(invitationId => signedInIdentity.IsVerifiedOwnerOf(invitationId))
+            .WithMessage("Invitation is no longer pending and cannot be used for organization setup.");
+
         RuleFor(c => (string)c.OrganizationName)
             .MustBeAValidOrganizationName();
 

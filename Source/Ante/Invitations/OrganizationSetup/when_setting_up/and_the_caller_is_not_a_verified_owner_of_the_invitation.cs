@@ -12,25 +12,27 @@ using MongoDB.Driver;
 
 namespace Ante.Invitations.OrganizationSetup.when_setting_up;
 
-public class and_values_are_valid : Specification
+public class and_the_caller_is_not_a_verified_owner_of_the_invitation : Specification
 {
     static readonly InvitationId _invitationId = InvitationId.New();
-    static readonly Cratis.Chronicle.Subject _subject = new(Guid.NewGuid().ToString());
 
     readonly CommandScenario<SetupOrganization> _scenario = new();
     CommandResult _result = null!;
 
     void Establish()
     {
+        // The invitation is genuinely pending - the only thing wrong with this request is that the
+        // caller never verifiably exchanged it, so this isolates the ownership gate from the
+        // no-longer-pending check the handler performs separately.
         var pending = new PendingInvitationToCreateOrganization(_invitationId, Guid.NewGuid(), "jane@example.com", ["Owner"]);
         _scenario.Given.ForEventSource(_invitationId).ReadModel(pending);
 
         var acceptedNames = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
         acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
 
+        // Unstubbed - an NSubstitute bool method answers false by default, standing in for a caller who
+        // never verifiably exchanged this invitation.
         var signedInIdentity = Substitute.For<ISignedInIdentity>();
-        signedInIdentity.Resolve(_invitationId, Arg.Any<Cratis.Chronicle.Subject>()).Returns(((IdentityProviderName)"github", _subject));
-        signedInIdentity.IsVerifiedOwnerOf(_invitationId).Returns(true);
 
         _scenario.Services.AddSingleton(acceptedNames);
         _scenario.Services.AddSingleton(signedInIdentity);
@@ -42,12 +44,7 @@ public class and_values_are_valid : Specification
     async Task Because() =>
         _result = await _scenario.Execute(new SetupOrganization(_invitationId, "Acme", "Jane", null, "Doe", false, LegalVersion.NotSet));
 
-    [Fact] void should_succeed() => _result.ShouldBeSuccessful();
-
-    [Fact]
-    async Task should_have_appended_the_create_tenant_accepted_event() =>
-        await _scenario.ShouldHaveAppendedEvent<SetupOrganization, InvitationToCreateTenantAccepted>(
-            _invitationId,
-            e => e.TenantName == "Acme" && e.FirstName == "Jane" && e.LastName == "Doe");
+    [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+    [Fact] void should_have_validation_errors() => _result.ShouldHaveValidationErrors();
 }
 #endif
