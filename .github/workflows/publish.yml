@@ -96,3 +96,40 @@ jobs:
             --label org.opencontainers.image.version="$VERSION" \
             --label org.opencontainers.image.created="$CREATED" \
             Source/Ante
+
+  # Cratis.Ante.Contracts via NuGet.org trusted publishing (OIDC) - no long-lived API key secret
+  # to hold or rotate. The trusted-publishing policy on nuget.org is bound to this workflow file
+  # (publish.yml) by name, so the job must live here rather than in a separately named workflow.
+  # Same 0.1.<run number> scheme as the image tag above for coherence; see that job's comment on
+  # why this repo isn't yet on the label-driven cratis/release-action semver pipeline.
+  publish-nuget:
+    name: Pack and push Cratis.Ante.Contracts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required for NuGet trusted publishing using OIDC tokens.
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Pack Ante.Contracts
+        env:
+          VERSION: 0.1.${{ github.run_number }}
+        run: dotnet pack Source/Ante.Contracts -c Release /p:Version=$VERSION -o ${{ runner.temp }}/nuget
+
+      # Get a short-lived NuGet API key.
+      - name: NuGet login (OIDC → temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push NuGet package
+        run: dotnet nuget push --skip-duplicate '${{ runner.temp }}/nuget/*.nupkg' --timeout 900 --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
