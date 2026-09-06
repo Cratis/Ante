@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Ante.Contracts.Legal;
+using Ante.Contracts.Organization;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
@@ -33,9 +34,15 @@ public enum OrganizationSetupAcceptanceStatus
 public static class OrganizationSetupConstraintNames
 {
     /// <summary>
-    /// The constraint keeping an organization name bound to a single organization.
+    /// The constraint keeping an organization name bound to a single organization, across both
+    /// invited tenant creation and self-service registration.
     /// </summary>
     public const string UniqueOrganizationName = "UniqueOrganizationName";
+
+    /// <summary>
+    /// The constraint keeping a create-tenant invitation acceptable only once.
+    /// </summary>
+    public const string OneUseInvitation = "OneUseCreateTenantInvitation";
 }
 
 /// <summary>
@@ -86,13 +93,17 @@ public class SetupOrganizationValidator : CommandValidator<SetupOrganization>
 }
 
 /// <summary>
-/// Enforces that each organization name is used only once across all organizations.
+/// Enforces that each organization name is used only once across all organizations, whether the
+/// organization was created from an accepted invitation or through self-service registration.
 /// </summary>
 /// <remarks>
 /// The validator and the command handler both reject a duplicate by reading
 /// <see cref="AcceptedOrganizationName"/>, which produces the friendly message users see. This
-/// constraint is the race-safe backstop for those checks: two invitations can be accepted with the
-/// same organization name concurrently, and both would read no match.
+/// constraint is the race-safe backstop for those checks: two invitations - or an invitation and a
+/// self-service registration - can be accepted concurrently with the same organization name, and both
+/// would read no match. Both events are declared under one constraint name, so an invited creation and
+/// a self-registration compete for the name under a single coordinated decision instead of two
+/// independent ones that could each let the name through.
 /// </remarks>
 public class UniqueOrganizationNameConstraint : IConstraint
 {
@@ -101,7 +112,28 @@ public class UniqueOrganizationNameConstraint : IConstraint
         .Unique(unique => unique
             .WithName(OrganizationSetupConstraintNames.UniqueOrganizationName)
             .On<InvitationToCreateTenantAccepted>(@event => @event.TenantName)
+            .On<OrganizationRegistrationCompleted>(@event => @event.TenantName)
             .WithMessage("An organization with this name already exists."));
+}
+
+/// <summary>
+/// Enforces that a create-tenant invitation can be accepted at most once.
+/// </summary>
+/// <remarks>
+/// <see cref="SetupOrganization"/> treats an already-accepted invitation as no longer pending by
+/// reading <see cref="PendingInvitationToCreateOrganization"/>, which is removed once accepted - but
+/// that is a read-model check and races: two concurrent submits of the same invitation can both observe
+/// it as still pending before either append lands. This constraint is the atomic backstop, enforced by
+/// the kernel at append time - only one <see cref="InvitationToCreateTenantAccepted"/> can ever be
+/// appended per invitation (its event source).
+/// </remarks>
+public class OneUseCreateTenantInvitationConstraint : IConstraint
+{
+    /// <inheritdoc/>
+    public void Define(IConstraintBuilder builder) => builder
+        .Unique<InvitationToCreateTenantAccepted>(
+            "This invitation has already been accepted.",
+            OrganizationSetupConstraintNames.OneUseInvitation);
 }
 
 /// <summary>
@@ -111,6 +143,7 @@ public class UniqueOrganizationNameConstraint : IConstraint
 /// <param name="TenantName">The claimed name.</param>
 [ReadModel]
 [FromEvent<InvitationToCreateTenantAccepted>]
+[FromEvent<OrganizationRegistrationCompleted>]
 public record AcceptedOrganizationName([Key] TenantName TenantName);
 
 /// <summary>
