@@ -1,0 +1,102 @@
+name: Build
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "**"
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (${{ matrix.configuration }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Node (proxy generation runs during the Debug build)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      # Debug regenerates the TypeScript proxies and compiles the #if DEBUG spec code. Release is a
+      # build-only check; CratisProxiesOutputPath is cleared so the proxy generator's MSBuild target
+      # no-ops instead of re-running against a second compilation of already-correct generated files.
+      - name: Build (Debug)
+        if: matrix.configuration == 'Debug'
+        run: dotnet build Ante.slnx --configuration Debug
+
+      - name: Build (Release)
+        if: matrix.configuration == 'Release'
+        run: dotnet build Ante.slnx --configuration Release -p:CratisProxiesOutputPath=
+
+      - name: Test
+        if: matrix.configuration == 'Debug'
+        run: dotnet test Ante.slnx --configuration Debug --no-build --logger "console;verbosity=minimal"
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # The Debug backend build regenerates the TypeScript proxies; the frontend gate needs them
+      # present on disk (they are committed, but a PR that changes backend contracts without
+      # rebuilding would otherwise pass a stale proxy through lint/tsc).
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          registry-url: https://registry.npmjs.org
+
+      - name: Regenerate proxies (Debug build, no test execution needed here)
+        run: dotnet build Ante.slnx --configuration Debug
+
+      - name: Corepack enable
+        run: corepack enable
+
+      - name: Yarn install
+        run: yarn install --immutable
+
+      - name: Lint
+        working-directory: Source/Ante
+        run: yarn lint:ci
+
+      - name: TypeScript compile
+        working-directory: Source/Ante
+        run: yarn compile
+
+      - name: Test
+        working-directory: Source/Ante
+        run: yarn test
+
+      - name: Build
+        working-directory: Source/Ante
+        env:
+          ANTE_PRIMEUI_LICENSE: ${{ secrets.PRIMEUI_LICENSE }}
+        run: yarn build
