@@ -1,0 +1,23 @@
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "paths": {
+            "given": [
+                "../given.ts"
+            ],
+            "Strings": [
+                "../Locales/Strings"
+            ],
+            "*": [
+                "../*"
+            ],
+        }
+    },
+    "include": [
+        "../**/*.ts",
+        "../**/*.tsx"
+    ],
+    "exclude": [
+        "vite.config.ts"
+    ]
+}

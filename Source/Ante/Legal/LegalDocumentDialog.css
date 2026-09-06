@@ -1,0 +1,15 @@
+/* Copyright (c) Cratis. All rights reserved. */
+/* Licensed under the MIT license. See LICENSE file in the project root for full license information. */
+
+.legal-document {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+    background: transparent;
+}
+
+.legal-document .wmde-markdown {
+    background: transparent;
+    color: var(--text-color);
+    font-size: 0.95rem;
+}

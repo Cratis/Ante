@@ -1,0 +1,39 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+#if DEBUG
+using Ante.Contracts.Legal;
+using Ante.IdentityProviders;
+using Ante.Invitations;
+using Ante.Invitations.OrganizationSetup;
+using Ante.Legal;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using MongoDB.Driver;
+
+namespace Ante.Organization.Registration.when_registering;
+
+public class and_organization_name_is_already_claimed : Specification
+{
+    readonly CommandScenario<RegisterOrganization> _scenario = new();
+    CommandResult _result = null!;
+
+    void Establish()
+    {
+        var acceptedNames = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
+        acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(1L);
+
+        _scenario.Services.AddSingleton(acceptedNames);
+        _scenario.Services.AddSingleton(Substitute.For<IHttpContextAccessor>());
+        _scenario.Services.AddSingleton(Substitute.For<IIdentityProviderResolver>());
+        _scenario.Services.AddSingleton<ILegalDocumentSource>(new NoLegalDocumentSource());
+        _scenario.Services.AddSingleton(new OrganizationSetupStatusSubscriptions());
+    }
+
+    async Task Because() =>
+        _result = await _scenario.Execute(new RegisterOrganization(InvitationId.New(), "Acme", "Jane", null, "Doe", false, LegalVersion.NotSet));
+
+    [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+    [Fact] void should_have_validation_errors() => _result.ShouldHaveValidationErrors();
+}
+#endif

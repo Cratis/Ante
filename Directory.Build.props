@@ -1,0 +1,47 @@
+<Project>
+    <PropertyGroup>
+        <ImplicitUsings>true</ImplicitUsings>
+        <TargetFramework>net10.0</TargetFramework>
+        <LangVersion>14.0</LangVersion>
+        <Nullable>enable</Nullable>
+
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+        <RunAnalyzersDuringBuild>True</RunAnalyzersDuringBuild>
+        <RunAnalyzersDuringLiveAnalysis>True</RunAnalyzersDuringLiveAnalysis>
+        <RunAnalyzers>True</RunAnalyzers>
+        <EnableNETAnalyzers>True</EnableNETAnalyzers>
+        <AnalysisMode>AllEnabledByDefault</AnalysisMode>
+
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <NoWarn>NU1507;CS1591</NoWarn>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)'==''">
+        <Configuration>Debug</Configuration>
+    </PropertyGroup>
+
+    <!--
+        Debug stays lenient so local iteration isn't interrupted by every stray warning.
+        Release is strict: PR builds (dotnet build, configuration Release) fail on any
+        warning, matching the Cratis framework repos' convention.
+    -->
+    <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+        <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+        <MSBuildTreatWarningsAsErrors>False</MSBuildTreatWarningsAsErrors>
+        <CodeAnalysisTreatWarningsAsErrors>False</CodeAnalysisTreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)'=='Release'">
+        <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+        <MSBuildTreatWarningsAsErrors>True</MSBuildTreatWarningsAsErrors>
+        <CodeAnalysisTreatWarningsAsErrors>True</CodeAnalysisTreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="StyleCop.Analyzers" PrivateAssets="All"/>
+        <PackageReference Include="Roslynator.Analyzers" PrivateAssets="All"/>
+        <PackageReference Include="Meziantou.Analyzer" PrivateAssets="All"/>
+        <PackageReference Include="Microsoft.Net.Compilers.Toolset" PrivateAssets="All"/>
+    </ItemGroup>
+</Project>

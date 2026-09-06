@@ -1,0 +1,143 @@
+/* Copyright (c) Cratis. All rights reserved. */
+/* Licensed under the MIT license. See LICENSE file in the project root for full license information. */
+
+.user-setup-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--gray-900) 0%, var(--gray-800) 100%);
+}
+
+.user-setup-card {
+    background: var(--surface-card);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 640px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--surface-border);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.user-setup-header {
+    text-align: center;
+    padding: 2rem 2.5rem 1.5rem;
+    border-bottom: 1px solid var(--surface-border);
+}
+
+.user-setup-card__content {
+    padding: 2rem 2.5rem;
+}
+
+.user-setup-card__content--stepper {
+    padding: 0;
+}
+
+.user-setup-logo {
+    height: 5.5rem;
+    max-width: 22rem;
+    width: auto;
+    margin: 0 auto 0.5rem auto;
+    display: block;
+}
+
+.ante-logo__text {
+    display: block;
+    margin: 0 auto 0.5rem auto;
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--text-color);
+}
+
+.user-setup-subtitle {
+    font-size: 1rem;
+    color: var(--text-color-secondary);
+    margin: 0;
+}
+
+.user-setup-card__content--stepper .cratis-command-stepper {
+    gap: 0;
+}
+
+.user-setup-card__content--stepper .p-stepper {
+    padding: 2rem 2.5rem 0;
+}
+
+.user-setup-card__content--stepper .p-steplist {
+    margin-bottom: 1.5rem;
+}
+
+.user-setup-card__content--stepper .p-steppanels {
+    padding-bottom: 0;
+}
+
+.user-setup-card__content--stepper .cratis-command-stepper > div:last-child {
+    border-top: 1px solid var(--surface-border);
+    margin-top: 1.5rem;
+    padding: 1rem 2.5rem;
+}
+
+/* Waiting state */
+.user-setup-waiting {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 0;
+}
+
+.user-setup-waiting__spinner {
+    width: 3rem;
+    height: 3rem;
+}
+
+.user-setup-waiting__message {
+    color: var(--text-color-secondary);
+    font-size: 0.9rem;
+    margin: 0;
+}
+
+/* Error state */
+.user-setup-errors {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.user-setup-errors__item {
+    width: 100%;
+}
+
+@media (max-width: 768px) {
+    .user-setup-card {
+        max-width: calc(100vw - 2rem);
+    }
+
+    .user-setup-header,
+    .user-setup-card__content {
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
+
+    .user-setup-card__content--stepper .p-stepper {
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
+
+    .user-setup-card__content--stepper .cratis-command-stepper > div:last-child {
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
+
+    .user-setup-logo {
+        height: 4rem;
+        max-width: 14rem;
+    }
+}

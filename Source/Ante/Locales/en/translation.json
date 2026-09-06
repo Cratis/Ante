@@ -1,0 +1,53 @@
+{
+    "branding": {
+        "wordmark": "Ante"
+    },
+    "legal": {
+        "acceptance": "I have read and accept the {termsAndConditions} and the {privacyPolicy}.",
+        "documents": {
+            "termsAndConditions": "Terms and Conditions",
+            "privacyPolicy": "Privacy Policy"
+        },
+        "close": "Close"
+    },
+    "registration": {
+        "subtitle": "Register your organization",
+        "organizationName": "Organization Name",
+        "organizationNamePlaceholder": "Acme Corporation",
+        "register": "Register Organization",
+        "hostAppUrlUnavailable": "Organization was registered, but we could not determine where to take you next. Please contact support."
+    },
+    "organizationSetup": {
+        "subtitle": "Set up your organization",
+        "stepOrganization": "Organization",
+        "stepUserInformation": "Your Information",
+        "stepTermsConditions": "Terms & Privacy",
+        "organizationName": "Organization Name",
+        "organizationNamePlaceholder": "Acme Corporation",
+        "firstName": "First Name",
+        "firstNamePlaceholder": "Enter your first name",
+        "middleName": "Middle Name",
+        "middleNamePlaceholder": "Enter your middle name (optional)",
+        "lastName": "Last Name",
+        "lastNamePlaceholder": "Enter your last name",
+        "setupOrganization": "Set Up Organization",
+        "settingUp": "Setting up your organization...",
+        "hostAppUrlUnavailable": "Organization was created, but we could not determine where to take you next. Please contact support."
+    },
+    "userSetup": {
+        "subtitle": "Complete your profile",
+        "stepUserInformation": "Your Information",
+        "stepTermsConditions": "Terms & Privacy",
+        "firstName": "First Name",
+        "firstNamePlaceholder": "Enter your first name",
+        "middleName": "Middle Name",
+        "middleNamePlaceholder": "Enter your middle name (optional)",
+        "lastName": "Last Name",
+        "lastNamePlaceholder": "Enter your last name",
+        "acceptInvitation": "Accept Invitation",
+        "setting": "Setting up your account...",
+        "hostAppUrlUnavailable": "Your account was created, but we could not determine where to take you next. Please contact support.",
+        "acceptanceTimedOut": "Account setup is taking longer than expected. Please try again.",
+        "acceptanceFailed": "We could not complete your account setup. Please contact support."
+    }
+}

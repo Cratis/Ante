@@ -1,3 +1,50 @@
-
 # Local AI work artifacts (plans, handovers, session notes) — never tracked
 .ai-work/
+
+## .NET
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Tt]est[Rr]esult*/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.pdb
+*.tmp
+*.tmp_proj
+*_i.c
+*_p.c
+
+## Node / Yarn
+**/node_modules/
+**/.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
+**/dist/
+**/wwwroot/
+**/*.tsbuildinfo
+**/.eslintcache
+**/coverage/
+storybook-static/
+yarn-error.log
+
+## Env / secrets
+.env
+.env.local
+!.env.example
+
+## Editors / OS
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
