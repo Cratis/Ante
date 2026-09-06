@@ -40,5 +40,6 @@
         <PackageReference Include="Cratis.Specifications.XUnit" />
         <PackageReference Include="Cratis.Arc.Chronicle.Testing" />
         <PackageReference Include="Cratis.Chronicle.Testing" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     </ItemGroup>
 </Project>
