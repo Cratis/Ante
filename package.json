@@ -1,0 +1,11 @@
+{
+    "private": true,
+    "name": "ante-workspace-root",
+    "workspaces": [
+        "Source/Ante"
+    ],
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "packageManager": "yarn@4.17.1"
+}
