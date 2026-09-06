@@ -1,24 +1,79 @@
 name: Publish
 
+# Never cancel a release in flight. On push every merge to main shares one group, so cancelling
+# would let the next merge kill a run that may already have tagged and cut the release but not yet
+# finished publishing. See cratis/release-action's README ("Choosing a trigger") for why push is
+# the recommended trigger and why cancel-in-progress must be false with it.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  DOTNET_VERSION: "10.0.x"
+  NODE_VERSION: "22.x"
+  NUGET_OUTPUT: ./Artifacts/NuGet
+
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release"
+        required: true
+        default: "0.0.0"
+        type: string
+      release-notes:
+        description: "Release notes"
+        required: true
+        default: "No release notes"
+        type: string
+  # Label-based releasing: merging a PR with a major/minor/patch label bumps the version and
+  # publishes. cratis/release-action reads the label to compute the next semantic version. Push
+  # (rather than pull_request: closed) is deliberate - a merged pull request from a fork runs with
+  # a read-only GITHUB_TOKEN even on merge, so it could not create the release or push packages; a
+  # push to main always carries a full-permission token, and the action finds the merged pull
+  # request and its label from the commit.
   push:
     branches:
       - main
+    paths:
+      - "Source/**"
+      - "Directory.Packages.props"
+      - "Directory.Build.props"
+      - ".github/workflows/publish.yml"
 
 permissions:
-  contents: read
+  contents: write
   # Pushing images to ghcr.io/cratis. The workflow's own GITHUB_TOKEN is the publishing credential,
   # so there is no registry secret to hold or rotate.
   packages: write
+  # Required for NuGet trusted publishing using OIDC tokens.
+  id-token: write
 
 jobs:
-  publish:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      publish: ${{ steps.release.outputs.should-publish }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+      reason: ${{ steps.release.outputs.reason }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Release
+        id: release
+        uses: cratis/release-action@v1
+        with:
+          version: ${{ github.event.inputs.version }}
+          release-notes: ${{ github.event.inputs.release-notes }}
+
+  publish-image:
     name: Build and push image
+    if: needs.release.outputs.publish == 'true'
+    needs: [release]
     runs-on: ubuntu-latest
 
     steps:
@@ -28,12 +83,12 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22.x
+          node-version: ${{ env.NODE_VERSION }}
           registry-url: https://registry.npmjs.org
 
       - name: Corepack enable
@@ -61,6 +116,7 @@ jobs:
           --self-contained false
           -p:UseAppHost=false
           -p:CratisProxiesOutputPath=
+          -p:Version=${{ needs.release.outputs.version }}
           -o Source/Ante/out
 
       - name: Login to GitHub Container Registry
@@ -74,23 +130,24 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # Build context is Source/Ante (not the repo root) to match the Dockerfile's `COPY out ./` -
-      # see the comment in Source/Ante/Dockerfile. Versioning is kept simple and honest: this repo
-      # has no release-action scaffolding yet (no label-driven semver, no GitHub release), so the
-      # image tag is just 0.1.<run number> - monotonically increasing, but not yet a real semantic
-      # version. Revisit once Ante adopts the same release-action pattern as Cratis/Stagehand.
+      # see the comment in Source/Ante/Dockerfile. `latest` only follows a real release, never a
+      # prerelease, so an in-flight prerelease build can never become what `docker pull
+      # ghcr.io/cratis/ante:latest` resolves to.
       - name: Build and push
         env:
-          VERSION: 0.1.${{ github.run_number }}
+          VERSION: ${{ needs.release.outputs.version }}
+          PRERELEASE: ${{ needs.release.outputs.prerelease }}
           SOURCE: https://github.com/${{ github.repository }}
           REVISION: ${{ github.sha }}
         run: |
           set -euo pipefail
           CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          docker buildx build \
-            --push \
-            --file Source/Ante/Dockerfile \
-            --tag ghcr.io/cratis/ante:"$VERSION" \
-            --tag ghcr.io/cratis/ante:latest \
+          args="--push --file Source/Ante/Dockerfile --tag ghcr.io/cratis/ante:$VERSION"
+          if [ "$PRERELEASE" != "true" ]; then
+            args="$args --tag ghcr.io/cratis/ante:latest"
+          fi
+          # shellcheck disable=SC2086
+          docker buildx build $args \
             --label org.opencontainers.image.source="$SOURCE" \
             --label org.opencontainers.image.revision="$REVISION" \
             --label org.opencontainers.image.version="$VERSION" \
@@ -100,10 +157,10 @@ jobs:
   # Cratis.Ante.Contracts via NuGet.org trusted publishing (OIDC) - no long-lived API key secret
   # to hold or rotate. The trusted-publishing policy on nuget.org is bound to this workflow file
   # (publish.yml) by name, so the job must live here rather than in a separately named workflow.
-  # Same 0.1.<run number> scheme as the image tag above for coherence; see that job's comment on
-  # why this repo isn't yet on the label-driven cratis/release-action semver pipeline.
   publish-nuget:
     name: Pack and push Cratis.Ante.Contracts
+    if: needs.release.outputs.publish == 'true'
+    needs: [release]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -117,12 +174,17 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Remove any existing artifacts
+        run: rm -rf ${{ env.NUGET_OUTPUT }}
 
       - name: Pack Ante.Contracts
-        env:
-          VERSION: 0.1.${{ github.run_number }}
-        run: dotnet pack Source/Ante.Contracts -c Release /p:Version=$VERSION -o ${{ runner.temp }}/nuget
+        run: >
+          dotnet pack Source/Ante.Contracts
+          --configuration Release
+          -p:Version=${{ needs.release.outputs.version }}
+          -o ${{ env.NUGET_OUTPUT }}
 
       # Get a short-lived NuGet API key.
       - name: NuGet login (OIDC → temp API key)
@@ -132,4 +194,22 @@ jobs:
           user: ${{ secrets.NUGET_USER }}
 
       - name: Push NuGet package
-        run: dotnet nuget push --skip-duplicate '${{ runner.temp }}/nuget/*.nupkg' --timeout 900 --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+        run: dotnet nuget push --skip-duplicate '${{ env.NUGET_OUTPUT }}/*.nupkg' --timeout 900 --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+
+  # A merged pull request that publishes nothing is the failure mode that silently costs a release:
+  # the release job succeeds, both publish jobs are skipped for want of should-publish, and the
+  # whole run reports green. Fail instead, so a release that did not happen cannot be mistaken for
+  # one that did. Only for the reasons that mean something went wrong - publishing nothing is
+  # correct and routine for the others, such as a commit pushed straight to main or a re-run of a
+  # run that already released. See cratis/release-action's README, "Acting on the reason".
+  verify-published:
+    name: Verify a release was actually published
+    if: always() && needs.release.result == 'success' && contains(fromJSON('["no-label", "error"]'), needs.release.outputs.reason)
+    needs: [release]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Report that nothing was published
+        run: |
+          echo "::error::Nothing was published and no release was cut (reason: ${{ needs.release.outputs.reason }}). Add exactly one of major, minor or patch to the merged pull request and re-run this workflow - see verify-semver-label, which is meant to catch this before the merge."
+          exit 1

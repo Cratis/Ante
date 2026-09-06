@@ -30,7 +30,7 @@ Extracted from the lobby inside [Cratis Studio](https://github.com/Cratis/Studio
 
 ### CI and publishing
 
-CI builds, tests, lints, and type-checks on every push and pull request (`.github/workflows/build.yml`). Merges to `main` additionally build and push `ghcr.io/cratis/ante` and pack/push `Cratis.Ante.Contracts` to NuGet.org (`.github/workflows/publish.yml`).
+CI builds, tests, lints, and type-checks on every push and pull request (`.github/workflows/build.yml`). Every pull request must carry a `major`/`minor`/`patch`/`no-release` label (`.github/workflows/verify-semver-label.yml`); merging a version-labelled one releases `ghcr.io/cratis/ante` and `Cratis.Ante.Contracts` on NuGet.org under a real semantic version, via [`cratis/release-action`](https://github.com/Cratis/release-action) (`.github/workflows/publish.yml`). See [Deployment](./Documentation/deployment.md) for details.
 
 ## Documentation
 
