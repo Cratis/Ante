@@ -62,13 +62,17 @@ public class AcceptInvitationValidator : CommandValidator<AcceptInvitation>
             .Must(invitationId => signedInIdentity.IsVerifiedOwnerOf(invitationId))
             .WithMessage("Invitation is no longer pending and cannot be used to accept the invitation.");
 
-        RuleFor(c => (string)c.FirstName)
-            .NotEmpty()
-            .WithMessage("First name is required.");
+        RuleFor(c => (string)c.FirstName).MustBeARequiredName("First name");
+        RuleFor(c => (string)c.LastName).MustBeARequiredName("Last name");
 
-        RuleFor(c => (string)c.LastName)
-            .NotEmpty()
-            .WithMessage("Last name is required.");
+        // Compares against null and casts rather than coalescing against MiddleName.NotSet, so the
+        // selector never reads a static member of the concept type itself - a shape ARC0013 cannot tell
+        // apart from dereferencing a possibly-null concept (false positive: Cratis/Arc#2658). The lambda
+        // also can't yield a member name FluentValidation can infer, so OverridePropertyName pins the
+        // failure to the field the wizard actually renders instead of leaving it unattributed.
+        RuleFor(c => c.MiddleName == null ? string.Empty : (string)c.MiddleName)
+            .MustBeAValidName("Middle name")
+            .OverridePropertyName(nameof(AcceptInvitation.MiddleName));
 
         LegalTermsRules.Apply(this, legalDocumentSource, c => c.AcceptedLegalTerms, c => c.AcceptedLegalVersion);
     }
@@ -154,15 +158,33 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// <param name="identity">The identity resolved for the accepting user.</param>
     /// <param name="pendingInvitation">The current state of the pending invitation, resolved from the Chronicle projection.</param>
     /// <param name="subscriptions">The user setup status subscriptions.</param>
+    /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
     /// <returns>The compliance subject the events are appended under, and the events to append.</returns>
-    public Result<ValidationResult, (Cratis.Chronicle.Subject, IEnumerable<object>)> Handle(
+    public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, IEnumerable<object>)>> Handle(
         AcceptingUserIdentity identity,
         PendingInvitationToJoin? pendingInvitation,
-        UserSetupStatusSubscriptions subscriptions)
+        UserSetupStatusSubscriptions subscriptions,
+        ILegalDocumentSource legalDocumentSource)
     {
         if (pendingInvitation is null)
         {
             return ValidationResult.Error("Invitation is no longer pending and cannot be used to accept the invitation.");
+        }
+
+        // Resolved once, authoritatively, from the host's document source as it reads right now - not
+        // trusted from the command payload - so the version recorded as evidence is always the version
+        // this very check just confirmed was accepted.
+        var legalResolution = await LegalAcceptanceEvidence.Resolve(
+            legalDocumentSource,
+            AcceptedLegalTerms,
+            AcceptedLegalVersion,
+            pendingInvitation.TenantName,
+            identity.Provider,
+            identity.Subject.ToString());
+        if (!legalResolution.TryGetResult(out var legalEvents))
+        {
+            legalResolution.TryGetError(out var legalError);
+            return legalError;
         }
 
         subscriptions.MarkAccepted(InvitationId);
@@ -179,13 +201,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
                 pendingInvitation.Email,
                 pendingInvitation.Roles),
         };
-
-        // Only appended when the host actually has a legal document source configured and the user
-        // accepted it - a host with none never presented a terms step, so there is nothing to record.
-        if (AcceptedLegalTerms)
-        {
-            events.Add(new LegalTermsAccepted(pendingInvitation.TenantName, identity.Provider, identity.Subject.ToString(), AcceptedLegalVersion));
-        }
+        events.AddRange(legalEvents);
 
         return (identity.Subject, events);
     }

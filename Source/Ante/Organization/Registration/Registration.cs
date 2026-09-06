@@ -38,13 +38,17 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
             .MustAsync(async (organizationName, _) => !await ClaimedOrganizationNames.Contains(acceptedOrganizationNames, organizationName))
             .WithMessage("An organization with this name already exists.");
 
-        RuleFor(c => (string)c.FirstName)
-            .NotEmpty()
-            .WithMessage("First name is required.");
+        RuleFor(c => (string)c.FirstName).MustBeARequiredName("First name");
+        RuleFor(c => (string)c.LastName).MustBeARequiredName("Last name");
 
-        RuleFor(c => (string)c.LastName)
-            .NotEmpty()
-            .WithMessage("Last name is required.");
+        // Compares against null and casts rather than coalescing against MiddleName.NotSet, so the
+        // selector never reads a static member of the concept type itself - a shape ARC0013 cannot tell
+        // apart from dereferencing a possibly-null concept (false positive: Cratis/Arc#2658). The lambda
+        // also can't yield a member name FluentValidation can infer, so OverridePropertyName pins the
+        // failure to the field the wizard actually renders instead of leaving it unattributed.
+        RuleFor(c => c.MiddleName == null ? string.Empty : (string)c.MiddleName)
+            .MustBeAValidName("Middle name")
+            .OverridePropertyName(nameof(RegisterOrganization.MiddleName));
 
         LegalTermsRules.Apply(this, legalDocumentSource, c => c.AcceptedLegalTerms, c => c.AcceptedLegalVersion);
     }
@@ -77,6 +81,7 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
     /// <param name="subscriptions">The organization setup status subscriptions.</param>
     /// <param name="identityProviderResolver">Resolver used to attribute the sign-in to a configured provider.</param>
+    /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
     /// <returns>
     /// A <see cref="Result{T0, T1}"/> containing either a failed <see cref="ValidationResult"/> or the
     /// events to append.
@@ -85,7 +90,8 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
         IHttpContextAccessor httpContextAccessor,
         IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
         OrganizationSetupStatusSubscriptions subscriptions,
-        IIdentityProviderResolver identityProviderResolver)
+        IIdentityProviderResolver identityProviderResolver,
+        ILegalDocumentSource legalDocumentSource)
     {
         var httpContext = httpContextAccessor.HttpContext;
         var user = httpContext?.User;
@@ -106,6 +112,19 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             return ValidationResult.Error("Organization name is already in use.", ["organizationName"]);
         }
 
+        var legalResolution = await LegalAcceptanceEvidence.Resolve(
+            legalDocumentSource,
+            AcceptedLegalTerms,
+            AcceptedLegalVersion,
+            OrganizationName,
+            identityProviderValue,
+            subject);
+        if (!legalResolution.TryGetResult(out var legalEvents))
+        {
+            legalResolution.TryGetError(out var legalError);
+            return legalError;
+        }
+
         subscriptions.MarkAccepted(RegistrationId, OrganizationName);
         httpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
 
@@ -113,11 +132,7 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
         {
             new OrganizationRegistrationCompleted(OrganizationName, subject, identityProviderValue, FirstName, MiddleName ?? Contracts.Invitations.MiddleName.NotSet, LastName, email),
         };
-
-        if (AcceptedLegalTerms)
-        {
-            events.Add(new LegalTermsAccepted(OrganizationName, identityProviderValue, subject, AcceptedLegalVersion));
-        }
+        events.AddRange(legalEvents);
 
         return events;
     }
