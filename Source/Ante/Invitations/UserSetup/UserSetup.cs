@@ -6,7 +6,10 @@ using Ante.Contracts.Legal;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
+using Ante.Outbox;
 using Cratis.Arc.Validation;
+using Cratis.Types;
+using MongoDB.Driver;
 
 namespace Ante.Invitations.UserSetup;
 
@@ -157,13 +160,17 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// </summary>
     /// <param name="identity">The identity resolved for the accepting user.</param>
     /// <param name="pendingInvitation">The current state of the pending invitation, resolved from the Chronicle projection.</param>
-    /// <param name="subscriptions">The user setup status subscriptions.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
     /// <returns>The compliance subject the events are appended under, and the events to append.</returns>
+    /// <remarks>
+    /// Does not mark the invitation as accepted here - that would be a pre-append success signal, visible
+    /// to a polling client before the event this method returns has even been appended, let alone
+    /// forwarded to the outbox. <see cref="JoinTenantAcceptanceOutbox"/> marks it once the acceptance is
+    /// verifiably durable in Ante's own outbox instead.
+    /// </remarks>
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, IEnumerable<object>)>> Handle(
         AcceptingUserIdentity identity,
         PendingInvitationToJoin? pendingInvitation,
-        UserSetupStatusSubscriptions subscriptions,
         ILegalDocumentSource legalDocumentSource)
     {
         if (pendingInvitation is null)
@@ -186,8 +193,6 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
             legalResolution.TryGetError(out var legalError);
             return legalError;
         }
-
-        subscriptions.MarkAccepted(InvitationId);
 
         var events = new List<object>
         {
@@ -218,21 +223,37 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
     /// <summary>
     /// Gets the user setup acceptance status for a specific invitation.
     /// </summary>
+    /// <remarks>
+    /// Durable evidence from both the local record and the outbox is read first, so a re-entering user -
+    /// new tab, restarted Ante, or a dropped connection reconnecting to a different replica - resumes
+    /// into the accepted state precisely once publication is durable, never from an in-memory flag alone
+    /// and never before every required fact (including a required legal one) has actually reached the
+    /// outbox.
+    /// </remarks>
     /// <param name="invitationId">The invitation identifier.</param>
     /// <param name="subscriptions">The subscription tracker.</param>
+    /// <param name="recordedCollection">The durable acceptance-record collection.</param>
+    /// <param name="publishedCollection">The durable outbox-publication collection.</param>
     /// <returns>An observable status stream for the invitation.</returns>
     public static ISubject<UserSetupAcceptanceStatusView> StatusForInvitation(
         InvitationId invitationId,
-        UserSetupStatusSubscriptions subscriptions) =>
-        subscriptions.GetStatus(invitationId);
+        UserSetupStatusSubscriptions subscriptions,
+        IMongoCollection<UserSetupProgress> recordedCollection,
+        IMongoCollection<JoinTenantAcceptancePublished> publishedCollection)
+    {
+        var recorded = recordedCollection.Find(Builders<UserSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
+        var published = publishedCollection.Find(Builders<JoinTenantAcceptancePublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
+        return subscriptions.GetStatus(invitationId, JoinTenantPublication.IsFullyPublished(recorded, published));
+    }
 }
 
 /// <summary>
 /// Forwards <see cref="InvitationToJoinTenantAccepted"/> to the outbox so the host can subscribe.
 /// </summary>
 /// <param name="eventStore">The event store.</param>
+/// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>, given a chance to accelerate a live status subscription once this fact is durably published.</param>
 [Reactor]
-public class JoinTenantAcceptanceOutbox(IEventStore eventStore) : IReactor
+public class JoinTenantAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers) : IReactor
 {
     /// <summary>
     /// Forwards the join-tenant accepted event to the outbox.
@@ -240,8 +261,7 @@ public class JoinTenantAcceptanceOutbox(IEventStore eventStore) : IReactor
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
     public async Task On(InvitationToJoinTenantAccepted @event, EventContext context) =>
-        await eventStore.GetEventSequence(EventSequenceId.Outbox)
-            .Append(context.EventSourceId, @event);
+        await eventStore.PublishToOutbox(context, @event, notifiers);
 }
 
 /// <summary>
@@ -270,16 +290,32 @@ public class UserSetupStatusSubscriptions : IDisposable
     }
 
     /// <summary>
-    /// Gets the status stream for an invitation.
+    /// Gets the status stream for an invitation, optionally seeded from durable publication evidence.
     /// </summary>
+    /// <remarks>
+    /// Seeding keeps re-entry idempotent: a fresh in-memory entry starts out pending, so without the
+    /// durable check a user returning after a restart - or reconnecting to a different replica - would
+    /// see a stale pending state even though acceptance was already fully published.
+    /// </remarks>
     /// <param name="invitationId">The invitation identifier.</param>
+    /// <param name="isFullyPublished">Whether durable evidence already confirms full publication.</param>
     /// <returns>An observable status stream.</returns>
-    public ISubject<UserSetupAcceptanceStatusView> GetStatus(InvitationId invitationId) =>
-        _subscriptions.GetOrAdd(invitationId, static key => new(new(key, UserSetupAcceptanceStatus.Pending)));
+    public ISubject<UserSetupAcceptanceStatusView> GetStatus(InvitationId invitationId, bool isFullyPublished = false)
+    {
+        var subject = _subscriptions.GetOrAdd(invitationId, static key => new(new(key, UserSetupAcceptanceStatus.Pending)));
+        if (isFullyPublished)
+        {
+            MarkAccepted(invitationId);
+        }
+
+        return subject;
+    }
 
     /// <summary>
-    /// Marks an invitation as accepted. Ante's own job is done the moment the command handling that
-    /// calls this returns - there is no external confirmation to wait for, so acceptance is immediate.
+    /// Marks an invitation as accepted. Called only once durable evidence - both the local record and the
+    /// outbox - confirms the acceptance (and any required legal fact) has actually been published, never
+    /// from the command handling that accepted it: that would be a pre-append success signal, visible
+    /// before the event even exists in the log, let alone the outbox.
     /// </summary>
     /// <param name="invitationId">The invitation identifier.</param>
     public void MarkAccepted(InvitationId invitationId)
