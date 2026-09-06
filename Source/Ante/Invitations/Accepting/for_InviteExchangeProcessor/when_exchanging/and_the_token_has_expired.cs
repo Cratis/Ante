@@ -12,14 +12,9 @@ using MongoDB.Driver;
 
 namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging;
 
-public class and_the_token_is_valid : Specification
+public class and_the_token_has_expired : Specification
 {
     static readonly Guid _invitationId = Guid.NewGuid();
-
-    // A JWT exp claim only carries whole-second precision, so the expiry recorded from it has to be
-    // compared against a value truncated the same way, rather than the sub-second DateTime.UtcNow this
-    // would otherwise produce.
-    static readonly DateTime _expiresAt = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.AddDays(1).ToUnixTimeSeconds()).UtcDateTime;
 
     IMongoCollection<AcceptedInvitation> _collection = null!;
     IIdentityProviderResolver _resolver = null!;
@@ -38,7 +33,7 @@ public class and_the_token_is_valid : Specification
                 new Claim(InvitationClaims.InvitationType, nameof(InvitationFlowType.JoinTenant)),
                 new Claim(JwtRegisteredClaimNames.Jti, _invitationId.ToString()),
             ]),
-            Expires = _expiresAt,
+            Expires = DateTime.UtcNow.AddMinutes(-5),
             SigningCredentials = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256),
         };
         _token = handler.CreateToken(descriptor);
@@ -55,22 +50,9 @@ public class and_the_token_is_valid : Specification
             _collection,
             _resolver);
 
-    [Fact] void should_succeed() => Assert.True(_result);
+    [Fact] void should_fail() => Assert.False(_result);
 
     [Fact]
-    void should_record_the_accepted_invitation() =>
-        _collection.Received(1).ReplaceOneAsync(
-            Arg.Any<FilterDefinition<AcceptedInvitation>>(),
-            Arg.Is<AcceptedInvitation>(a => a.InvitationId.Value == _invitationId && a.Subject == "subject-123"),
-            Arg.Any<ReplaceOptions>(),
-            Arg.Any<CancellationToken>());
-
-    [Fact]
-    void should_record_the_session_expiry_from_the_token() =>
-        _collection.Received(1).ReplaceOneAsync(
-            Arg.Any<FilterDefinition<AcceptedInvitation>>(),
-            Arg.Is<AcceptedInvitation>(a => a.ExpiresAtUtc.UtcDateTime == _expiresAt),
-            Arg.Any<ReplaceOptions>(),
-            Arg.Any<CancellationToken>());
+    void should_not_record_a_session() => Assert.Empty(_collection.ReceivedCalls());
 }
 #endif

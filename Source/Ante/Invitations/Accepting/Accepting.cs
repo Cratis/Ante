@@ -37,12 +37,18 @@ public record ExchangeInviteRequest(string Subject, string IdentityProvider, str
 /// <param name="InvitationId">The invitation exchanged.</param>
 /// <param name="FlowType">The type of invitation flow this login is going through.</param>
 /// <param name="AcceptedAtUtc">When the exchange happened.</param>
+/// <param name="ExpiresAtUtc">
+/// When this session stops authorizing, copied verbatim from the invitation token's own <c>exp</c>
+/// claim. Because it is never computed from "now", retrying the exchange with the same token can never
+/// push it further out - it is the same value every time.
+/// </param>
 public record AcceptedInvitation(
     string Subject,
     string IdentityProvider,
     InvitationId InvitationId,
     InvitationFlowType FlowType,
-    DateTimeOffset AcceptedAtUtc);
+    DateTimeOffset AcceptedAtUtc,
+    DateTimeOffset ExpiresAtUtc);
 
 /// <summary>
 /// Validates and records an invite-exchange request, shared between the bypass middleware and the
@@ -73,6 +79,7 @@ public static class InviteExchangeProcessor
 
         InvitationId invitationId;
         InvitationFlowType flowType;
+        DateTimeOffset expiresAtUtc;
 
         try
         {
@@ -83,7 +90,17 @@ public static class InviteExchangeProcessor
                 return false;
             }
 
+            // A token with no exp claim reads back as DateTime.MinValue here, so it is rejected the same
+            // way an already-expired one is - every invitation token this endpoint accepts is bounded in
+            // time by InvitationTokenIssuer, and a stale or malformed link fails cleanly here rather than
+            // minting a session that would authorize forever.
+            if (jwt.ValidTo == DateTime.MinValue || jwt.ValidTo <= DateTime.UtcNow)
+            {
+                return false;
+            }
+
             invitationId = guid;
+            expiresAtUtc = new DateTimeOffset(DateTime.SpecifyKind(jwt.ValidTo, DateTimeKind.Utc));
             var inviteTypeClaimValue = jwt.Claims
                 .FirstOrDefault(claim => claim.Type == InvitationClaims.InvitationType)
                 ?.Value;
@@ -104,14 +121,52 @@ public static class InviteExchangeProcessor
             normalizedIdentityProvider,
             invitationId,
             flowType,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            expiresAtUtc);
 
+        // A single upsert is the whole idempotency story here: at-least-once delivery from the
+        // authentication proxy, a user double-submitting, or a lost response all replay the very same
+        // token, which always resolves to the same invitation id and the same expiry (copied from the
+        // token's own exp claim, never computed from "now"). A retry therefore replaces the session with
+        // an equivalent one instead of creating a duplicate or extending its lifetime.
         await acceptedInvitations.ReplaceOneAsync(
             a => a.Subject == request.Subject && a.IdentityProvider == normalizedIdentityProvider,
             acceptedInvitation,
             new ReplaceOptions { IsUpsert = true });
 
         return true;
+    }
+}
+
+/// <summary>
+/// Installs the MongoDB indexes <see cref="AcceptedInvitation"/> needs before the exchange endpoint is
+/// exposed to traffic.
+/// </summary>
+public static class AcceptedInvitationIndexes
+{
+    /// <summary>
+    /// Creates the indexes, if they do not already exist. Safe to call every time the application
+    /// starts - <c>CreateManyAsync</c> is a no-op for an index that already matches.
+    /// </summary>
+    /// <param name="acceptedInvitations">The collection to create indexes on.</param>
+    public static Task EnsureCreated(IMongoCollection<AcceptedInvitation> acceptedInvitations)
+    {
+        // Backstops the single-document-per-login invariant the exchange's upsert relies on; the upsert
+        // itself is already atomic, so this is defense in depth rather than the source of that guarantee.
+        var uniqueSession = new CreateIndexModel<AcceptedInvitation>(
+            Builders<AcceptedInvitation>.IndexKeys
+                .Ascending(a => a.Subject)
+                .Ascending(a => a.IdentityProvider),
+            new CreateIndexOptions { Unique = true, Name = "UniqueAcceptedInvitationSession" });
+
+        // Storage cleanup only - not the authorization-time expiry check. MongoDB only sweeps expired
+        // documents periodically, but InvitationIdentityProvider must stop honoring a session the instant
+        // it expires, so it checks ExpiresAtUtc itself rather than relying on this index having run yet.
+        var expiryCleanup = new CreateIndexModel<AcceptedInvitation>(
+            Builders<AcceptedInvitation>.IndexKeys.Ascending(a => a.ExpiresAtUtc),
+            new CreateIndexOptions { ExpireAfter = TimeSpan.Zero, Name = "AcceptedInvitationExpiry" });
+
+        return acceptedInvitations.Indexes.CreateManyAsync([uniqueSession, expiryCleanup]);
     }
 }
 
@@ -246,9 +301,11 @@ public class InvitationIdentityProvider(
 
         // The subject alone identifies the login, so the most recent session it authenticated is the
         // one this request belongs to. Narrowing by provider as well only ever risked missing the
-        // session when the two sides had attributed the same sign-in differently.
+        // session when the two sides had attributed the same sign-in differently. Also filtered by
+        // expiry here rather than only in the exchange or a cleanup sweep - authorization must stop the
+        // instant a session expires, not whenever a TTL index next gets around to removing it.
         var acceptedInvitation = await acceptedInvitations
-            .Find(a => a.Subject == subject)
+            .Find(a => a.Subject == subject && a.ExpiresAtUtc > DateTimeOffset.UtcNow)
             .SortByDescending(a => a.AcceptedAtUtc)
             .FirstOrDefaultAsync();
 
