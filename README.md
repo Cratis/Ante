@@ -10,29 +10,78 @@ Getting people into a SaaS product starts before they have an account. Someone h
 
 Ante's scope is exactly that slice: **signed invitations**, a **lobby** where invitees register, and **event-based coordination** so the surrounding system can react to what happens.
 
-## Status
+## Status: v1
 
-Ante is at an early stage. **This repository does not yet contain the Ante source code.** What it holds today:
+Ante v1 is implemented and buildable — a working .NET/Chronicle backend, a React lobby SPA, and specs for every slice. It is not yet wired up as a deployed instance for any product (see [What's not here yet](#whats-not-here-yet)).
 
-- The [MIT license](LICENSE) the project is published under.
-- Development rules, skills, and prompts (under `.ai/`) for AI-assisted development on the Cratis stack.
-- Repository automation workflows (under `.github/`).
+Extracted from the lobby inside [Cratis Studio](https://github.com/Cratis/Studio), generalized into a standalone, reusable product: Studio-specific naming is gone (`StudioUrl` → `HostAppUrl`, `IdentityProvider` → `IdentityProviderName` to avoid colliding with a type Cratis.Arc.Identity already ships), and Studio's own document-authoring/provisioning-confirmation machinery was not carried over — see [What Ante does not do](#what-ante-does-not-do).
 
-There is nothing to install or run yet, so there is no quickstart. Everything in this README describes the project's intended scope, not shipped functionality. Watch the repository or join the [Cratis Discord](https://discord.gg/kt4AMpV8WV) to follow along.
+### What's implemented
 
-## Intended scope
+- **Signed invitations.** A host product appends `UserInvitedToJoinTenant` / `UserInvitedToCreateTenant` / `InvitationRevoked` to its own Chronicle outbox. Ante's inbox reactor picks them up, and Ante mints an RSA-signed JWT (`jti` = invitation id, `invite_type` claim) and forwards it to its own outbox as `InvitationTokenIssued` — the host builds the invitation link from that token and emails it. Ante is the **one** place the signing key lives; no host reimplements the scheme.
+- **Invite exchange.** `_invite/exchange` — called by an authentication proxy after OIDC login completes with the invite token — validates the token and records an accepted-invitation session, which an `InvitationIdentityProvider` resolves into `InvitationIdentityDetails` for the rest of the request pipeline.
+- **Join-tenant acceptance.** `AcceptInvitation` command: resolves the invitee's identity, optionally checks an identity backchannel for a pre-flight uniqueness signal, appends `InvitationToJoinTenantAccepted`.
+- **Create-organization setup.** `SetupOrganization` command: validates the organization name (rejects characters that would break a downstream Chronicle namespace), enforces uniqueness with a race-safe constraint, appends `InvitationToCreateTenantAccepted`.
+- **Self-service registration.** `RegisterOrganization` command for a host's `/register` entry point — no invitation, identity comes from the current request.
+- **Pluggable legal acceptance.** A host registers its own `ILegalDocumentSource`; when it does, the three wizards show a terms-and-conditions step and append `LegalTermsAccepted`. When it doesn't (the default), there is nothing to show and the step is skipped entirely — Ante ships no bundled legal text and no document-versioning pipeline.
+- **The lobby SPA.** Three wizards (join an existing tenant, set up a new organization, self-service registration) built with `@cratis/components` on PrimeReact, driving the generated command/query proxies directly.
+- **Single-tenant.** Everything above runs in Chronicle's `Default` namespace, matching the lobby's own original design — Ante does not manage multiple tenants of its own.
+- **Specs for every slice**: `CommandScenario`/`ReadModelScenario`/`ReactorScenario` in-process specs for the backend (60 specs), Vitest specs for the frontend's pure logic and the legal-acceptance component.
 
-From the project's description:
+### Configuration reference
 
-- **Signed invitations** — invitations are created signed, so an invitation presented back to the system can be checked rather than taken on trust.
-- **Lobby** — the place where invitees land and register, turning an invitation into an account.
-- **Event coordination** — the invitation lifecycle is communicated through events, so other parts of a SaaS can react to invitations being created and invitees registering.
+All configuration lives under the `Ante` section (or the matching `Ante__*` environment variables).
 
-Concrete mechanics — signature scheme, storage, and APIs — are not defined here yet; they will be documented as the source code lands.
+| Key | Default | Purpose |
+|---|---|---|
+| `Ante:EventStore` | `Ante` | The Chronicle event store this instance runs against. **Never hardcoded** — a second instance in the same cluster is just a different value here. |
+| `Ante:HostAppUrl` | _(empty)_ | Base URL of the host application. The wizards redirect here once an invitation is accepted or a registration completes. Supports a `{tenant}` placeholder. |
+| `Ante:LogoUrl` | _(empty)_ | Custom logo shown in the lobby. Empty renders a plain "Ante" wordmark. |
+| `Ante:CustomCssUrl` | _(empty)_ | Custom CSS to inject into the lobby. |
+| `Ante:IdentityBackchannelUrl` | _(empty)_ | Base URL of a host endpoint Ante calls to pre-flight-check whether an identity is already associated with a user. Empty skips the check (the host's own uniqueness constraint is always the authoritative guard). |
+| `Ante:Invitations:Token:PrivateKeyPem` | _(empty)_ | PEM-encoded RSA private key invitation JWTs are signed with. Required for token issuance to work. |
+| `Ante:Invitations:Token:PublicKeyPem` | _(empty)_ | PEM-encoded RSA public key, published for hosts/proxies that verify independently. |
+| `Ante:Invitations:Token:Issuer` / `Audience` | _(empty)_ | Optional `iss`/`aud` claims. Left empty, no such claim is validated. |
+| `Ante:Invitations:Token:Expiry` | `7.00:00:00` | How long an issued invitation token remains valid. |
+| `IdentityProviders:Providers` | _(empty)_ | Mirrors the identity providers a fronting authentication proxy is configured with, so a sign-in that carries no `iss` (an OAuth2-only provider) can still be attributed correctly. |
+
+**A "Direct" reference instance** — the one this extraction was validated against — runs with:
+
+```
+Ante__EventStore=DirectLobby
+```
+
+The inbox source store name (which host store Ante's inbox cross-subscribes to) is a **compile-time constant**, not a configuration value — see [Known limitation: the inbox source store](#known-limitation-the-inbox-source-store) below. It defaults to `"Direct"`.
+
+### Known limitation: the inbox source store
+
+`Source/Ante/Invitations/Receiving/InboxSourceStore.cs` names the Chronicle event store Ante's inbox reactor cross-subscribes to for the host's `UserInvitedToJoinTenant` / `UserInvitedToCreateTenant` / `InvitationRevoked` events. This is a **compile-time literal, not a runtime configuration value** — and that is a known limitation, not a design choice.
+
+Chronicle's `[EventStore]` attribute is the only mechanism for pointing an observer at a store other than its own, and C# requires its constructor argument to be a compile-time constant. Investigated for this extraction against the Chronicle 16.44.1 / 17.0.0 XML documentation: `EventStoreAttribute` is confirmed as the sole mechanism — there is no fluent or runtime-registered equivalent in the shipped `Cratis.Chronicle` client API. Until one exists, an Ante deployment that needs a source store other than `"Direct"` has to change the constant in that one file and rebuild.
+
+The literal is deliberately isolated to that single file, with a comment explaining why. **An upstream issue belongs on `Cratis/Chronicle`** describing the missing capability (a runtime/config-driven way to register a cross-store observer); this repository does not file it.
+
+### What Ante does not do
+
+Deliberately out of scope, and staying that way:
+
+- **Sending email.** Ante mints tokens and appends `InvitationTokenIssued`; a host builds the actual invitation link and sends it.
+- **Legal document authoring/versioning.** No admin UI for writing terms and conditions, no revision history, no bundled fallback text. A host wanting the legal step supplies an `ILegalDocumentSource` from wherever it manages that content.
+- **Provisioning.** Seats, trials, billing, tenant databases — Ante's job ends the moment it appends an accepted/registered event to its own outbox. A host reacts to that event to actually provision anything. There is consequently no "waiting for provisioning" UI state in the wizards (Ante's original source material had a multi-minute wait/retry state machine for exactly that; it doesn't apply here because there is nothing external to wait for).
+- **Admin invite-authoring UI.** Deciding *who* to invite, with what role, is a host concern.
+- **Multi-tenancy of Ante itself.** Ante runs single-tenant; a product needing several isolated lobbies runs several Ante instances (see `Ante:EventStore` above).
+
+## What remains for a deployable instance
+
+This v1 is a buildable, spec-covered application — it is not yet an operable deployment:
+
+- **Container image publishing** is not wired up. `Source/Ante/Dockerfile` exists and expects a portable `dotnet publish` output at `Source/Ante/out`, matching the pattern used elsewhere in the Cratis ecosystem, but no CI job produces or pushes that image yet.
+- **Deployment wiring** (Kubernetes manifests/Pulumi/Helm, secret provisioning for the RSA signing key, an actual `Ante:HostAppUrl` and `IdentityProviders` configuration for a real host) does not exist here — it belongs to whatever deploys the "Direct" reference instance, or any other host's instance.
+- **CI** builds, tests, lints, and type-checks on every push and pull request (`.github/workflows/build.yml`), but does not yet build or publish a container image.
 
 ## Part of the Cratis ecosystem
 
-Ante is a [Cratis](https://www.cratis.io) project. The repository is already scaffolded with the Cratis application-development rules — event sourcing with [Chronicle](https://github.com/Cratis/Chronicle), CQRS with [Arc](https://github.com/Cratis/Arc) for ASP.NET Core, and vertical slices — which is the stack Ante is intended to be built on. That also makes Ante relevant as a ready-made invitation building block for SaaS products built on the same stack.
+Ante is a [Cratis](https://www.cratis.io) project, built on event sourcing with [Chronicle](https://github.com/Cratis/Chronicle) and CQRS with [Arc](https://github.com/Cratis/Arc) for ASP.NET Core, following the vertical-slice conventions in `.ai/`. The frontend is a React SPA on [`@cratis/components`](https://github.com/Cratis/Components) over PrimeReact.
 
 ## License
 
