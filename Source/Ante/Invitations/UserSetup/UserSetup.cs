@@ -32,6 +32,17 @@ public enum UserSetupAcceptanceStatus
 }
 
 /// <summary>
+/// The names of the constraints guarding user setup.
+/// </summary>
+public static class UserSetupConstraintNames
+{
+    /// <summary>
+    /// The constraint keeping a join-tenant invitation acceptable only once.
+    /// </summary>
+    public const string OneUseInvitation = "OneUseJoinTenantInvitation";
+}
+
+/// <summary>
 /// Validator for the <see cref="AcceptInvitation"/> command.
 /// </summary>
 public class AcceptInvitationValidator : CommandValidator<AcceptInvitation>
@@ -61,6 +72,26 @@ public class AcceptInvitationValidator : CommandValidator<AcceptInvitation>
 
         LegalTermsRules.Apply(this, legalDocumentSource, c => c.AcceptedLegalTerms, c => c.AcceptedLegalVersion);
     }
+}
+
+/// <summary>
+/// Enforces that a join-tenant invitation can be accepted at most once.
+/// </summary>
+/// <remarks>
+/// <see cref="AcceptInvitation"/> treats an already-accepted invitation as no longer pending by reading
+/// <see cref="PendingInvitationToJoin"/>, which is removed once accepted - but that is a read-model
+/// check and races: two concurrent submits of the same invitation can both observe it as still pending
+/// before either append lands. This constraint is the atomic backstop, enforced by the kernel at append
+/// time - only one <see cref="InvitationToJoinTenantAccepted"/> can ever be appended per invitation
+/// (its event source).
+/// </remarks>
+public class OneUseJoinTenantInvitationConstraint : IConstraint
+{
+    /// <inheritdoc/>
+    public void Define(IConstraintBuilder builder) => builder
+        .Unique<InvitationToJoinTenantAccepted>(
+            "This invitation has already been accepted.",
+            UserSetupConstraintNames.OneUseInvitation);
 }
 
 /// <summary>
