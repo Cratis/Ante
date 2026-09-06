@@ -1,7 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
-        <AssemblyName>Ante.Contracts</AssemblyName>
+        <!-- AssemblyName must match PackageId below. Cratis Chronicle discovers [EventType] classes
+             by resolving each referenced assembly by its deps.json library name (project name for
+             project references, PackageId for package references) via Assembly.Load - a mismatch
+             here makes the assembly fail to load during discovery and silently drops every event
+             type in it. -->
+        <AssemblyName>Cratis.Ante.Contracts</AssemblyName>
         <RootNamespace>Ante.Contracts</RootNamespace>
 
         <!-- NuGet package identity - the only packable project in this repo, published via
