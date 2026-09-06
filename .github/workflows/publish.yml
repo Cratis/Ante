@@ -1,0 +1,98 @@
+name: Publish
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  # Pushing images to ghcr.io/cratis. The workflow's own GITHUB_TOKEN is the publishing credential,
+  # so there is no registry secret to hold or rotate.
+  packages: write
+
+jobs:
+  publish:
+    name: Build and push image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          registry-url: https://registry.npmjs.org
+
+      - name: Corepack enable
+        run: corepack enable
+
+      - name: Yarn install
+        run: yarn install --immutable
+
+      # The SPA build has to land in Source/Ante/wwwroot before the backend publish below, since
+      # dotnet publish picks up wwwroot as static web assets and bundles them into the output.
+      - name: Build frontend
+        working-directory: Source/Ante
+        env:
+          ANTE_PRIMEUI_LICENSE: ${{ secrets.PRIMEUI_LICENSE }}
+        run: yarn build
+
+      # Portable (RID-less) publish - no architecture-specific binaries, nothing compiled inside
+      # Docker. CratisProxiesOutputPath is cleared so the proxy generator's MSBuild target no-ops
+      # for this Release publish instead of re-running against a second compilation of
+      # already-correct generated files (they were verified fresh by build.yml before this merged).
+      - name: Publish backend
+        run: >
+          dotnet publish Source/Ante/Ante.csproj
+          --configuration Release
+          --self-contained false
+          -p:UseAppHost=false
+          -p:CratisProxiesOutputPath=
+          -o Source/Ante/out
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Build context is Source/Ante (not the repo root) to match the Dockerfile's `COPY out ./` -
+      # see the comment in Source/Ante/Dockerfile. Versioning is kept simple and honest: this repo
+      # has no release-action scaffolding yet (no label-driven semver, no GitHub release), so the
+      # image tag is just 0.1.<run number> - monotonically increasing, but not yet a real semantic
+      # version. Revisit once Ante adopts the same release-action pattern as Cratis/Stagehand.
+      - name: Build and push
+        env:
+          VERSION: 0.1.${{ github.run_number }}
+          SOURCE: https://github.com/${{ github.repository }}
+          REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          docker buildx build \
+            --push \
+            --file Source/Ante/Dockerfile \
+            --tag ghcr.io/cratis/ante:"$VERSION" \
+            --tag ghcr.io/cratis/ante:latest \
+            --label org.opencontainers.image.source="$SOURCE" \
+            --label org.opencontainers.image.revision="$REVISION" \
+            --label org.opencontainers.image.version="$VERSION" \
+            --label org.opencontainers.image.created="$CREATED" \
+            Source/Ante

@@ -75,9 +75,8 @@ Deliberately out of scope, and staying that way:
 
 This v1 is a buildable, spec-covered application — it is not yet an operable deployment:
 
-- **Container image publishing** is not wired up. `Source/Ante/Dockerfile` exists and expects a portable `dotnet publish` output at `Source/Ante/out`, matching the pattern used elsewhere in the Cratis ecosystem, but no CI job produces or pushes that image yet.
 - **Deployment wiring** (Kubernetes manifests/Pulumi/Helm, secret provisioning for the RSA signing key, an actual `Ante:HostAppUrl` and `IdentityProviders` configuration for a real host) does not exist here — it belongs to whatever deploys the "Direct" reference instance, or any other host's instance.
-- **CI** builds, tests, lints, and type-checks on every push and pull request (`.github/workflows/build.yml`), but does not yet build or publish a container image.
+- **CI** builds, tests, lints, and type-checks on every push and pull request (`.github/workflows/build.yml`). Merges to `main` additionally build and push `ghcr.io/cratis/ante` (`.github/workflows/publish.yml`) — `Source/Ante/Dockerfile` publishes the backend as a portable (RID-less) `dotnet publish` output plus the built SPA, matching the pattern used elsewhere in the Cratis ecosystem. Versioning is currently `0.1.<CI run number>`, not yet a real semantic version — this repo has no release-action scaffolding (label-driven semver, GitHub releases) to plug into yet.
 
 ## Part of the Cratis ecosystem
 
