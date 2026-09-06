@@ -5,13 +5,13 @@ description: The Ante container image, health endpoint, required and optional co
 
 ## The image
 
-Every push to `main` builds and pushes `ghcr.io/cratis/ante` (`.github/workflows/publish.yml`). The image:
+Merging a pull request labelled `major`, `minor` or `patch` builds and pushes `ghcr.io/cratis/ante` (`.github/workflows/publish.yml`). The image:
 
 - Is built `FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble`.
 - Listens on port **8080** (`EXPOSE 8080`).
 - Contains a portable, RID-less `dotnet publish` output copied in as `out` — nothing is compiled inside the Docker build.
 - Has `appsettings.Development.json` removed (`RUN rm -f appsettings.Development.json`) before the entrypoint, so the throwaway development signing keypair never ships in a container image.
-- Is tagged `0.1.<CI run number>` — not yet a real semantic version; this repository has no release-action scaffolding (label-driven semver, GitHub releases) yet.
+- Is tagged with the real semantic version [`cratis/release-action`](https://github.com/Cratis/release-action) resolves from the merged pull request's `major`/`minor`/`patch` label (e.g. `1.4.0`), plus `latest` for the most recent non-prerelease version.
 
 ## Health check
 
@@ -46,7 +46,11 @@ Supply the private key's contents as `Ante__Invitations__Token__PrivateKeyPem` a
 
 ## NuGet package
 
-`Cratis.Ante.Contracts` — the event contract types described in [Host Integration](./host-integration.md) — is packed and pushed to [NuGet.org](https://www.nuget.org/packages/Cratis.Ante.Contracts) on every push to `main`, via trusted publishing (OIDC, no long-lived API key). A host product references this package directly rather than redefining the event shapes.
+`Cratis.Ante.Contracts` — the event contract types described in [Host Integration](./host-integration.md) — is packed and pushed to [NuGet.org](https://www.nuget.org/packages/Cratis.Ante.Contracts) whenever a pull request carrying a `major`/`minor`/`patch` label merges to `main`, via trusted publishing (OIDC, no long-lived API key). It carries the same version as the image and the GitHub release. A host product references this package directly rather than redefining the event shapes.
+
+## Versioning and releases
+
+Every pull request must carry exactly one of `major`, `minor`, `patch` or `no-release` before it can merge (`.github/workflows/verify-semver-label.yml`). On merge, `.github/workflows/publish.yml` uses [`cratis/release-action`](https://github.com/Cratis/release-action) to work out the next semantic version from that label, cut a GitHub release, and tag the image and the NuGet package with it. A pull request labelled `no-release` merges without publishing anything — the correct outcome for changes with no outward effect (documentation, CI, tests).
 
 ## What is not yet provided
 
@@ -54,7 +58,6 @@ This is a buildable, spec-covered application — it is not yet a turnkey operab
 
 - **No Kubernetes manifests, Helm charts, or Pulumi program.** Standing up an instance (secret provisioning for the signing key, the actual `Ante:HostAppUrl` and `IdentityProviders` for a real host) is left to whatever deploys it.
 - **No key rotation tooling.** Rotating the signing keypair is a manual operation today — issue new tokens with the new key, publish the new public key, and accept that outstanding unaccepted invitations signed with the old key remain valid until they expire.
-- **No real semantic versioning.** The `0.1.<run number>` image and NuGet package tags are monotonically increasing but not label-driven semver, and there is no GitHub Releases scaffolding yet.
 
 ## Next steps
 
