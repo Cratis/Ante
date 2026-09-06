@@ -25,6 +25,7 @@ public class and_values_are_valid : Specification
 
         var signedInIdentity = Substitute.For<ISignedInIdentity>();
         signedInIdentity.Resolve(_invitationId, Arg.Any<Cratis.Chronicle.Subject>()).Returns(((IdentityProviderName)"github", _subject));
+        signedInIdentity.IsVerifiedOwnerOf(_invitationId).Returns(true);
 
         var backchannel = Substitute.For<IIdentityBackchannel>();
         backchannel.IsSubjectAlreadyAssociatedWithAUser(Arg.Any<TenantName>(), Arg.Any<string>()).Returns(false);

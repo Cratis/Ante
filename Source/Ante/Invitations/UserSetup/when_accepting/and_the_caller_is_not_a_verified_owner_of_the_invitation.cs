@@ -4,12 +4,13 @@
 #if DEBUG
 using Ante.Contracts.Legal;
 using Ante.Invitations.Accepting;
+using Ante.Invitations.Receiving;
 using Ante.Legal;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Ante.Invitations.UserSetup.when_accepting;
 
-public class and_the_invitation_is_no_longer_pending : Specification
+public class and_the_caller_is_not_a_verified_owner_of_the_invitation : Specification
 {
     static readonly InvitationId _invitationId = InvitationId.New();
 
@@ -18,10 +19,15 @@ public class and_the_invitation_is_no_longer_pending : Specification
 
     void Establish()
     {
-        // No PendingInvitationToJoin seeded for this event source - it was never invited, or the
-        // invitation was already accepted/revoked.
+        // The invitation is genuinely pending - the only thing wrong with this request is that the
+        // caller never verifiably exchanged it, so this isolates the ownership gate from the
+        // no-longer-pending check the command performs separately.
+        var pending = new PendingInvitationToJoin(_invitationId, Guid.NewGuid(), "jane@example.com", "Acme", ["Member"]);
+        _scenario.Given.ForEventSource(_invitationId).ReadModel(pending);
+
+        // Unstubbed - an NSubstitute bool method answers false by default, standing in for a caller who
+        // never verifiably exchanged this invitation.
         var signedInIdentity = Substitute.For<ISignedInIdentity>();
-        signedInIdentity.IsVerifiedOwnerOf(_invitationId).Returns(true);
 
         _scenario.Services.AddSingleton(signedInIdentity);
         _scenario.Services.AddSingleton(Substitute.For<IIdentityBackchannel>());

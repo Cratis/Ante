@@ -27,8 +27,11 @@ public class and_organization_name_already_exists : Specification
         var acceptedNames = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
         acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(1L);
 
+        var signedInIdentity = Substitute.For<ISignedInIdentity>();
+        signedInIdentity.IsVerifiedOwnerOf(_invitationId).Returns(true);
+
         _scenario.Services.AddSingleton(acceptedNames);
-        _scenario.Services.AddSingleton(Substitute.For<ISignedInIdentity>());
+        _scenario.Services.AddSingleton(signedInIdentity);
         _scenario.Services.AddSingleton<ILegalDocumentSource>(new NoLegalDocumentSource());
         _scenario.Services.AddSingleton(Substitute.For<IHttpContextAccessor>());
         _scenario.Services.AddSingleton(new OrganizationSetupStatusSubscriptions());

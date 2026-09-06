@@ -3,6 +3,7 @@
 
 #if DEBUG
 using Ante.Contracts.Legal;
+using Ante.Invitations.Accepting;
 using Ante.Legal;
 using MongoDB.Driver;
 
@@ -14,11 +15,16 @@ public class and_organization_name_has_invalid_characters : Specification
 
     async Task Because()
     {
+        var invitationId = InvitationId.New();
+
         var acceptedNames = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
         acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
 
-        var validator = new SetupOrganizationValidator(new NoLegalDocumentSource(), acceptedNames);
-        _result = await validator.ValidateAsync(new SetupOrganization(InvitationId.New(), "Acme/Corp", "Jane", null, "Doe", false, LegalVersion.NotSet));
+        var signedInIdentity = Substitute.For<ISignedInIdentity>();
+        signedInIdentity.IsVerifiedOwnerOf(invitationId).Returns(true);
+
+        var validator = new SetupOrganizationValidator(new NoLegalDocumentSource(), acceptedNames, signedInIdentity);
+        _result = await validator.ValidateAsync(new SetupOrganization(invitationId, "Acme/Corp", "Jane", null, "Doe", false, LegalVersion.NotSet));
     }
 
     [Fact] void should_not_be_valid() => Assert.False(_result.IsValid);
