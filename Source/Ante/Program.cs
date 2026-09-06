@@ -13,6 +13,7 @@ using Cratis.Arc;
 using Cratis.Arc.MongoDB;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using MongoDB.Driver;
 
 // Force invariant culture for the backend.
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
@@ -71,6 +72,11 @@ builder.Services.TryAddSingleton<ILegalDocumentSource, NoLegalDocumentSource>();
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
+// Installed before the pipeline (and therefore any traffic) is wired up, so the exchange endpoint and
+// InvitationIdentityProvider never run against a collection that is missing the indexes their
+// retry-safety and expiry guarantees rely on.
+await AcceptedInvitationIndexes.EnsureCreated(app.Services.GetRequiredService<IMongoCollection<AcceptedInvitation>>());
 
 app.UseRouting();
 app.UseAuthentication();
