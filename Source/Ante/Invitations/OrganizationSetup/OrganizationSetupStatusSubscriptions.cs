@@ -31,30 +31,33 @@ public class OrganizationSetupStatusSubscriptions : IDisposable
     }
 
     /// <summary>
-    /// Gets the status stream for an invitation, optionally seeded from durable setup progress.
+    /// Gets the status stream for an invitation, optionally seeded from durable publication evidence.
     /// </summary>
     /// <remarks>
     /// Seeding keeps re-entry idempotent: a fresh in-memory entry starts out pending, so without the
-    /// durable snapshot a user returning after a restart would see a stale pending state even though
-    /// setup already completed.
+    /// durable check a user returning after a restart - or reconnecting to a different replica - would
+    /// see a stale pending state even though setup was already fully published.
     /// </remarks>
     /// <param name="invitationId">The invitation identifier.</param>
-    /// <param name="durableProgress">The durable setup progress for the invitation, if any exists.</param>
+    /// <param name="organizationName">The name of the organization that was set up, when known.</param>
+    /// <param name="isFullyPublished">Whether durable evidence already confirms full publication.</param>
     /// <returns>An observable status stream.</returns>
-    public ISubject<OrganizationSetupAcceptanceStatusView> GetStatus(InvitationId invitationId, OrganizationSetupProgress? durableProgress = null)
+    public ISubject<OrganizationSetupAcceptanceStatusView> GetStatus(InvitationId invitationId, TenantName? organizationName = null, bool isFullyPublished = false)
     {
         var subject = GetOrAdd(invitationId);
-        if (durableProgress is not null)
+        if (isFullyPublished && organizationName is not null)
         {
-            MarkAccepted(invitationId, durableProgress.OrganizationName);
+            MarkAccepted(invitationId, organizationName);
         }
 
         return subject;
     }
 
     /// <summary>
-    /// Marks an invitation as accepted. Ante's own job is done the moment the command handling that
-    /// calls this returns - there is no external confirmation to wait for, so acceptance is immediate.
+    /// Marks an invitation as accepted. Called only once durable evidence - both the local record and the
+    /// outbox - confirms setup (and any required legal fact) has actually been published, never from the
+    /// command handling that accepted it: that would be a pre-append success signal, visible before the
+    /// event even exists in the log, let alone the outbox.
     /// </summary>
     /// <param name="invitationId">The invitation identifier.</param>
     /// <param name="organizationName">The name of the organization that was set up.</param>

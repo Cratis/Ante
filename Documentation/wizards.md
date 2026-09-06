@@ -53,7 +53,11 @@ Once a wizard's command succeeds, the page switches to a waiting state and polls
 - `UserSetupPage` polls `UserSetupAcceptanceStatusView.StatusForInvitation` and reacts to three states: `pending` (keep waiting), `accepted` (redirect), and `timedOut` (show an error — this wizard is the only one with a timeout state).
 - `OrganizationSetupPage` and `RegistrationPage` poll `OrganizationSetupAcceptanceStatusView.StatusForInvitation`, which only has `pending` and `accepted` — neither wizard has a timeout branch.
 
+`accepted` reflects **Published**, not merely **Recorded** — see [Invitation Lifecycle](./invitation-lifecycle.md#publication-and-durable-status). Both status queries read durable evidence from Ante's own event log and its outbox on every call, so the value a client observes is correct regardless of which replica handles the request and survives an Ante restart in between; a submitted command that has only been recorded locally, or whose required legal fact has not yet reached the outbox, keeps reporting `pending`. Nothing about this polling loop assumes the same process (or even the same replica) handled the original command.
+
 On `accepted`, all three build a redirect URL from the `HostAppUrl` query (`Configuration.HostUrl`), substituting the `{tenant}` placeholder with the organization name for the two organization-creating wizards (`resolveHostAppRedirectUrl`), and appending the resolved `SignInPath` when one is known — deep-linking the same identity provider the invitee just authenticated with, so entering the host application is a silent round trip rather than a second provider-selection screen. `UserSetupPage` inlines the equivalent logic since it has no organization name to substitute.
+
+`UserSetupPage`'s `timedOut` state is declared in `UserSetupAcceptanceStatus` but nothing on the backend currently transitions to it — no timeout detection exists yet for a join-tenant acceptance that never reaches Published. Treat it as reserved for future use, not as documentation of a shipped behavior.
 
 ## Next steps
 

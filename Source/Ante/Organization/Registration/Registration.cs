@@ -8,8 +8,10 @@ using Ante.IdentityProviders;
 using Ante.Invitations;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Legal;
+using Ante.Outbox;
 using Cratis.Arc.Identity;
 using Cratis.Arc.Validation;
+using Cratis.Types;
 using Microsoft.AspNetCore.Http;
 using MongoDB.Driver;
 
@@ -79,17 +81,21 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
     /// </summary>
     /// <param name="httpContextAccessor">Accessor for resolving the current user's identity claims.</param>
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
-    /// <param name="subscriptions">The organization setup status subscriptions.</param>
     /// <param name="identityProviderResolver">Resolver used to attribute the sign-in to a configured provider.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
     /// <returns>
     /// A <see cref="Result{T0, T1}"/> containing either a failed <see cref="ValidationResult"/> or the
     /// events to append.
     /// </returns>
+    /// <remarks>
+    /// Does not mark the registration as accepted here - that would be a pre-append success signal,
+    /// visible to a polling client before the event this method returns has even been appended, let alone
+    /// forwarded to the outbox. <see cref="OrganizationRegistrationOutbox"/> marks it once registration is
+    /// verifiably durable in Ante's own outbox instead.
+    /// </remarks>
     public async Task<Result<ValidationResult, IEnumerable<object>>> Handle(
         IHttpContextAccessor httpContextAccessor,
         IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
-        OrganizationSetupStatusSubscriptions subscriptions,
         IIdentityProviderResolver identityProviderResolver,
         ILegalDocumentSource legalDocumentSource)
     {
@@ -125,7 +131,6 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             return legalError;
         }
 
-        subscriptions.MarkAccepted(RegistrationId, OrganizationName);
         httpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
 
         var events = new List<object>
@@ -142,8 +147,9 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
 /// Forwards <see cref="OrganizationRegistrationCompleted"/> to the outbox so the host can subscribe.
 /// </summary>
 /// <param name="eventStore">The event store.</param>
+/// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>, given a chance to accelerate a live status subscription once this fact is durably published.</param>
 [Reactor]
-public class OrganizationRegistrationOutbox(IEventStore eventStore) : IReactor
+public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers) : IReactor
 {
     /// <summary>
     /// Forwards the registration completed event to the outbox.
@@ -151,5 +157,5 @@ public class OrganizationRegistrationOutbox(IEventStore eventStore) : IReactor
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
     public async Task On(OrganizationRegistrationCompleted @event, EventContext context) =>
-        await eventStore.GetEventSequence(EventSequenceId.Outbox).Append(context.EventSourceId, @event);
+        await eventStore.PublishToOutbox(context, @event, notifiers);
 }

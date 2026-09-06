@@ -7,7 +7,9 @@ using Ante.Invitations.Accepting;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
 using Ante.Organization;
+using Ante.Outbox;
 using Cratis.Chronicle.Keys;
+using Cratis.Types;
 using MongoDB.Driver;
 
 namespace Ante.Invitations.OrganizationSetup;
@@ -201,18 +203,22 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// <param name="httpContextAccessor">Accessor for the current request, used to clear the stale identity cookie.</param>
     /// <param name="pendingInvitation">Read model for validating the command.</param>
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
-    /// <param name="subscriptions">The organization setup status subscriptions.</param>
     /// <param name="signedInIdentity">The identity the user is signed in with for this request.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
     /// <returns>
     /// A <see cref="Result{T0, T1}"/> containing either a failed <see cref="ValidationResult"/> or the
     /// compliance subject and events to append.
     /// </returns>
+    /// <remarks>
+    /// Does not mark the invitation as accepted here - that would be a pre-append success signal, visible
+    /// to a polling client before the event this method returns has even been appended, let alone
+    /// forwarded to the outbox. <see cref="OrganizationSetupOutbox"/> marks it once the acceptance is
+    /// verifiably durable in Ante's own outbox instead.
+    /// </remarks>
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, IEnumerable<object>)>> Handle(
         IHttpContextAccessor httpContextAccessor,
         PendingInvitationToCreateOrganization? pendingInvitation,
         IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
-        OrganizationSetupStatusSubscriptions subscriptions,
         ISignedInIdentity signedInIdentity,
         ILegalDocumentSource legalDocumentSource)
     {
@@ -246,7 +252,6 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
             return legalError;
         }
 
-        subscriptions.MarkAccepted(InvitationId, OrganizationName);
         httpContextAccessor.HttpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
 
         var events = new List<object>
@@ -268,19 +273,6 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
 }
 
 /// <summary>
-/// Durable projection of whether organization setup for an invitation has been submitted. An instance
-/// exists only once setup has been submitted; absence means setup never started (or the invitation is
-/// unknown), which tells the frontend it is safe to (re)submit.
-/// </summary>
-/// <param name="Id">The invitation identifier.</param>
-/// <param name="OrganizationName">The name of the organization that was set up.</param>
-[ReadModel]
-[FromEvent<InvitationToCreateTenantAccepted>]
-public record OrganizationSetupProgress(
-    InvitationId Id,
-    [SetFrom<InvitationToCreateTenantAccepted>(nameof(InvitationToCreateTenantAccepted.TenantName))] TenantName OrganizationName);
-
-/// <summary>
 /// Represents the current organization setup acceptance status.
 /// </summary>
 /// <param name="InvitationId">The invitation identifier.</param>
@@ -290,26 +282,29 @@ public record OrganizationSetupProgress(
 public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, OrganizationSetupAcceptanceStatus Status, TenantName OrganizationName)
 {
     /// <summary>
-    /// Gets the organization setup acceptance status for a specific invitation.
+    /// Gets the organization setup acceptance status for a specific invitation or registration.
     /// </summary>
     /// <remarks>
-    /// The durable <see cref="OrganizationSetupProgress"/> is consulted first so a re-entering user -
-    /// new tab, restarted Ante, expired in-memory entry - resumes into the accepted state instead of
-    /// getting a fresh pending entry for a setup that already completed.
+    /// Durable evidence from both the local record and the outbox is read first, so a re-entering user -
+    /// new tab, restarted Ante, or a dropped connection reconnecting to a different replica - resumes
+    /// into the accepted state precisely once publication is durable, never from an in-memory flag alone
+    /// and never before every required fact (including a required legal one) has actually reached the
+    /// outbox.
     /// </remarks>
-    /// <param name="invitationId">The invitation identifier.</param>
+    /// <param name="invitationId">The invitation or registration identifier.</param>
     /// <param name="subscriptions">The subscription tracker.</param>
-    /// <param name="progressCollection">The durable setup progress collection.</param>
+    /// <param name="recordedCollection">The durable setup-record collection.</param>
+    /// <param name="publishedCollection">The durable outbox-publication collection.</param>
     /// <returns>An observable status stream for the invitation.</returns>
     public static ISubject<OrganizationSetupAcceptanceStatusView> StatusForInvitation(
         InvitationId invitationId,
         OrganizationSetupStatusSubscriptions subscriptions,
-        IMongoCollection<OrganizationSetupProgress> progressCollection)
+        IMongoCollection<OrganizationSetupProgress> recordedCollection,
+        IMongoCollection<OrganizationSetupPublished> publishedCollection)
     {
-        var durableProgress = progressCollection
-            .Find(Builders<OrganizationSetupProgress>.Filter.Eq(progress => progress.Id, invitationId))
-            .FirstOrDefault();
-        return subscriptions.GetStatus(invitationId, durableProgress);
+        var recorded = recordedCollection.Find(Builders<OrganizationSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
+        var published = publishedCollection.Find(Builders<OrganizationSetupPublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
+        return subscriptions.GetStatus(invitationId, recorded?.OrganizationName, OrganizationSetupPublication.IsFullyPublished(recorded, published));
     }
 }
 
@@ -317,8 +312,9 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
 /// Forwards <see cref="InvitationToCreateTenantAccepted"/> to the outbox so the host can subscribe.
 /// </summary>
 /// <param name="eventStore">The event store.</param>
+/// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>, given a chance to accelerate a live status subscription once this fact is durably published.</param>
 [Reactor]
-public class OrganizationSetupOutbox(IEventStore eventStore) : IReactor
+public class OrganizationSetupOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers) : IReactor
 {
     /// <summary>
     /// Forwards the create-tenant accepted event to the outbox.
@@ -326,5 +322,5 @@ public class OrganizationSetupOutbox(IEventStore eventStore) : IReactor
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
     public async Task On(InvitationToCreateTenantAccepted @event, EventContext context) =>
-        await eventStore.GetEventSequence(EventSequenceId.Outbox).Append(context.EventSourceId, @event);
+        await eventStore.PublishToOutbox(context, @event, notifiers);
 }
