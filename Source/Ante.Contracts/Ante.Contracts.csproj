@@ -1,7 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
-        <AssemblyName>Ante.Contracts</AssemblyName>
+        <!-- Must match PackageId below. Cratis.Types' project-reference discovery (used to find
+             [EventType] records for Chronicle) resolves a referenced project by the library name
+             recorded in deps.json, which is the PackageId for a packable project - a mismatched
+             AssemblyName makes that resolution fail and silently drops every type in this assembly
+             from discovery, both at runtime and in specs. -->
+        <AssemblyName>Cratis.Ante.Contracts</AssemblyName>
         <RootNamespace>Ante.Contracts</RootNamespace>
 
         <!-- NuGet package identity - the only packable project in this repo, published via
