@@ -1,0 +1,44 @@
+<Project>
+    <Import Project="$(MSBuildThisFileDirectory)../Directory.Build.props" />
+
+    <PropertyGroup>
+        <!-- Nothing under Source is published as a NuGet package. -->
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <!--
+        Every project references Cratis.Fundamentals directly so the central pin decides the resolved
+        version, rather than letting it float to whatever floor Arc/Chronicle happen to declare
+        (transitive pinning is off).
+    -->
+    <ItemGroup>
+        <PackageReference Include="Cratis.Fundamentals" />
+    </ItemGroup>
+
+    <!--
+        Inline specs live beside the code they specify (when_*/, for_*/, given/ folders). Every project
+        under Source doubles as a test project in Debug; the spec files are stripped from Release builds
+        by the #if DEBUG guard every spec file carries.
+    -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <IsTestProject>true</IsTestProject>
+
+        <!-- The test SDK generates an entry point; Ante's own Program.cs keeps its top-level statements. -->
+        <NoWarn>$(NoWarn);CS7022</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+        <!-- One Establish/Because per spec class instead of per [Fact] — see the file's own comment. -->
+        <Compile Include="$(MSBuildThisFileDirectory)SharedSpecificationInstance.cs" Link="SharedSpecificationInstance.cs" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="NSubstitute" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Cratis.Specifications.XUnit" />
+        <PackageReference Include="Cratis.Arc.Chronicle.Testing" />
+        <PackageReference Include="Cratis.Chronicle.Testing" />
+    </ItemGroup>
+</Project>

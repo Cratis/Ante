@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <AssemblyName>Ante.Contracts</AssemblyName>
+        <RootNamespace>Ante.Contracts</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Cratis.Chronicle" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <AssemblyAttribute Include="Cratis.Chronicle.Events.EventStoreAttribute">
+            <_Parameter1>Ante</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+</Project>
