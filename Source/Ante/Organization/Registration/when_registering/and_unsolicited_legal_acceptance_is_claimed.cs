@@ -14,7 +14,7 @@ using MongoDB.Driver;
 
 namespace Ante.Organization.Registration.when_registering;
 
-public class and_values_are_valid : Specification
+public class and_unsolicited_legal_acceptance_is_claimed : Specification
 {
     static readonly InvitationId _registrationId = InvitationId.New();
 
@@ -33,19 +33,18 @@ public class and_values_are_valid : Specification
         _scenario.Services.AddSingleton(new OrganizationSetupStatusSubscriptions());
     }
 
+    // A host with nothing configured never presented a terms step - so a command that nonetheless
+    // claims acceptance is either a stale client (the host removed its document mid-flow) or a forged
+    // request. Either way there is nothing to record it against, so it is rejected rather than
+    // recorded or silently ignored.
     async Task Because() =>
-        _result = await _scenario.Execute(new RegisterOrganization(_registrationId, "Acme", "Jane", null, "Doe", false, LegalVersion.NotSet));
+        _result = await _scenario.Execute(new RegisterOrganization(_registrationId, "Acme", "Jane", null, "Doe", true, "2026-01"));
 
-    [Fact] void should_succeed() => _result.ShouldBeSuccessful();
-
-    [Fact]
-    async Task should_have_appended_the_registration_completed_event() =>
-        await _scenario.ShouldHaveAppendedEvent<RegisterOrganization, OrganizationRegistrationCompleted>(
-            _registrationId,
-            e => e.TenantName == "Acme" && e.FirstName == "Jane" && e.LastName == "Doe");
+    [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+    [Fact] void should_have_validation_errors() => _result.ShouldHaveValidationErrors();
 
     [Fact]
-    void should_not_have_appended_a_legal_terms_accepted_event() =>
-        Assert.DoesNotContain(_scenario.AppendedEvents, e => e.Event.Content is LegalTermsAccepted);
+    void should_not_have_appended_any_events() =>
+        Assert.Empty(_scenario.AppendedEvents);
 }
 #endif

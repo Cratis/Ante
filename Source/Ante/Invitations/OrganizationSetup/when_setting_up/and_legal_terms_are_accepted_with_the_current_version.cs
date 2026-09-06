@@ -12,10 +12,16 @@ using MongoDB.Driver;
 
 namespace Ante.Invitations.OrganizationSetup.when_setting_up;
 
-public class and_values_are_valid : Specification
+class configured_legal_source(LegalDocumentSet documents) : ILegalDocumentSource
+{
+    public Task<LegalDocumentSet?> GetCurrent() => Task.FromResult<LegalDocumentSet?>(documents);
+}
+
+public class and_legal_terms_are_accepted_with_the_current_version : Specification
 {
     static readonly InvitationId _invitationId = InvitationId.New();
     static readonly Cratis.Chronicle.Subject _subject = new(Guid.NewGuid().ToString());
+    static readonly LegalDocumentSet _currentDocuments = new("# Terms", "# Privacy", "2026-01");
 
     readonly CommandScenario<SetupOrganization> _scenario = new();
     CommandResult _result = null!;
@@ -34,24 +40,20 @@ public class and_values_are_valid : Specification
 
         _scenario.Services.AddSingleton(acceptedNames);
         _scenario.Services.AddSingleton(signedInIdentity);
-        _scenario.Services.AddSingleton<ILegalDocumentSource>(new NoLegalDocumentSource());
+        _scenario.Services.AddSingleton<ILegalDocumentSource>(new configured_legal_source(_currentDocuments));
         _scenario.Services.AddSingleton(Substitute.For<IHttpContextAccessor>());
         _scenario.Services.AddSingleton(new OrganizationSetupStatusSubscriptions());
     }
 
     async Task Because() =>
-        _result = await _scenario.Execute(new SetupOrganization(_invitationId, "Acme", "Jane", null, "Doe", false, LegalVersion.NotSet));
+        _result = await _scenario.Execute(new SetupOrganization(_invitationId, "Acme", "Jane", null, "Doe", true, _currentDocuments.Version));
 
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
 
     [Fact]
-    async Task should_have_appended_the_create_tenant_accepted_event() =>
-        await _scenario.ShouldHaveAppendedEvent<SetupOrganization, InvitationToCreateTenantAccepted>(
+    async Task should_have_appended_the_legal_terms_accepted_event() =>
+        await _scenario.ShouldHaveAppendedEvent<SetupOrganization, LegalTermsAccepted>(
             _invitationId,
-            e => e.TenantName == "Acme" && e.FirstName == "Jane" && e.LastName == "Doe");
-
-    [Fact]
-    void should_not_have_appended_a_legal_terms_accepted_event() =>
-        Assert.DoesNotContain(_scenario.AppendedEvents, e => e.Event.Content is LegalTermsAccepted);
+            e => e.TenantName == "Acme" && e.Version == _currentDocuments.Version && e.IdentityProviderSubject == _subject.ToString());
 }
 #endif
