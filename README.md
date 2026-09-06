@@ -12,9 +12,9 @@ Ante's scope is exactly that slice: **signed invitations**, a **lobby** where in
 
 ## Status: v1
 
-Ante v1 is implemented and buildable — a working .NET/Chronicle backend, a React lobby SPA, and specs for every slice. It is not yet wired up as a deployed instance for any product (see [What's not here yet](#whats-not-here-yet)).
+Ante v1 is implemented and buildable — a working .NET/Chronicle backend, a React lobby SPA, and specs for every slice. It is not yet wired up as a deployed instance for any product (see [Deployment](./Documentation/deployment.md)).
 
-Extracted from the lobby inside [Cratis Studio](https://github.com/Cratis/Studio), generalized into a standalone, reusable product: Studio-specific naming is gone (`StudioUrl` → `HostAppUrl`, `IdentityProvider` → `IdentityProviderName` to avoid colliding with a type Cratis.Arc.Identity already ships), and Studio's own document-authoring/provisioning-confirmation machinery was not carried over — see [What Ante does not do](#what-ante-does-not-do).
+Extracted from the lobby inside [Cratis Studio](https://github.com/Cratis/Studio), generalized into a standalone, reusable product: Studio-specific naming is gone (`StudioUrl` → `HostAppUrl`, `IdentityProvider` → `IdentityProviderName` to avoid colliding with a type Cratis.Arc.Identity already ships), and Studio's own document-authoring/provisioning-confirmation machinery was not carried over — see [Boundaries](./Documentation/boundaries.md).
 
 ### What's implemented
 
@@ -28,55 +28,13 @@ Extracted from the lobby inside [Cratis Studio](https://github.com/Cratis/Studio
 - **Single-tenant.** Everything above runs in Chronicle's `Default` namespace, matching the lobby's own original design — Ante does not manage multiple tenants of its own.
 - **Specs for every slice**: `CommandScenario`/`ReadModelScenario`/`ReactorScenario` in-process specs for the backend (60 specs), Vitest specs for the frontend's pure logic and the legal-acceptance component.
 
-### Configuration reference
+### CI and publishing
 
-All configuration lives under the `Ante` section (or the matching `Ante__*` environment variables).
+CI builds, tests, lints, and type-checks on every push and pull request (`.github/workflows/build.yml`). Merges to `main` additionally build and push `ghcr.io/cratis/ante` and pack/push `Cratis.Ante.Contracts` to NuGet.org (`.github/workflows/publish.yml`).
 
-| Key | Default | Purpose |
-|---|---|---|
-| `Ante:EventStore` | `Ante` | The Chronicle event store this instance runs against. **Never hardcoded** — a second instance in the same cluster is just a different value here. |
-| `Ante:HostAppUrl` | _(empty)_ | Base URL of the host application. The wizards redirect here once an invitation is accepted or a registration completes. Supports a `{tenant}` placeholder. |
-| `Ante:LogoUrl` | _(empty)_ | Custom logo shown in the lobby. Empty renders a plain "Ante" wordmark. |
-| `Ante:CustomCssUrl` | _(empty)_ | Custom CSS to inject into the lobby. |
-| `Ante:IdentityBackchannelUrl` | _(empty)_ | Base URL of a host endpoint Ante calls to pre-flight-check whether an identity is already associated with a user. Empty skips the check (the host's own uniqueness constraint is always the authoritative guard). |
-| `Ante:Invitations:Token:PrivateKeyPem` | _(empty)_ | PEM-encoded RSA private key invitation JWTs are signed with. Required for token issuance to work. |
-| `Ante:Invitations:Token:PublicKeyPem` | _(empty)_ | PEM-encoded RSA public key, published for hosts/proxies that verify independently. |
-| `Ante:Invitations:Token:Issuer` / `Audience` | _(empty)_ | Optional `iss`/`aud` claims. Left empty, no such claim is validated. |
-| `Ante:Invitations:Token:Expiry` | `7.00:00:00` | How long an issued invitation token remains valid. |
-| `IdentityProviders:Providers` | _(empty)_ | Mirrors the identity providers a fronting authentication proxy is configured with, so a sign-in that carries no `iss` (an OAuth2-only provider) can still be attributed correctly. |
+## Documentation
 
-**A "Direct" reference instance** — the one this extraction was validated against — runs with:
-
-```
-Ante__EventStore=DirectLobby
-```
-
-The inbox source store name (which host store Ante's inbox cross-subscribes to) is a **compile-time constant**, not a configuration value — see [Known limitation: the inbox source store](#known-limitation-the-inbox-source-store) below. It defaults to `"Direct"`.
-
-### Known limitation: the inbox source store
-
-`Source/Ante/Invitations/Receiving/InboxSourceStore.cs` names the Chronicle event store Ante's inbox reactor cross-subscribes to for the host's `UserInvitedToJoinTenant` / `UserInvitedToCreateTenant` / `InvitationRevoked` events. This is a **compile-time literal, not a runtime configuration value** — and that is a known limitation, not a design choice.
-
-Chronicle's `[EventStore]` attribute is the only mechanism for pointing an observer at a store other than its own, and C# requires its constructor argument to be a compile-time constant. Investigated for this extraction against the Chronicle 16.44.1 / 17.0.0 XML documentation: `EventStoreAttribute` is confirmed as the sole mechanism — there is no fluent or runtime-registered equivalent in the shipped `Cratis.Chronicle` client API. Until one exists, an Ante deployment that needs a source store other than `"Direct"` has to change the constant in that one file and rebuild.
-
-The literal is deliberately isolated to that single file, with a comment explaining why. **An upstream issue belongs on `Cratis/Chronicle`** describing the missing capability (a runtime/config-driven way to register a cross-store observer); this repository does not file it.
-
-### What Ante does not do
-
-Deliberately out of scope, and staying that way:
-
-- **Sending email.** Ante mints tokens and appends `InvitationTokenIssued`; a host builds the actual invitation link and sends it.
-- **Legal document authoring/versioning.** No admin UI for writing terms and conditions, no revision history, no bundled fallback text. A host wanting the legal step supplies an `ILegalDocumentSource` from wherever it manages that content.
-- **Provisioning.** Seats, trials, billing, tenant databases — Ante's job ends the moment it appends an accepted/registered event to its own outbox. A host reacts to that event to actually provision anything. There is consequently no "waiting for provisioning" UI state in the wizards (Ante's original source material had a multi-minute wait/retry state machine for exactly that; it doesn't apply here because there is nothing external to wait for).
-- **Admin invite-authoring UI.** Deciding *who* to invite, with what role, is a host concern.
-- **Multi-tenancy of Ante itself.** Ante runs single-tenant; a product needing several isolated lobbies runs several Ante instances (see `Ante:EventStore` above).
-
-## What remains for a deployable instance
-
-This v1 is a buildable, spec-covered application — it is not yet an operable deployment:
-
-- **Deployment wiring** (Kubernetes manifests/Pulumi/Helm, secret provisioning for the RSA signing key, an actual `Ante:HostAppUrl` and `IdentityProviders` configuration for a real host) does not exist here — it belongs to whatever deploys the "Direct" reference instance, or any other host's instance.
-- **CI** builds, tests, lints, and type-checks on every push and pull request (`.github/workflows/build.yml`). Merges to `main` additionally build and push `ghcr.io/cratis/ante` (`.github/workflows/publish.yml`) — `Source/Ante/Dockerfile` publishes the backend as a portable (RID-less) `dotnet publish` output plus the built SPA, matching the pattern used elsewhere in the Cratis ecosystem. The same workflow also packs and pushes `Cratis.Ante.Contracts` to [NuGet.org](https://www.nuget.org/packages/Cratis.Ante.Contracts) via trusted publishing (OIDC, no API key secret) on every push to `main`. Versioning is currently `0.1.<CI run number>`, not yet a real semantic version — this repo has no release-action scaffolding (label-driven semver, GitHub releases) to plug into yet.
+Full documentation — configuration reference, the invitation lifecycle, host integration contract, the lobby wizards, deployment, and what Ante deliberately does not do — lives in [`Documentation/`](./Documentation/index.md).
 
 ## Part of the Cratis ecosystem
 
