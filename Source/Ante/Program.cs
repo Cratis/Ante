@@ -77,6 +77,10 @@ builder.Services.TryAddSingleton<ILegalDocumentSource, NoLegalDocumentSource>();
 
 builder.Services.AddAuthorization();
 
+// Bounded, dependency-aware readiness, separate from the unconditional /healthz liveness endpoint
+// mapped below - see AnteHealthChecks and Documentation/deployment.md.
+builder.Services.AddAnteHealthChecks();
+
 var app = builder.Build();
 
 // Installed before the pipeline (and therefore any traffic) is wired up, so the exchange endpoint and
@@ -94,12 +98,16 @@ app.UseStaticFiles();
 app.UseWebSockets();
 app.UseMiddleware<InviteExchangeBypassMiddleware>();
 app.MapControllers();
-app.MapOpenApi();
+app.MapOpenApiInDevelopment();
 app.UseCratisArc();
 app.UseCratisChronicle();
 app.MapIdentityProvider();
 
-app.MapGet("/healthz", () => Results.Ok());
+app.MapAnteHealthChecks();
+
+// Reserved, API-shaped prefixes get a genuine 404 for anything not already matched by a real endpoint
+// above, instead of falling through to the SPA shell below - see ApiRouteGuard.
+ApiRouteGuard.MapReservedPrefixGuards(app);
 
 app.MapFallbackToFile("index.html");
 

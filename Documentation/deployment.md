@@ -15,11 +15,61 @@ Merging a pull request labelled `major`, `minor` or `patch` builds and pushes `g
 
 ## Health check
 
+Liveness and readiness are two separate endpoints, on purpose — a dependency outage must change whether
+an instance receives traffic, never whether an orchestrator considers the process itself alive:
+
 ```
-GET /healthz → 200 OK
+GET /healthz       → 200 OK, unconditionally
+GET /healthz/ready → 200 OK  when every readiness dependency check passes
+                    → 503    when any of them fails or times out
 ```
 
-registered directly in `Program.cs` as `app.MapGet("/healthz", () => Results.Ok())`. This is currently **unconditional** — it does not check MongoDB, the Chronicle connection, or anything else. A container reporting healthy does not guarantee the event store or database are reachable.
+- **`/healthz` (liveness)** is preserved exactly as it always has been: `AnteHealthChecks.MapAnteHealthChecks`
+  (`Program.cs`) maps it with zero checks (`Predicate = _ => false`), so it can never be dragged down by
+  MongoDB, Chronicle, or anything else being unreachable. Point a container orchestrator's *liveness*
+  probe here — a failure means "restart the process", and a dependency being temporarily down is never a
+  reason to do that.
+- **`/healthz/ready` (readiness)** runs every health check tagged `"ready"` — currently a MongoDB
+  connectivity ping (`MongoDbHealthCheck`) — each individually bounded by `AnteHealthChecks.DependencyTimeout`
+  (3 seconds), so one stuck dependency can never hang the whole probe or accumulate blocked work behind
+  it. Point a container orchestrator's *readiness* probe here — a failure means "stop routing traffic to
+  this instance", not "restart it". The response body is the health check middleware's own default
+  writer: a single low-cardinality status word (`Healthy`, `Degraded`, or `Unhealthy`) and nothing else —
+  no connection strings, exception messages, or stack traces from the failing dependency ever reach the
+  response (see `MongoDbHealthCheck`).
+
+A request under `/api`, `/openapi`, `/_invite` or `/healthz` that matches none of the routes above (a
+typo, or a path this build never mapped) gets a genuine `404` from `ApiRouteGuard` rather than falling
+through to the single-page application (SPA) shell — see [Guarded routes](#guarded-routes) below.
+
+## Guarded routes
+
+- **The generated OpenAPI document (`/openapi/...`) is exposed only in Development** (`ConditionalOpenApi`,
+  `Program.cs`). It is a full map of Ante's command/query surface, which a non-development deployment
+  must never publish to an unauthenticated caller. A request for it outside Development falls through to
+  `ApiRouteGuard` and gets `404`, the same as any other unmapped path under a reserved prefix.
+- **`/api`, `/openapi`, `/_invite` and `/healthz` are reserved prefixes.** Anything under one of them that
+  matches no real endpoint answers `404` (`ApiRouteGuard.MapReservedPrefixGuards`) instead of the SPA
+  shell — a caller probing for API surface, or a client following a stale or misspelled path, gets an
+  honest error rather than a misleading `200` with `index.html`.
+- **`/_invite/exchange`** (`InviteExchangeBypassMiddleware`) validates the bearer token carried by the
+  authenticating proxy's exchange request itself — an invalid, expired, or missing token is rejected
+  before any session is recorded. It runs ahead of routing so it works even before authorization has
+  resolved an identity for the request.
+- **Everything else under `/api`** is Ante's own onboarding surface — the SPA shell, its static assets,
+  and public onboarding pages are reachable without prior authentication by design (self-registration
+  "must never require invitation staging" — see the [epic](https://github.com/Cratis/Ante/issues/10)).
+  Invitation-bound commands (`AcceptInvitation`, `SetupOrganization`) are authorized in application code
+  against the caller's own accepted-invitation session (`ISignedInIdentity.IsVerifiedOwnerOf`) rather than
+  through an ASP.NET Core `[Authorize]` policy — knowing an invitation id is never enough to act on it.
+
+## Private diagnostics
+
+The identity backchannel's own outage warning (`IdentityBackchannelLogging.LogIdentityBackchannelUnavailable`)
+carries no organization name, subject, or any other onboarding-specific value — only the exception itself,
+which an operator needs to diagnose the outage. This is deliberate: a warning this shape can legitimately
+fire on every request while a host's backchannel is down, and the value it would otherwise name is exactly
+the kind of onboarding-specific fact private diagnostics must never surface.
 
 ## Required configuration
 
@@ -58,6 +108,9 @@ This is a buildable, spec-covered application — it is not yet a turnkey operab
 
 - **No Kubernetes manifests, Helm charts, or Pulumi program.** Standing up an instance (secret provisioning for the signing key, the actual `Ante:HostAppUrl` and `IdentityProviders` for a real host) is left to whatever deploys it.
 - **No key rotation tooling.** Rotating the signing keypair is a manual operation today — issue new tokens with the new key, publish the new public key, and accept that outstanding unaccepted invitations signed with the old key remain valid until they expire.
+- **No startup validation of trust settings** (key correspondence/strength, signing algorithm, audience/provider rules, session expiry). `AnteRoutingValidator` only covers store/namespace routing today. The trust and compatibility contract these settings would be validated against is not yet agreed — see [WP-00, #11](https://github.com/Cratis/Ante/issues/11) — so validating them now would mean inventing rules ahead of that agreement rather than enforcing one.
+- **No independent observer/publication-lag readiness indicator.** `/healthz/ready` currently reflects MongoDB connectivity only; a signal for "the outbox-forwarding reactors are falling behind" needs durable publication and progress ([WP-05, #16](https://github.com/Cratis/Ante/issues/16)) to define what "lag" means before it can be measured.
+- **Route guarding does not yet integrate owner authorization end-to-end.** `/api` command endpoints are guarded at the application layer today (`ISignedInIdentity.IsVerifiedOwnerOf`); a full authorized-route matrix depends on [WP-02, #13](https://github.com/Cratis/Ante/issues/13).
 
 ## Next steps
 

@@ -45,7 +45,7 @@ Chronicle reactors are **at-least-once**: a partition that pauses mid-delivery a
 GET {url}/in-use?organization={tenantName}&subject={identityProviderSubject}
 ```
 
-expecting `{ "isInUse": bool }` in response. Left empty, the check is skipped. It is also **fail-open**: any exception (unreachable host, timeout, malformed response) is logged and treated as "not in use" — it never blocks onboarding. This is a pre-flight convenience only; the host's own uniqueness constraint at the point it actually associates the identity with a user is the authoritative guard.
+expecting `{ "isInUse": bool }` in response. Left empty, the check is skipped. It is also **fail-open**: any exception (unreachable host, timeout, malformed response) is logged and treated as "not in use" — it never blocks onboarding. This is a pre-flight convenience only; the host's own uniqueness constraint at the point it actually associates the identity with a user is the authoritative guard. The warning logged on failure carries only the exception - never the organization name, subject, or query string - private diagnostics never include onboarding-specific facts.
 
 ## What the fronting AuthProxy must do
 
