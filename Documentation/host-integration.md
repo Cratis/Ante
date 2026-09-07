@@ -68,6 +68,12 @@ public static class InboxSourceStore
 
 This is a **compile-time literal, not a runtime configuration value**, and that is a known limitation rather than a deliberate design choice. Chronicle's `[EventStore]` attribute is the only mechanism for pointing an observer at a store other than its own, and it requires a compile-time constant argument — there is currently no fluent or configuration-driven equivalent in the Chronicle client API. Pointing a deployment at a host store other than `"Direct"` means changing this one constant and rebuilding. The gap is tracked upstream as [Cratis/Chronicle#3951](https://github.com/Cratis/Chronicle/issues/3951).
 
+`Ante:InboxSourceStore` (bound to `AnteOptions.InboxSourceStore`) exists alongside this constant, but it is **not** a way to retarget the subscription — it defaults to the compiled value and `AnteRoutingValidator` throws at startup if a deployment sets it to anything else, so a value this build cannot honor is rejected loudly instead of silently accepted and ignored. See [Configuration](./configuration.md#known-limitation-the-inbox-source-store-is-not-configurable) for the operator-facing detail, including the mirror-image limitation a host integrator hits when writing their own reactor against `Cratis.Ante.Contracts` types for a renamed Ante instance.
+
+## Safe local routing
+
+`Ante:EventStore` and `Ante:Namespace` (see [Configuration](./configuration.md)) independently select the local store and the fixed namespace within it that this Ante instance runs against — every event Ante appends locally, and everything the four reactors that forward to Ante's own outbox (`OrganizationSetupOutbox`, `JoinTenantAcceptanceOutbox`, `OrganizationRegistrationOutbox`, `LegalTermsAcceptanceOutbox`) observe, stays within that one store/namespace pair, pinned with Chronicle's `[EventLog]` attribute precisely so a renamed store can never make one of them misroute onto a nonexistent inbox sequence instead. Ante is single-tenant per deployment - `Ante:Namespace` is fixed for the whole instance, not resolved per request - see [Boundaries](./boundaries.md#multi-tenancy-of-ante-itself).
+
 ## Next steps
 
 - [Invitation Lifecycle](./invitation-lifecycle.md) — the full flow these events belong to.

@@ -23,7 +23,7 @@ Deciding *who* to invite, with what role, into which tenant, is a host concern. 
 
 ## Multi-tenancy of Ante itself
 
-Ante runs single-tenant, in Chronicle's `Default` namespace. A product needing several isolated lobbies runs several Ante instances, differentiated by `Ante:EventStore` (see [Configuration](./configuration.md#example-a-named-lobby-instance)) — not by adding tenancy inside Ante.
+Ante runs single-tenant, in a single fixed Chronicle namespace per instance — `Default` unless `Ante:Namespace` overrides it, and never resolved per request. A product needing several isolated lobbies runs several Ante instances, differentiated by `Ante:EventStore` and/or `Ante:Namespace` (see [Configuration](./configuration.md#example-a-named-lobby-instance)) — not by adding request-scoped tenancy inside Ante. `FixedNamespaceResolver` reflects this directly: it always returns the one namespace an instance was configured with, unlike Chronicle's `ClaimsBasedNamespaceResolver`, which is built for exactly the per-request resolution Ante deliberately does not do.
 
 ## Host membership and grants
 
