@@ -31,6 +31,12 @@ namespace Ante.Invitations.Receiving;
 /// Cratis/Chronicle; this comment is the workaround note <c>upstream-issues.md</c> asks for, kept next
 /// to the one place the workaround lives.
 /// </para>
+/// <para>
+/// <see cref="AnteOptions.InboxSourceStore"/> exists precisely so a deployment cannot silently ask for a
+/// different value here and have it ignored: <see cref="AnteRoutingValidator"/> compares the configured
+/// value against <see cref="Name"/> at startup and throws <see cref="InboxSourceStoreCannotBeReconfigured"/>
+/// on a mismatch, rather than accepting an option this build cannot actually honor.
+/// </para>
 /// </remarks>
 public static class InboxSourceStore
 {
