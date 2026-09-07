@@ -17,6 +17,8 @@ There is no admin UI for writing terms and conditions, no revision history, and 
 
 Seats, trials, billing, tenant databases — Ante's job ends the moment it appends an accepted or registered event to its own outbox. The host reacts to that event to actually provision anything. There is consequently no "waiting for provisioning" UI state built into the wizards beyond the acceptance-status poll described in [Wizards](./wizards.md#status-polling-recovery-and-redirect); the source material this was extracted from had a multi-minute wait/retry state machine for exactly that concern, which does not apply here because there is nothing external for the lobby itself to wait for.
 
+A deployment that wants more than that can opt into `Ante:HostOutcomeUrl` (see [Host Integration: the host outcome backchannel](./host-integration.md#the-host-outcome-backchannel)) — a purely informational, authenticated, attempt-bound lookup of what a host reports happened afterward, shown on the join and invited-organization-creation wizards' completion screen without ever blocking access to the host or rewriting Ante's own published outcome. It is not host membership, grants, or provisioning by another name: Ante still never waits for it, a host that implements nothing continues to work exactly as before, and it does not cover self-service registration (no verified-owner session exists for a bare registration id).
+
 ## Admin invite-authoring UI
 
 Deciding *who* to invite, with what role, into which tenant, is a host concern. Ante only reacts to the invitation events a host already decided to append.

@@ -10,6 +10,7 @@ import { useIdentity } from '@cratis/arc.react/identity';
 import { Guid } from '@cratis/fundamentals';
 import { SetupOrganization } from './OrganizationSetup';
 import { useOrganizationSetupHandoff } from './useOrganizationSetupHandoff';
+import { HostOutcomeStatus } from '../HostOutcome/HostOutcomeStatus';
 import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
 import { OrganizationSetupFrame } from './OrganizationSetupFrame';
 import { InvitationIdentityDetails } from '../Accepting/Accepting';
@@ -44,6 +45,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
     const handoff = useOrganizationSetupHandoff({
         invitationId: resolvedInvitationId,
         hostAppUnavailableMessage: strings.organizationSetup.hostAppUrlUnavailable,
+        supportsHostOutcome: true,
     });
 
     // Memoized so an unrelated re-render - opening the terms dialog, a status poll tick - does not
@@ -129,6 +131,39 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
                     <div className='organization-setup-waiting'>
                         <ProgressSpinner className='organization-setup-waiting__spinner' aria-label={strings.organizationSetup.settingUp} />
                         <p className='organization-setup-waiting__message'>{strings.organizationSetup.settingUp}</p>
+                    </div>
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
+    // Only reached when this deployment has a host outcome backchannel configured - see
+    // useOrganizationSetupHandoff's supportsHostOutcome option. Organization setup already published by
+    // this point regardless of what (if anything) is shown here; a failed or still-pending host outcome
+    // never blocks the Continue action below.
+    if (handoff.phase === 'hostOutcome') {
+        const message = handoff.hostOutcomeStatus === HostOutcomeStatus.succeeded
+            ? strings.organizationSetup.hostOutcomeSucceeded
+            : handoff.hostOutcomeStatus === HostOutcomeStatus.failed
+                ? strings.organizationSetup.hostOutcomeFailed
+                : strings.organizationSetup.hostOutcomePending;
+
+        return (
+            <OrganizationSetupFrame>
+                <div className='organization-setup-card__content'>
+                    <div className='organization-setup-waiting' role='status' aria-live='polite'>
+                        <p className='organization-setup-waiting__message'>{message}</p>
+                        {handoff.hostOutcomeStatus === HostOutcomeStatus.failed && handoff.hostOutcomeReasonCode && (
+                            <p className='organization-setup-waiting__message'>
+                                {strings.onboarding.hostOutcomeReference.replace('{reasonCode}', handoff.hostOutcomeReasonCode)}
+                            </p>
+                        )}
+                        <div className='organization-setup-host-outcome__actions'>
+                            <Button label={strings.onboarding.continueToHost} onClick={handoff.continueToHost} />
+                            {handoff.hostOutcomeStatus !== HostOutcomeStatus.succeeded && (
+                                <Button label={strings.onboarding.checkAgain} variant='ghost' onClick={handoff.checkHostOutcomeAgain} />
+                            )}
+                        </div>
                     </div>
                 </div>
             </OrganizationSetupFrame>

@@ -47,6 +47,22 @@ GET {url}/in-use?organization={tenantName}&subject={identityProviderSubject}
 
 expecting `{ "isInUse": bool }` in response. Left empty, the check is skipped. It is also **fail-open**: any exception (unreachable host, timeout, malformed response) is logged and treated as "not in use" — it never blocks onboarding. This is a pre-flight convenience only; the host's own uniqueness constraint at the point it actually associates the identity with a user is the authoritative guard. The warning logged on failure carries only the exception - never the organization name, subject, or query string - private diagnostics never include onboarding-specific facts.
 
+## The host outcome backchannel
+
+`Ante:HostOutcomeUrl` is an optional, purely informational lookup: once an invitation-bound wizard (join, or invited organization creation) has published, Ante can ask a host what happened to that specific attempt afterward — for example, whether downstream provisioning succeeded or failed — and show it on the completion screen instead of redirecting immediately. When set, Ante issues:
+
+```
+GET {url}/outcome?attempt={attemptId}
+```
+
+expecting `{ "status": "pending" | "succeeded" | "failed", "reasonCode": "..." }` in response, where `reasonCode` is a stable, low-cardinality code (never free text). Left empty, no lookup happens and every wizard behaves exactly as it does without this setting: it redirects to `HostAppUrl` automatically the moment onboarding publishes, unchanged.
+
+The lookup is **authenticated and attempt-bound**: it only ever runs for the verified owner of that exact attempt (the same `IsVerifiedOwnerOf` check every invitation-bound command validator uses), and a caller who is not the verified owner gets back the same "nothing to report" answer an unconfigured deployment or an unreachable host would — so the lookup never reveals whether an attempt exists to anyone but its own owner, and never leaks another actor's outcome. It is also **fail-safe**: any exception (unreachable host, timeout, malformed response) or an unrecognized `status` value degrades to the same "nothing to report" answer, is logged without any onboarding-specific value, and never blocks the wizard — a "Continue" action to the host is always available immediately regardless of what (if anything) the host has reported. A host-reported failure never rewrites Ante's own durable publication as failed, and never triggers a resubmission; Ante's own onboarding has already published by the time this lookup can even run.
+
+**Self-service registration (`RegisterOrganization`/`RegistrationPage`) does not support this.** `IsVerifiedOwnerOf` verifies an *accepted-invitation session* — self-service registration has no invitation and therefore no such session for its client-generated registration id, so the check could never succeed for it. Extending ownership verification to a bare registration id is a trust-model decision, not a display one, and is out of scope here.
+
+This deliberately does **not** implement the broader push-based host-outcome contract sketched in [Cratis/Ante#22](https://github.com/Cratis/Ante/issues/22) — host-appended success/failure events, terminal-result precedence across duplicate/contradictory/late results, quarantine, and replay reconciliation. That shape is proposed and gated on trust/protocol decisions in [Cratis/Ante#11](https://github.com/Cratis/Ante/issues/11), which remains open. This pull-based lookup reuses the already-shipped identity-backchannel pattern above instead, so it needs no new wire contract to agree on.
+
 ## What the fronting AuthProxy must do
 
 Ante expects to sit behind an authentication proxy (typically [Cratis AuthProxy](https://github.com/Cratis/AuthProxy)) that:

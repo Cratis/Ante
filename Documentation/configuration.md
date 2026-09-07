@@ -20,6 +20,7 @@ ASP.NET Core's configuration binder maps a nested key path to an environment var
 | `Ante:LogoUrl` | _(empty)_ | URL of a custom logo shown in the lobby. Empty renders a plain "Ante" wordmark; a configured URL that fails to load (404, revoked, blocked) falls back to the wordmark too rather than a broken-image icon. Overridable by mounting a file into the container. |
 | `Ante:CustomCssUrl` | _(empty)_ | URL of a custom CSS file loaded into the lobby via a `<link rel="stylesheet">` — see [Boundaries: Branding presets](./boundaries.md#branding-presets) for the trust boundary and what "loaded" actually guarantees. Overridable the same way as `Ante:LogoUrl`. |
 | `Ante:IdentityBackchannelUrl` | _(empty)_ | Base URL of a host endpoint Ante calls to pre-flight-check whether a signed-in identity is already associated with a user in the organization being joined. Empty skips the check entirely — see [Host Integration](./host-integration.md#the-identity-backchannel). |
+| `Ante:HostOutcomeUrl` | _(empty)_ | Base URL of an optional host endpoint Ante calls to look up what happened to a specific onboarding attempt after Ante's own publication (for example, whether downstream provisioning succeeded or failed). Purely informational — empty skips the lookup and every wizard behaves exactly as it does without this setting. See [Host Integration](./host-integration.md#the-host-outcome-backchannel). |
 
 ## Invitation token signing (`Ante:Invitations:Token`, bound to `InvitationTokenConfig`)
 
