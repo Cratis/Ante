@@ -1,0 +1,78 @@
+/* Copyright (c) Cratis. All rights reserved. */
+/* Licensed under the MIT license. See LICENSE file in the project root for full license information. */
+
+/*
+ * Effects for the `data-display-*` attributes written by applyInitialDisplayPreferences.ts /
+ * useDisplayPreferences.ts (Cratis/Ante#20). Every rule here targets a real, load-bearing property -
+ * either the app's own root font size (which every rem-based measurement in this app, and in
+ * @cratis/components, scales from) or a `--cratis-*` custom property `tokens.css` documents as a
+ * "stable semantic seam" products are meant to override - never a bespoke, unconsumed declaration.
+ */
+
+/* Text size - scales the document root font size, and with it every rem-based control, spacing and
+   font-size throughout onboarding and @cratis/components. */
+:root[data-display-text-size='large'] {
+    font-size: 14px;
+}
+
+:root[data-display-text-size='largest'] {
+    font-size: 16px;
+}
+
+/* Control size - raises the minimum height Cratis Components' own fields/buttons/stepper controls
+   render at, by repointing the same token they already read from. */
+:root[data-display-control-size='large'] {
+    --cratis-control-height: var(--cratis-control-height-large);
+}
+
+/* Spacing - a multiplier this app's own onboarding CSS applies to its gaps/padding (see
+   OrganizationSetupPage.css / UserSetupPage.css). Kept as its own axis, independent of text size,
+   so either can be adjusted without the other. */
+:root {
+    --ante-display-spacing-scale: 1;
+}
+
+:root[data-display-spacing='relaxed'] {
+    --ante-display-spacing-scale: 1.5;
+}
+
+/* Contrast - strengthens control borders and the focus ring so selection and focus state read
+   clearly against the surface, without replacing the app's color identity. */
+:root[data-display-contrast='high'] {
+    --cratis-control-border: var(--cratis-text-color);
+    --cratis-surface-border: var(--cratis-text-color);
+    --cratis-focus-ring: 0 0 0 3px var(--cratis-primary-color);
+}
+
+:root[data-display-contrast='high'] .organization-setup-card,
+:root[data-display-contrast='high'] .user-setup-card {
+    border-width: 2px;
+}
+
+/* Motion - reduced either because the operating system asked for it, or because the person turned
+   it on explicitly through the in-app preference; both collapse to the same attribute (see
+   effectiveDisplayPreferences.ts), and this rule is the one place that honors it for this app's own
+   CSS. @cratis/components honors `prefers-reduced-motion` for its own animations independently. */
+:root[data-display-motion='reduced'] *,
+:root[data-display-motion='reduced'] *::before,
+:root[data-display-motion='reduced'] *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+}
+
+/* Defense in depth: honor the OS setting directly for this app's own CSS even before/without any
+   in-app preference being read (e.g. the brief window before applyInitialDisplayPreferences.ts's
+   attribute lands, or in a context where JavaScript preference application did not run). */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+}

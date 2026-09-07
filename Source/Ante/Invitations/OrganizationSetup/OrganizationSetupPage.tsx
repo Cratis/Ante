@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { Button } from '@cratis/components/Common';
-import { Message, ProgressSpinner } from '@cratis/components/Display';
+import { ProgressSpinner } from '@cratis/components/Display';
 import { InputTextField } from '@cratis/components/CommandForm';
 import { CommandStepper, StepperPanel } from '@cratis/components/CommandDialog';
 import { useIdentity } from '@cratis/arc.react/identity';
@@ -16,6 +16,9 @@ import { InvitationIdentityDetails } from '../Accepting/Accepting';
 import { getInvitationIdFromToken } from '../Accepting/invitationToken';
 import { LegalAcceptanceField } from '../../Legal/LegalAcceptanceField';
 import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
+import { ErrorSummary } from '../../Accessibility/ErrorSummary';
+import { LiveRegion } from '../../Accessibility/LiveRegion';
+import { useAccessibleStepper } from '../../Accessibility/useAccessibleStepper';
 import strings from 'Strings';
 
 type OrganizationSetupPageProps = {
@@ -70,15 +73,21 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
         privacyPolicy: legalStatus.data?.privacyPolicy ?? ''
     });
 
+    const stepperContainerRef = useRef<HTMLDivElement>(null);
+    const { announcement } = useAccessibleStepper(stepperContainerRef, {
+        idPrefix: 'organization-setup',
+        announcementTemplate: strings.accessibility.stepAnnouncement
+    });
+
     if (handoff.errorMessages.length > 0) {
         return (
             <OrganizationSetupFrame>
                 <div className='organization-setup-card__content'>
-                    <div className='organization-setup-errors'>
-                        {handoff.errorMessages.map((msg, i) => (
-                            <Message key={i} severity='error' text={msg} className='organization-setup-errors__item' />
-                        ))}
-                    </div>
+                    <ErrorSummary
+                        messages={handoff.errorMessages}
+                        className='organization-setup-errors'
+                        itemClassName='organization-setup-errors__item'
+                    />
                 </div>
             </OrganizationSetupFrame>
         );
@@ -103,7 +112,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
         return (
             <OrganizationSetupFrame>
                 <div className='organization-setup-card__content'>
-                    <div className='organization-setup-waiting'>
+                    <div className='organization-setup-waiting' role='status' aria-live='polite'>
                         <p className='organization-setup-waiting__message'>{strings.onboarding.notYetConfirmed}</p>
                         <Button label={strings.onboarding.checkAgain} onClick={handoff.checkAgain} />
                         <p className='organization-setup-waiting__message'>{strings.onboarding.contactSupport}</p>
@@ -118,7 +127,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
             <OrganizationSetupFrame>
                 <div className='organization-setup-card__content'>
                     <div className='organization-setup-waiting'>
-                        <ProgressSpinner className='organization-setup-waiting__spinner' />
+                        <ProgressSpinner className='organization-setup-waiting__spinner' aria-label={strings.organizationSetup.settingUp} />
                         <p className='organization-setup-waiting__message'>{strings.organizationSetup.settingUp}</p>
                     </div>
                 </div>
@@ -128,7 +137,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
 
     return (
         <OrganizationSetupFrame>
-            <div className='organization-setup-card__content organization-setup-card__content--stepper'>
+            <div className='organization-setup-card__content organization-setup-card__content--stepper' ref={stepperContainerRef}>
                 <CommandStepper<SetupOrganization>
                     command={SetupOrganization}
                     validateOnInit
@@ -146,6 +155,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
                             value={c => c.organizationName}
                             title={strings.organizationSetup.organizationName}
                             placeholder={strings.organizationSetup.organizationNamePlaceholder}
+                            pt={{ root: { autoComplete: 'organization' } }}
                         />
                     </StepperPanel>
                     <StepperPanel header={strings.organizationSetup.stepUserInformation}>
@@ -153,16 +163,19 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
                             value={c => c.firstName}
                             title={strings.organizationSetup.firstName}
                             placeholder={strings.organizationSetup.firstNamePlaceholder}
+                            pt={{ root: { autoComplete: 'given-name' } }}
                         />
                         <InputTextField<SetupOrganization>
                             value={c => c.middleName}
                             title={strings.organizationSetup.middleName}
                             placeholder={strings.organizationSetup.middleNamePlaceholder}
+                            pt={{ root: { autoComplete: 'additional-name' } }}
                         />
                         <InputTextField<SetupOrganization>
                             value={c => c.lastName}
                             title={strings.organizationSetup.lastName}
                             placeholder={strings.organizationSetup.lastNamePlaceholder}
+                            pt={{ root: { autoComplete: 'family-name' } }}
                         />
                     </StepperPanel>
                     {legalStatus.data?.isConfigured && (
@@ -173,6 +186,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
                 </CommandStepper>
                 {legalDocuments.dialog}
             </div>
+            <LiveRegion message={announcement} />
         </OrganizationSetupFrame>
     );
 };

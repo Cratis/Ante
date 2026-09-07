@@ -4,7 +4,10 @@
 import type { ReactNode } from 'react';
 import strings from 'Strings';
 import { GetConfiguration } from '../../Configuration/Configuration';
+import { DisplayPreferencesMenu } from '../../DisplayPreferences/DisplayPreferencesMenu';
 import './OrganizationSetupPage.css';
+
+const HEADING_ID = 'organization-setup-heading';
 
 interface OrganizationSetupFrameProps {
     children: ReactNode;
@@ -17,15 +20,19 @@ export const OrganizationSetupFrame = ({ children, subtitle }: OrganizationSetup
 
     return (
         <div className='organization-setup-container'>
-            <div className='organization-setup-card'>
+            {/* The single landmark and heading for this page - there is no other layout wrapping it. */}
+            <main className='organization-setup-card' aria-labelledby={HEADING_ID}>
+                <DisplayPreferencesMenu />
                 <div className='organization-setup-header'>
-                    {logoUrl
-                        ? <img src={logoUrl} alt={strings.branding.wordmark} className='organization-setup-logo' />
-                        : <span className='ante-logo__text'>{strings.branding.wordmark}</span>}
+                    <h1 id={HEADING_ID} className={logoUrl ? 'ante-logo__heading' : 'ante-logo__text'}>
+                        {logoUrl
+                            ? <img src={logoUrl} alt={strings.branding.wordmark} className='organization-setup-logo' />
+                            : strings.branding.wordmark}
+                    </h1>
                     <p className='organization-setup-subtitle'>{subtitle ?? strings.organizationSetup.subtitle}</p>
                 </div>
                 {children}
-            </div>
+            </main>
         </div>
     );
 };

@@ -14,6 +14,7 @@
 }
 
 .organization-setup-card {
+    position: relative;
     background: var(--surface-card);
     border-radius: 12px;
     width: 100%;
@@ -29,6 +30,13 @@
     text-align: center;
     padding: 2rem 2.5rem 1.5rem;
     border-bottom: 1px solid var(--surface-border);
+}
+
+/* Resets the default <h1> box model when it wraps the logo image rather than the text wordmark -
+   .ante-logo__text (below, shared with UserSetupPage.css) already sets an explicit margin for the
+   text case. */
+.ante-logo__heading {
+    margin: 0;
 }
 
 .organization-setup-card__content {

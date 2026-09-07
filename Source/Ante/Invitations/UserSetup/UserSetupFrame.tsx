@@ -4,7 +4,10 @@
 import type { ReactNode } from 'react';
 import strings from 'Strings';
 import { GetConfiguration } from '../../Configuration/Configuration';
+import { DisplayPreferencesMenu } from '../../DisplayPreferences/DisplayPreferencesMenu';
 import './UserSetupPage.css';
+
+const HEADING_ID = 'user-setup-heading';
 
 interface UserSetupFrameProps {
     children: ReactNode;
@@ -16,15 +19,19 @@ export const UserSetupFrame = ({ children }: UserSetupFrameProps) => {
 
     return (
         <div className='user-setup-container'>
-            <div className='user-setup-card'>
+            {/* The single landmark and heading for this page - there is no other layout wrapping it. */}
+            <main className='user-setup-card' aria-labelledby={HEADING_ID}>
+                <DisplayPreferencesMenu />
                 <div className='user-setup-header'>
-                    {logoUrl
-                        ? <img src={logoUrl} alt={strings.branding.wordmark} className='user-setup-logo' />
-                        : <span className='ante-logo__text'>{strings.branding.wordmark}</span>}
+                    <h1 id={HEADING_ID} className={logoUrl ? 'ante-logo__heading' : 'ante-logo__text'}>
+                        {logoUrl
+                            ? <img src={logoUrl} alt={strings.branding.wordmark} className='user-setup-logo' />
+                            : strings.branding.wordmark}
+                    </h1>
                     <p className='user-setup-subtitle'>{strings.userSetup.subtitle}</p>
                 </div>
                 {children}
-            </div>
+            </main>
         </div>
     );
 };

@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { Button } from '@cratis/components/Common';
-import { Message, ProgressSpinner } from '@cratis/components/Display';
+import { ProgressSpinner } from '@cratis/components/Display';
 import { InputTextField } from '@cratis/components/CommandForm';
 import { CommandStepper, StepperPanel } from '@cratis/components/CommandDialog';
 import { RegisterOrganization } from './Registration';
@@ -13,6 +13,9 @@ import { OrganizationSetupFrame } from '../../Invitations/OrganizationSetup/Orga
 import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
 import { LegalAcceptanceField } from '../../Legal/LegalAcceptanceField';
 import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
+import { ErrorSummary } from '../../Accessibility/ErrorSummary';
+import { LiveRegion } from '../../Accessibility/LiveRegion';
+import { useAccessibleStepper } from '../../Accessibility/useAccessibleStepper';
 import strings from 'Strings';
 
 export const RegistrationPage = () => {
@@ -54,6 +57,12 @@ export const RegistrationPage = () => {
         privacyPolicy: legalStatus.data?.privacyPolicy ?? ''
     });
 
+    const stepperContainerRef = useRef<HTMLDivElement>(null);
+    const { announcement } = useAccessibleStepper(stepperContainerRef, {
+        idPrefix: 'registration',
+        announcementTemplate: strings.accessibility.stepAnnouncement
+    });
+
     const startNewRegistration = () => {
         clearRegistrationOperation();
         window.location.reload();
@@ -63,11 +72,11 @@ export const RegistrationPage = () => {
         return (
             <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
                 <div className='organization-setup-card__content'>
-                    <div className='organization-setup-errors'>
-                        {handoff.errorMessages.map((msg, i) => (
-                            <Message key={i} severity='error' text={msg} className='organization-setup-errors__item' />
-                        ))}
-                    </div>
+                    <ErrorSummary
+                        messages={handoff.errorMessages}
+                        className='organization-setup-errors'
+                        itemClassName='organization-setup-errors__item'
+                    />
                 </div>
             </OrganizationSetupFrame>
         );
@@ -92,7 +101,7 @@ export const RegistrationPage = () => {
         return (
             <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
                 <div className='organization-setup-card__content'>
-                    <div className='organization-setup-waiting'>
+                    <div className='organization-setup-waiting' role='status' aria-live='polite'>
                         <p className='organization-setup-waiting__message'>{strings.onboarding.notYetConfirmed}</p>
                         <Button label={strings.onboarding.checkAgain} onClick={handoff.checkAgain} />
                         <p className='organization-setup-waiting__message'>{strings.onboarding.contactSupport}</p>
@@ -108,7 +117,7 @@ export const RegistrationPage = () => {
             <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
                 <div className='organization-setup-card__content'>
                     <div className='organization-setup-waiting'>
-                        <ProgressSpinner className='organization-setup-waiting__spinner' />
+                        <ProgressSpinner className='organization-setup-waiting__spinner' aria-label={strings.organizationSetup.settingUp} />
                         <p className='organization-setup-waiting__message'>{strings.organizationSetup.settingUp}</p>
                     </div>
                 </div>
@@ -118,7 +127,7 @@ export const RegistrationPage = () => {
 
     return (
         <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
-            <div className='organization-setup-card__content organization-setup-card__content--stepper'>
+            <div className='organization-setup-card__content organization-setup-card__content--stepper' ref={stepperContainerRef}>
                 <CommandStepper<RegisterOrganization>
                     command={RegisterOrganization}
                     validateOnInit
@@ -136,6 +145,7 @@ export const RegistrationPage = () => {
                             value={c => c.organizationName}
                             title={strings.registration.organizationName}
                             placeholder={strings.registration.organizationNamePlaceholder}
+                            pt={{ root: { autoComplete: 'organization' } }}
                         />
                     </StepperPanel>
                     <StepperPanel header={strings.organizationSetup.stepUserInformation}>
@@ -143,16 +153,19 @@ export const RegistrationPage = () => {
                             value={c => c.firstName}
                             title={strings.organizationSetup.firstName}
                             placeholder={strings.organizationSetup.firstNamePlaceholder}
+                            pt={{ root: { autoComplete: 'given-name' } }}
                         />
                         <InputTextField<RegisterOrganization>
                             value={c => c.middleName}
                             title={strings.organizationSetup.middleName}
                             placeholder={strings.organizationSetup.middleNamePlaceholder}
+                            pt={{ root: { autoComplete: 'additional-name' } }}
                         />
                         <InputTextField<RegisterOrganization>
                             value={c => c.lastName}
                             title={strings.organizationSetup.lastName}
                             placeholder={strings.organizationSetup.lastNamePlaceholder}
+                            pt={{ root: { autoComplete: 'family-name' } }}
                         />
                     </StepperPanel>
                     {legalStatus.data?.isConfigured && (
@@ -163,6 +176,7 @@ export const RegistrationPage = () => {
                 </CommandStepper>
                 {legalDocuments.dialog}
             </div>
+            <LiveRegion message={announcement} />
         </OrganizationSetupFrame>
     );
 };

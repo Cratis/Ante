@@ -2,6 +2,7 @@
 /* Licensed under the MIT license. See LICENSE file in the project root for full license information. */
 
 @import './primereact-v10-palette.css';
+@import '../DisplayPreferences/displayPreferences.css';
 
 :root {
     font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
@@ -9,7 +10,11 @@
     line-height: 24px;
     font-weight: 400;
 
-    color-scheme: dark;
+    /* Ante's surfaces are dark-themed by default, but native form controls (checkboxes, scrollbars)
+       should still be able to render light where the operating system prefers it - "dark" first
+       keeps the branded default, "light" keeps that an available fallback rather than an override
+       the app fights (Cratis/Ante#20: "effective neutral display preferences"). */
+    color-scheme: dark light;
 
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -26,4 +31,32 @@ body {
     min-height: 100vh;
     background-color: var(--surface-ground);
     color: var(--text-color);
+}
+
+/* Reinforces keyboard focus visibility on this app's own interactive elements (@cratis/components
+   already does this for its own controls - see its styles.css :focus-visible rules). Only applies
+   when the browser itself would show a focus indicator (:focus-visible), never on a mouse click. */
+:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+    :focus-visible {
+        outline: 2px solid Highlight;
+    }
+}
+
+/* Visually hides text while keeping it in the accessibility tree - for content meant for screen
+   readers only (e.g. a heading accompanying a self-explanatory logo image). */
+.ante-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
