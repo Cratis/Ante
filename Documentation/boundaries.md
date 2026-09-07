@@ -15,7 +15,7 @@ There is no admin UI for writing terms and conditions, no revision history, and 
 
 ## Provisioning
 
-Seats, trials, billing, tenant databases — Ante's job ends the moment it appends an accepted or registered event to its own outbox. The host reacts to that event to actually provision anything. There is consequently no "waiting for provisioning" UI state built into the wizards beyond the acceptance-status poll described in [Wizards](./wizards.md#status-polling-and-redirect); the source material this was extracted from had a multi-minute wait/retry state machine for exactly that concern, which does not apply here because there is nothing external for the lobby itself to wait for.
+Seats, trials, billing, tenant databases — Ante's job ends the moment it appends an accepted or registered event to its own outbox. The host reacts to that event to actually provision anything. There is consequently no "waiting for provisioning" UI state built into the wizards beyond the acceptance-status poll described in [Wizards](./wizards.md#status-polling-recovery-and-redirect); the source material this was extracted from had a multi-minute wait/retry state machine for exactly that concern, which does not apply here because there is nothing external for the lobby itself to wait for.
 
 ## Admin invite-authoring UI
 
