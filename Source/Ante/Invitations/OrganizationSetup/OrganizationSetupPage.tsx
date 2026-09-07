@@ -1,16 +1,15 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
+import { Button } from '@cratis/components/Common';
 import { Message, ProgressSpinner } from '@cratis/components/Display';
 import { InputTextField } from '@cratis/components/CommandForm';
 import { CommandStepper, StepperPanel } from '@cratis/components/CommandDialog';
 import { useIdentity } from '@cratis/arc.react/identity';
 import { Guid } from '@cratis/fundamentals';
-import { SetupOrganization, StatusForInvitation } from './OrganizationSetup';
-import { OrganizationSetupAcceptanceStatus } from './OrganizationSetupAcceptanceStatus';
-import { HostUrl } from '../../Configuration/Configuration';
-import { resolveHostAppRedirectUrl } from '../../Configuration/hostAppRedirect';
+import { SetupOrganization } from './OrganizationSetup';
+import { useOrganizationSetupHandoff } from './useOrganizationSetupHandoff';
 import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
 import { OrganizationSetupFrame } from './OrganizationSetupFrame';
 import { InvitationIdentityDetails } from '../Accepting/Accepting';
@@ -36,13 +35,13 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
         const str = id.toString();
         return Guid.isGuid(str) ? Guid.parse(str) : null;
     }, [identity.isSet, invitationIdentityDetails, invitationToken]);
-    const [isWaitingForAcceptance, setIsWaitingForAcceptance] = useState(false);
-    const [errorMessages, setErrorMessages] = useState<string[]>([]);
-    const orgNameRef = useRef('');
     const resolvedInvitationId = invitationId ?? Guid.empty;
-    const [statusResult] = StatusForInvitation.use({ invitationId: resolvedInvitationId });
-    const [hostUrlResult] = HostUrl.use();
     const [legalStatus] = LegalDocumentsCurrent.use();
+
+    const handoff = useOrganizationSetupHandoff({
+        invitationId: resolvedInvitationId,
+        hostAppUnavailableMessage: strings.organizationSetup.hostAppUrlUnavailable,
+    });
 
     // Memoized so an unrelated re-render - opening the terms dialog, a status poll tick - does not
     // recreate this object: CommandForm reasserts initialValues/currentValues onto the command whenever
@@ -71,49 +70,12 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
         privacyPolicy: legalStatus.data?.privacyPolicy ?? ''
     });
 
-    useEffect(() => {
-        if (!isWaitingForAcceptance || !statusResult.hasData) {
-            return;
-        }
-
-        if (statusResult.data.status !== OrganizationSetupAcceptanceStatus.accepted) {
-            return;
-        }
-
-        if (!hostUrlResult.isSuccess) {
-            setIsWaitingForAcceptance(false);
-            setErrorMessages([strings.organizationSetup.hostAppUrlUnavailable]);
-            return;
-        }
-
-        const organizationName = statusResult.data.organizationName || orgNameRef.current;
-        if (!organizationName) {
-            return;
-        }
-
-        const config = hostUrlResult.data;
-        window.location.href = resolveHostAppRedirectUrl(config.hostAppUrl, organizationName, config.signInPath);
-    }, [isWaitingForAcceptance, statusResult, hostUrlResult]);
-
-    if (isWaitingForAcceptance) {
-        return (
-            <OrganizationSetupFrame>
-                <div className='organization-setup-card__content'>
-                    <div className='organization-setup-waiting'>
-                        <ProgressSpinner className='organization-setup-waiting__spinner' />
-                        <p className='organization-setup-waiting__message'>{strings.organizationSetup.settingUp}</p>
-                    </div>
-                </div>
-            </OrganizationSetupFrame>
-        );
-    }
-
-    if (errorMessages.length > 0) {
+    if (handoff.errorMessages.length > 0) {
         return (
             <OrganizationSetupFrame>
                 <div className='organization-setup-card__content'>
                     <div className='organization-setup-errors'>
-                        {errorMessages.map((msg, i) => (
+                        {handoff.errorMessages.map((msg, i) => (
                             <Message key={i} severity='error' text={msg} className='organization-setup-errors__item' />
                         ))}
                     </div>
@@ -122,12 +84,42 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
         );
     }
 
-    if (!invitationId && !identity.isSet) {
+    // Identity/invitation resolution and the first durable status read both have to complete before it
+    // is safe to decide between the form and the waiting phase - showing the form even briefly beforehand
+    // would let a recovered, already-submitted operation flash a form it must never resubmit.
+    if ((!invitationId && !identity.isSet) || !handoff.hasStatus) {
         return (
             <OrganizationSetupFrame>
                 <div className='organization-setup-card__content'>
                     <div className='organization-setup-waiting'>
                         <ProgressSpinner className='organization-setup-waiting__spinner' />
+                    </div>
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
+    if (handoff.phase === 'timedOut') {
+        return (
+            <OrganizationSetupFrame>
+                <div className='organization-setup-card__content'>
+                    <div className='organization-setup-waiting'>
+                        <p className='organization-setup-waiting__message'>{strings.onboarding.notYetConfirmed}</p>
+                        <Button label={strings.onboarding.checkAgain} onClick={handoff.checkAgain} />
+                        <p className='organization-setup-waiting__message'>{strings.onboarding.contactSupport}</p>
+                    </div>
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
+    if (handoff.phase === 'waiting') {
+        return (
+            <OrganizationSetupFrame>
+                <div className='organization-setup-card__content'>
+                    <div className='organization-setup-waiting'>
+                        <ProgressSpinner className='organization-setup-waiting__spinner' />
+                        <p className='organization-setup-waiting__message'>{strings.organizationSetup.settingUp}</p>
                     </div>
                 </div>
             </OrganizationSetupFrame>
@@ -144,10 +136,10 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
                     initialValues={initialValues}
                     currentValues={currentValues}
                     onBeforeExecute={(values) => {
-                        orgNameRef.current = values.organizationName ?? '';
+                        handoff.captureOrganizationName(values.organizationName ?? '');
                         return values;
                     }}
-                    onSuccess={async () => { setIsWaitingForAcceptance(true); }}
+                    onSuccess={async () => { handoff.markSubmitted(); }}
                 >
                     <StepperPanel header={strings.organizationSetup.stepOrganization}>
                         <InputTextField<SetupOrganization>
