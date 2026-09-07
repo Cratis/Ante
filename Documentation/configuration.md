@@ -14,6 +14,8 @@ ASP.NET Core's configuration binder maps a nested key path to an environment var
 | Key | Default | Effect |
 |---|---|---|
 | `Ante:EventStore` | `Ante` | The Chronicle event store this instance runs against. Never hardcoded anywhere in the source — a second Ante instance in the same cluster is just a different value here. |
+| `Ante:Namespace` | `Default` | The fixed Chronicle namespace this instance runs against, within `Ante:EventStore`. Applies to every request this instance serves — Ante is single-tenant per deployment, not request-selected multi-tenant (see [Boundaries](./boundaries.md#multi-tenancy-of-ante-itself)). An empty value fails startup — see [Safe routing](#safe-routing-and-startup-validation) below. |
+| `Ante:InboxSourceStore` | `Direct` | Declares which host event store Ante's inbox reactor is compiled to cross-subscribe to. This does **not** retarget the subscription — it exists purely so a value that disagrees with the compiled constant fails startup instead of being silently ignored. See [Known limitation](#known-limitation-the-inbox-source-store-is-not-configurable) below. |
 | `Ante:HostAppUrl` | _(empty)_ | Base URL of the host application. The wizards redirect here once an invitation is accepted or a registration completes. Supports a `{tenant}` placeholder, substituted with the organization name at redirect time. |
 | `Ante:LogoUrl` | _(empty)_ | URL of a custom logo shown in the lobby. Empty renders a plain "Ante" wordmark. Overridable by mounting a file into the container. |
 | `Ante:CustomCssUrl` | _(empty)_ | URL of a custom CSS file injected into the lobby. Overridable the same way. |
@@ -49,10 +51,37 @@ A reference "Direct" instance runs with:
 
 ```bash
 Ante__EventStore=DirectLobby
+Ante__Namespace=Default
 ```
 
-Nothing else about Ante's code changes for a second instance — a different `Ante:EventStore` (and typically a different `Ante:HostAppUrl` and token keypair) is the entire difference between two lobbies serving two different host products.
+Nothing else about Ante's code changes for a second instance — a different `Ante:EventStore` and `Ante:Namespace` (and typically a different `Ante:HostAppUrl` and token keypair) is the entire difference between two lobbies serving two different host products. `Ante:EventStore` and `Ante:Namespace` are independent: change either, both, or neither — a single container image serves any combination purely through configuration, no rebuild.
+
+## Safe routing and startup validation
+
+`AnteRoutingValidator` runs before Chronicle is wired up (`Program.cs`) and fails startup immediately — rather than booting into a misconfigured, silently misrouting instance — when:
+
+- `Ante:EventStore` or `Ante:Namespace` is set to an empty or whitespace-only value.
+- `Ante:InboxSourceStore` is set to a value other than the compiled `InboxSourceStore.Name` constant (see below) — an option Ante cannot honor is rejected rather than silently ignored.
+
+A deployment that never sets any of the three keeps booting exactly as it always has; only a deliberately-supplied, invalid value trips the guard.
+
+Separately, four of Ante's own reactors (`OrganizationSetupOutbox`, `JoinTenantAcceptanceOutbox`, `OrganizationRegistrationOutbox`, `LegalTermsAcceptanceOutbox`) forward locally-recorded facts to Ante's own outbox and are pinned with Chronicle's `[EventLog]` attribute. Without it, Chronicle's own store-name inference for the `Cratis.Ante.Contracts` events they handle would compare that assembly's compiled `[EventStore("Ante")]` metadata against whatever `Ante:EventStore` is actually set to — a deployment renamed away from the literal `"Ante"` (exactly what the example above does) would silently mismatch and reroute local forwarding onto a nonexistent inbox sequence instead of the event log, and forwarding to the outbox would silently stop. `[EventLog]` makes each of the four immune to the store's name entirely.
 
 ## Known limitation: the inbox source store is not configurable
 
-The Chronicle event store Ante's inbox reactor cross-subscribes to for a host's invitation events (`UserInvitedToJoinTenant`, `UserInvitedToCreateTenant`, `InvitationRevoked`) is **not** one of the settings above — it is a compile-time constant in `Source/Ante/Invitations/Receiving/InboxSourceStore.cs`, currently `"Direct"`. Chronicle's `[EventStore]` attribute is the only mechanism for pointing an observer at a store other than its own, and C# requires that attribute argument to be a compile-time constant. Pointing an Ante deployment at a different host store means changing that one constant and rebuilding. See [Host Integration](./host-integration.md#known-limitation-the-inbox-source-store) for the full detail and the tracking issue.
+The Chronicle event store Ante's inbox reactor cross-subscribes to for a host's invitation events (`UserInvitedToJoinTenant`, `UserInvitedToCreateTenant`, `InvitationRevoked`) is **not** truly one of the settings above — the actual subscription target is a compile-time constant in `Source/Ante/Invitations/Receiving/InboxSourceStore.cs`, currently `"Direct"`. Chronicle's `[EventStore]` attribute is the only mechanism for pointing an observer at a store other than its own, and C# requires that attribute argument to be a compile-time constant. Pointing an Ante deployment at a different host store means changing that one constant and rebuilding.
+
+`Ante:InboxSourceStore` exists only to catch a mismatch: it defaults to the compiled constant, and `AnteRoutingValidator` throws at startup if a deployment supplies a different value — turning "silently accepted, quietly ignored" into "loudly rejected". It is not a way to retarget the subscription at runtime. See [Host Integration](./host-integration.md#known-limitation-the-inbox-source-store) for the full detail and the tracking issue, [Cratis/Chronicle#3951](https://github.com/Cratis/Chronicle/issues/3951).
+
+A host writing its own reactor against `Cratis.Ante.Contracts` event types (to observe Ante's outbox) faces the mirror image of this limitation: `Cratis.Ante.Contracts`'s own assembly-level `[EventStore("Ante")]` attribute lets an unattributed host reactor infer Ante's store name automatically, but that attribute is baked into the published package as the literal `"Ante"` — a host observing an Ante instance whose `Ante:EventStore` was renamed away from that default must add an explicit `[EventStore("<the-configured-name>")]` to its own reactor rather than relying on inference.
+
+## Cutover and rollback
+
+Changing `Ante:EventStore` or `Ante:Namespace` on an **already-running** deployment moves it to an empty store/namespace with no history — Chronicle does not migrate events between stores or namespaces. Do this only as a deliberate cutover, not a routine config edit:
+
+1. Stand up the new store/namespace value in a non-production deployment first and let every observer (the read-model projections behind the lobby's own queries) catch up from empty — this is exactly what a fresh Ante instance already does, so there is nothing store/namespace-specific to rehearse beyond confirming the four outbox-forwarding reactors and the inbox reactor register cleanly under the new value.
+2. Deploy the consumer side first: any host reactor observing Ante's outbox must already be pointed at (or already tolerate) the new store name before Ante itself cuts over, so no fact forwarded under the new configuration is silently dropped by a host still watching the old one.
+3. Cut Ante's own configuration over. Because `Ante:EventStore`/`Ante:Namespace` fully determine where new events land, everything appended from this point is under the new value; nothing under the old store/namespace is touched, deleted, or migrated.
+4. **Rollback** is reverting the configuration value — the old store/namespace was never modified, so its data and Chronicle observer checkpoints are exactly as they were. Anything appended under the new value during the cutover window is not carried back automatically; treat a rollback as abandoning that window's facts unless they are manually replayed into the old store.
+
+There is no dual-write, no automatic backfill, and no tooling to replay one store's history into another today — a deployment that needs its accumulated invitation history to follow a store/namespace rename needs a bespoke migration, which is out of scope for Ante itself.

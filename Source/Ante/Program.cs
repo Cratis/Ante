@@ -23,11 +23,15 @@ CultureInfo.CurrentUICulture = CultureInfo.InvariantCulture;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Non-negotiable: the event store name comes from configuration, never a literal in this file. A
-// second Ante instance in the same cluster (e.g. the "DirectLobby" reference instance for the Direct
-// host) runs against its own store purely by setting Ante:EventStore / Ante__EventStore differently -
-// no code change, no rebuild.
-var eventStoreName = builder.Configuration["Ante:EventStore"] ?? "Ante";
+// Non-negotiable: routing comes from configuration, never a literal in this file. A second Ante instance
+// in the same cluster (e.g. the "DirectLobby" reference instance for the Direct host) runs against its own
+// store and/or namespace purely by setting Ante:EventStore / Ante:Namespace (Ante__EventStore /
+// Ante__Namespace as environment variables) differently - no code change, no rebuild.
+// AnteRoutingValidator turns a genuine misconfiguration (an empty store/namespace, or an InboxSourceStore
+// that disagrees with the compiled constant) into a loud startup failure instead of a silent misroute -
+// see Documentation/configuration.md.
+var anteOptions = builder.Configuration.GetSection("Ante").Get<AnteOptions>() ?? new AnteOptions();
+AnteRoutingValidator.Validate(anteOptions);
 
 builder.AddCratis(
     options =>
@@ -40,10 +44,12 @@ builder.AddCratis(
         arcBuilder.WithMongoDB(configureMongoDB: mongoDBBuilder => mongoDBBuilder.WithCamelCaseNamingPolicy(pluralizeReadModels: true)),
     configureChronicleOptions: options =>
     {
-        options.EventStore = eventStoreName;
+        options.EventStore = anteOptions.EventStore;
         options.ProgramIdentifier = "Cratis Ante";
     },
-    configureChronicleBuilder: chronicleBuilder => chronicleBuilder.WithCamelCaseNamingPolicy());
+    configureChronicleBuilder: chronicleBuilder => chronicleBuilder
+        .WithCamelCaseNamingPolicy()
+        .WithNamespaceResolver(new FixedNamespaceResolver(anteOptions.Namespace)));
 
 builder.Services.AddControllers();
 builder.Services.AddMvc();
