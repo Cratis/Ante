@@ -19,19 +19,23 @@ namespace Ante.Invitations.UserSetup;
 public enum UserSetupAcceptanceStatus
 {
     /// <summary>
-    /// The user acceptance confirmation has not been received yet.
+    /// Acceptance has not been recorded yet - there is nothing to resume, so a client may safely
+    /// (re)submit.
     /// </summary>
     Pending,
 
     /// <summary>
-    /// The user acceptance confirmation has been received.
+    /// Acceptance has been recorded to Ante's own event log but has not yet fully reached the outbox. A
+    /// client observing this must keep waiting rather than resubmitting: resubmitting would collide with
+    /// the one-use invitation constraint.
     /// </summary>
-    Accepted,
+    Recorded,
 
     /// <summary>
-    /// The confirmation was not received before the timeout window elapsed.
+    /// Acceptance - and any required legal fact - has fully reached the outbox. This is the only state
+    /// safe to hand off to the host.
     /// </summary>
-    TimedOut
+    Accepted,
 }
 
 /// <summary>
@@ -226,9 +230,11 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
     /// <remarks>
     /// Durable evidence from both the local record and the outbox is read first, so a re-entering user -
     /// new tab, restarted Ante, or a dropped connection reconnecting to a different replica - resumes
-    /// into the accepted state precisely once publication is durable, never from an in-memory flag alone
-    /// and never before every required fact (including a required legal one) has actually reached the
-    /// outbox.
+    /// into <see cref="UserSetupAcceptanceStatus.Recorded"/> or <see cref="UserSetupAcceptanceStatus.Accepted"/>
+    /// precisely once durable evidence supports it, never from an in-memory flag alone. A client that
+    /// only ever sees Pending has never actually recorded anything and may safely (re)submit; one that
+    /// sees Recorded has already submitted and must keep waiting rather than resubmitting, even if the
+    /// local browser tab restarted in between.
     /// </remarks>
     /// <param name="invitationId">The invitation identifier.</param>
     /// <param name="subscriptions">The subscription tracker.</param>
@@ -243,7 +249,10 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
     {
         var recorded = recordedCollection.Find(Builders<UserSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
         var published = publishedCollection.Find(Builders<JoinTenantAcceptancePublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
-        return subscriptions.GetStatus(invitationId, JoinTenantPublication.IsFullyPublished(recorded, published));
+        return subscriptions.GetStatus(
+            invitationId,
+            isRecorded: recorded is not null,
+            isFullyPublished: JoinTenantPublication.IsFullyPublished(recorded, published));
     }
 }
 
@@ -290,25 +299,50 @@ public class UserSetupStatusSubscriptions : IDisposable
     }
 
     /// <summary>
-    /// Gets the status stream for an invitation, optionally seeded from durable publication evidence.
+    /// Gets the status stream for an invitation, seeded from durable evidence so a re-entering client
+    /// never observes a stale value.
     /// </summary>
     /// <remarks>
-    /// Seeding keeps re-entry idempotent: a fresh in-memory entry starts out pending, so without the
-    /// durable check a user returning after a restart - or reconnecting to a different replica - would
-    /// see a stale pending state even though acceptance was already fully published.
+    /// Seeding keeps re-entry idempotent: a fresh in-memory entry otherwise starts out
+    /// <see cref="UserSetupAcceptanceStatus.Pending"/>, so without the durable check a user returning
+    /// after a restart - or reconnecting to a different replica - would see a stale pending state even
+    /// though acceptance was already recorded or fully published. An already-live subject is only ever
+    /// moved forward (Pending -&gt; Recorded -&gt; Accepted), never backward, so a slow reconnect's
+    /// durable read cannot regress a state another tab watching the same subject has already observed.
     /// </remarks>
     /// <param name="invitationId">The invitation identifier.</param>
+    /// <param name="isRecorded">Whether durable evidence confirms acceptance has been recorded.</param>
     /// <param name="isFullyPublished">Whether durable evidence already confirms full publication.</param>
     /// <returns>An observable status stream.</returns>
-    public ISubject<UserSetupAcceptanceStatusView> GetStatus(InvitationId invitationId, bool isFullyPublished = false)
+    public ISubject<UserSetupAcceptanceStatusView> GetStatus(InvitationId invitationId, bool isRecorded = false, bool isFullyPublished = false)
     {
-        var subject = _subscriptions.GetOrAdd(invitationId, static key => new(new(key, UserSetupAcceptanceStatus.Pending)));
+        var subject = GetOrAdd(invitationId);
+
         if (isFullyPublished)
         {
             MarkAccepted(invitationId);
         }
+        else if (isRecorded && subject.Value.Status != UserSetupAcceptanceStatus.Accepted)
+        {
+            // Never regresses an already-Accepted subject: a stale read of the recorded collection racing
+            // behind a durable publication another caller already observed must not un-accept a subject a
+            // different tab is watching right now.
+            MarkRecorded(invitationId);
+        }
 
         return subject;
+    }
+
+    /// <summary>
+    /// Marks an invitation as recorded. Called once durable evidence confirms acceptance has committed to
+    /// Ante's own event log, so a subscriber already waiting on this subject learns it must not resubmit,
+    /// without needing to reconnect first.
+    /// </summary>
+    /// <param name="invitationId">The invitation identifier.</param>
+    public void MarkRecorded(InvitationId invitationId)
+    {
+        var subject = GetOrAdd(invitationId);
+        subject.OnNext(new(invitationId, UserSetupAcceptanceStatus.Recorded));
     }
 
     /// <summary>
@@ -320,7 +354,7 @@ public class UserSetupStatusSubscriptions : IDisposable
     /// <param name="invitationId">The invitation identifier.</param>
     public void MarkAccepted(InvitationId invitationId)
     {
-        var subject = _subscriptions.GetOrAdd(invitationId, static key => new(new(key, UserSetupAcceptanceStatus.Pending)));
+        var subject = GetOrAdd(invitationId);
         _acceptedAt[invitationId] = DateTimeOffset.UtcNow;
         subject.OnNext(new(invitationId, UserSetupAcceptanceStatus.Accepted));
     }
@@ -337,6 +371,9 @@ public class UserSetupStatusSubscriptions : IDisposable
 
         _subscriptions.Clear();
     }
+
+    BehaviorSubject<UserSetupAcceptanceStatusView> GetOrAdd(InvitationId invitationId) =>
+        _subscriptions.GetOrAdd(invitationId, static key => new(new(key, UserSetupAcceptanceStatus.Pending)));
 
     void Cleanup()
     {

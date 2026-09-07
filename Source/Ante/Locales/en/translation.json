@@ -2,6 +2,11 @@
     "branding": {
         "wordmark": "Ante"
     },
+    "onboarding": {
+        "notYetConfirmed": "This is taking longer than expected. Your information was saved - nothing was lost. This can happen during busy periods or a brief connection drop.",
+        "checkAgain": "Check again",
+        "contactSupport": "If this keeps happening, please contact support."
+    },
     "legal": {
         "acceptance": "I have read and accept the {termsAndConditions} and the {privacyPolicy}.",
         "documents": {
@@ -15,7 +20,8 @@
         "organizationName": "Organization Name",
         "organizationNamePlaceholder": "Acme Corporation",
         "register": "Register Organization",
-        "hostAppUrlUnavailable": "Organization was registered, but we could not determine where to take you next. Please contact support."
+        "hostAppUrlUnavailable": "Organization was registered, but we could not determine where to take you next. Please contact support.",
+        "startNewRegistration": "Register a different organization"
     },
     "organizationSetup": {
         "subtitle": "Set up your organization",
@@ -47,7 +53,6 @@
         "acceptInvitation": "Accept Invitation",
         "setting": "Setting up your account...",
         "hostAppUrlUnavailable": "Your account was created, but we could not determine where to take you next. Please contact support.",
-        "acceptanceTimedOut": "Account setup is taking longer than expected. Please try again.",
         "acceptanceFailed": "We could not complete your account setup. Please contact support."
     }
 }

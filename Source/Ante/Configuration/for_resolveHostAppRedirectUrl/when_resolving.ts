@@ -38,4 +38,13 @@ describe('when resolving the host app redirect url', () => {
         stubLocation('https://ante.example.com', '');
         resolveHostAppRedirectUrl('https://{tenant}.example.com/', 'acme', '/').should.equal('https://acme.example.com/');
     });
+
+    it('should throw rather than silently produce an unusable url for a malformed host configuration', () => {
+        stubLocation('https://ante.example.com', '');
+        // A misconfigured HostAppUrl (an incomplete scheme, stray whitespace inside the authority, ...)
+        // must surface as a thrown error the caller can turn into a recoverable "destination failure"
+        // message - never as window.location.href silently being set to something that does not
+        // navigate anywhere useful.
+        (() => resolveHostAppRedirectUrl('http://{tenant} example.com/', 'acme')).should.throw();
+    });
 });

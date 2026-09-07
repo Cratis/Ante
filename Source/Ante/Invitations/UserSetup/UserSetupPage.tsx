@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { useEffect, useMemo, useState } from 'react';
+import { Button } from '@cratis/components/Common';
 import { Message, ProgressSpinner } from '@cratis/components/Display';
 import { InputTextField } from '@cratis/components/CommandForm';
 import { CommandStepper, StepperPanel } from '@cratis/components/CommandDialog';
@@ -9,6 +10,7 @@ import { useIdentity } from '@cratis/arc.react/identity';
 import { Guid } from '@cratis/fundamentals';
 import { AcceptInvitation, StatusForInvitation } from './UserSetup';
 import { UserSetupAcceptanceStatus } from './UserSetupAcceptanceStatus';
+import { useOnboardingRecovery } from '../useOnboardingRecovery';
 import { HostUrl } from '../../Configuration/Configuration';
 import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
 import { UserSetupFrame } from './UserSetupFrame';
@@ -35,12 +37,15 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
         const str = id.toString();
         return Guid.isGuid(str) ? Guid.parse(str) : null;
     }, [identity.isSet, invitationIdentityDetails, invitationToken]);
-    const [isWaitingForAcceptance, setIsWaitingForAcceptance] = useState(false);
     const [errorMessages, setErrorMessages] = useState<string[]>([]);
     const resolvedInvitationId = invitationId ?? Guid.empty;
     const [statusResult] = StatusForInvitation.use({ invitationId: resolvedInvitationId });
     const [hostUrlResult] = HostUrl.use();
     const [legalStatus] = LegalDocumentsCurrent.use();
+
+    const isRecorded = statusResult.hasData && statusResult.data.status !== UserSetupAcceptanceStatus.pending;
+    const isAccepted = statusResult.hasData && statusResult.data.status === UserSetupAcceptanceStatus.accepted;
+    const recovery = useOnboardingRecovery(isRecorded, isAccepted);
 
     // Memoized so an unrelated re-render - opening the terms dialog, a status poll tick - does not
     // recreate this object: CommandForm reasserts initialValues/currentValues onto the command whenever
@@ -70,48 +75,27 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     });
 
     useEffect(() => {
-        if (!isWaitingForAcceptance || !statusResult.hasData) {
+        if (!recovery.isAccepted) return;
+
+        if (!hostUrlResult.isSuccess) {
+            setErrorMessages([strings.userSetup.hostAppUrlUnavailable]);
             return;
         }
 
-        switch (statusResult.data.status) {
-            case UserSetupAcceptanceStatus.accepted:
-                if (!hostUrlResult.isSuccess) {
-                    setIsWaitingForAcceptance(false);
-                    setErrorMessages([strings.userSetup.hostAppUrlUnavailable]);
-                    return;
-                }
-
-                {
-                    // The provider-specific sign-in path challenges the provider the person just used, so
-                    // entering the host application is a silent round trip instead of a second provider
-                    // selection.
-                    const config = hostUrlResult.data;
-                    window.location.href = config.signInPath && config.signInPath !== '/'
-                        ? new URL(config.signInPath, new URL(config.hostAppUrl, window.location.origin)).toString()
-                        : config.hostAppUrl;
-                }
-                return;
-
-            case UserSetupAcceptanceStatus.timedOut:
-                setIsWaitingForAcceptance(false);
-                setErrorMessages([strings.userSetup.acceptanceTimedOut]);
-                return;
+        try {
+            // The provider-specific sign-in path challenges the provider the person just used, so
+            // entering the host application is a silent round trip instead of a second provider
+            // selection.
+            const config = hostUrlResult.data;
+            window.location.href = config.signInPath && config.signInPath !== '/'
+                ? new URL(config.signInPath, new URL(config.hostAppUrl, window.location.origin)).toString()
+                : config.hostAppUrl;
+        } catch {
+            // A malformed host configuration must present as a recoverable destination failure, not a
+            // crashed page - acceptance already published, so the person's information was not lost.
+            setErrorMessages([strings.userSetup.hostAppUrlUnavailable]);
         }
-    }, [isWaitingForAcceptance, statusResult, hostUrlResult]);
-
-    if (isWaitingForAcceptance) {
-        return (
-            <UserSetupFrame>
-                <div className='user-setup-card__content'>
-                    <div className='user-setup-waiting'>
-                        <ProgressSpinner className='user-setup-waiting__spinner' />
-                        <p className='user-setup-waiting__message'>{strings.userSetup.setting}</p>
-                    </div>
-                </div>
-            </UserSetupFrame>
-        );
-    }
+    }, [recovery.isAccepted, hostUrlResult]);
 
     if (errorMessages.length > 0) {
         return (
@@ -127,12 +111,42 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
         );
     }
 
-    if (!invitationId && !identity.isSet) {
+    // Identity/invitation resolution and the first durable status read both have to complete before it
+    // is safe to decide between the form and the waiting phase - showing the form even briefly beforehand
+    // would let a recovered, already-submitted acceptance flash a form it must never resubmit.
+    if ((!invitationId && !identity.isSet) || !statusResult.hasData) {
         return (
             <UserSetupFrame>
                 <div className='user-setup-card__content'>
                     <div className='user-setup-waiting'>
                         <ProgressSpinner className='user-setup-waiting__spinner' />
+                    </div>
+                </div>
+            </UserSetupFrame>
+        );
+    }
+
+    if (recovery.phase === 'timedOut') {
+        return (
+            <UserSetupFrame>
+                <div className='user-setup-card__content'>
+                    <div className='user-setup-waiting'>
+                        <p className='user-setup-waiting__message'>{strings.onboarding.notYetConfirmed}</p>
+                        <Button label={strings.onboarding.checkAgain} onClick={recovery.checkAgain} />
+                        <p className='user-setup-waiting__message'>{strings.onboarding.contactSupport}</p>
+                    </div>
+                </div>
+            </UserSetupFrame>
+        );
+    }
+
+    if (recovery.phase === 'waiting') {
+        return (
+            <UserSetupFrame>
+                <div className='user-setup-card__content'>
+                    <div className='user-setup-waiting'>
+                        <ProgressSpinner className='user-setup-waiting__spinner' />
+                        <p className='user-setup-waiting__message'>{strings.userSetup.setting}</p>
                     </div>
                 </div>
             </UserSetupFrame>
@@ -168,7 +182,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
                     okLabel={strings.userSetup.acceptInvitation}
                     initialValues={initialValues}
                     currentValues={currentValues}
-                    onSuccess={async () => { setIsWaitingForAcceptance(true); }}
+                    onSuccess={async () => { recovery.markSubmitted(); }}
                     onValidationFailure={(validationResults) => {
                         // Acceptance can be rejected for reasons no form field can express - most importantly when the
                         // login already belongs to a user in the organization. Surface those messages rather than

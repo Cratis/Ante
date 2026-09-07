@@ -31,26 +31,56 @@ public class OrganizationSetupStatusSubscriptions : IDisposable
     }
 
     /// <summary>
-    /// Gets the status stream for an invitation, optionally seeded from durable publication evidence.
+    /// Gets the status stream for an invitation, seeded from durable evidence so a re-entering client
+    /// never observes a stale value.
     /// </summary>
     /// <remarks>
-    /// Seeding keeps re-entry idempotent: a fresh in-memory entry starts out pending, so without the
-    /// durable check a user returning after a restart - or reconnecting to a different replica - would
-    /// see a stale pending state even though setup was already fully published.
+    /// Seeding keeps re-entry idempotent: a fresh in-memory entry otherwise starts out
+    /// <see cref="OrganizationSetupAcceptanceStatus.Pending"/>, so without the durable check a user
+    /// returning after a restart - or reconnecting to a different replica - would see a stale pending
+    /// state even though setup was already recorded or fully published. An already-live subject is only
+    /// ever moved forward (Pending -&gt; Recorded -&gt; Accepted), never backward, so a slow reconnect's
+    /// durable read cannot regress a state another tab watching the same subject has already observed.
     /// </remarks>
     /// <param name="invitationId">The invitation identifier.</param>
     /// <param name="organizationName">The name of the organization that was set up, when known.</param>
+    /// <param name="isRecorded">Whether durable evidence confirms setup has been recorded.</param>
     /// <param name="isFullyPublished">Whether durable evidence already confirms full publication.</param>
     /// <returns>An observable status stream.</returns>
-    public ISubject<OrganizationSetupAcceptanceStatusView> GetStatus(InvitationId invitationId, TenantName? organizationName = null, bool isFullyPublished = false)
+    public ISubject<OrganizationSetupAcceptanceStatusView> GetStatus(
+        InvitationId invitationId,
+        TenantName? organizationName = null,
+        bool isRecorded = false,
+        bool isFullyPublished = false)
     {
         var subject = GetOrAdd(invitationId);
+
         if (isFullyPublished && organizationName is not null)
         {
             MarkAccepted(invitationId, organizationName);
         }
+        else if (isRecorded && organizationName is not null && subject.Value.Status != OrganizationSetupAcceptanceStatus.Accepted)
+        {
+            // Never regresses an already-Accepted subject: a stale read of the recorded collection racing
+            // behind a durable publication another caller already observed must not un-accept a subject a
+            // different tab is watching right now.
+            MarkRecorded(invitationId, organizationName);
+        }
 
         return subject;
+    }
+
+    /// <summary>
+    /// Marks an invitation as recorded. Called once durable evidence confirms setup has committed to
+    /// Ante's own event log, so a subscriber already waiting on this subject learns it must not
+    /// resubmit, without needing to reconnect first.
+    /// </summary>
+    /// <param name="invitationId">The invitation identifier.</param>
+    /// <param name="organizationName">The name of the organization that was set up.</param>
+    public void MarkRecorded(InvitationId invitationId, TenantName organizationName)
+    {
+        var subject = GetOrAdd(invitationId);
+        subject.OnNext(new(invitationId, OrganizationSetupAcceptanceStatus.Recorded, organizationName));
     }
 
     /// <summary>

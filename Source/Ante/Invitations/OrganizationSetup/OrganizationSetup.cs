@@ -20,12 +20,21 @@ namespace Ante.Invitations.OrganizationSetup;
 public enum OrganizationSetupAcceptanceStatus
 {
     /// <summary>
-    /// The organization creation confirmation has not been received yet.
+    /// Setup has not been recorded yet - there is nothing to resume, so a client may safely (re)submit.
     /// </summary>
     Pending,
 
     /// <summary>
-    /// The organization creation confirmation has been received.
+    /// Setup has been recorded to Ante's own event log but has not yet fully reached the outbox. A
+    /// client observing this must keep waiting rather than resubmitting: resubmitting would collide with
+    /// the one-use invitation constraint, or, for self-service registration, would attempt to claim the
+    /// same organization name a second time.
+    /// </summary>
+    Recorded,
+
+    /// <summary>
+    /// Setup - and any required legal fact - has fully reached the outbox. This is the only state safe
+    /// to hand off to the host.
     /// </summary>
     Accepted,
 }
@@ -287,9 +296,11 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
     /// <remarks>
     /// Durable evidence from both the local record and the outbox is read first, so a re-entering user -
     /// new tab, restarted Ante, or a dropped connection reconnecting to a different replica - resumes
-    /// into the accepted state precisely once publication is durable, never from an in-memory flag alone
-    /// and never before every required fact (including a required legal one) has actually reached the
-    /// outbox.
+    /// into <see cref="OrganizationSetupAcceptanceStatus.Recorded"/> or
+    /// <see cref="OrganizationSetupAcceptanceStatus.Accepted"/> precisely once durable evidence supports
+    /// it, never from an in-memory flag alone. A client that only ever sees Pending has never actually
+    /// recorded anything and may safely (re)submit; one that sees Recorded has already submitted and must
+    /// keep waiting rather than resubmitting, even if the local browser tab restarted in between.
     /// </remarks>
     /// <param name="invitationId">The invitation or registration identifier.</param>
     /// <param name="subscriptions">The subscription tracker.</param>
@@ -304,7 +315,11 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
     {
         var recorded = recordedCollection.Find(Builders<OrganizationSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
         var published = publishedCollection.Find(Builders<OrganizationSetupPublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
-        return subscriptions.GetStatus(invitationId, recorded?.OrganizationName, OrganizationSetupPublication.IsFullyPublished(recorded, published));
+        return subscriptions.GetStatus(
+            invitationId,
+            recorded?.OrganizationName,
+            isRecorded: recorded is not null,
+            isFullyPublished: OrganizationSetupPublication.IsFullyPublished(recorded, published));
     }
 }
 
