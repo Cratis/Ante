@@ -41,5 +41,8 @@
         <PackageReference Include="Cratis.Arc.Chronicle.Testing" />
         <PackageReference Include="Cratis.Chronicle.Testing" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <!-- In-memory ASP.NET Core TestServer for specs that exercise real routing/endpoint behavior
+             (guarded routes, health endpoints) without a socket or Ante's own infrastructure. -->
+        <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     </ItemGroup>
 </Project>

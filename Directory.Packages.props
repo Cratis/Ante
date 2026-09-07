@@ -40,5 +40,9 @@
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <PackageVersion Include="NSubstitute" Version="6.2.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <!-- Drives real ASP.NET Core routing/endpoint behavior (guarded routes, health endpoints) against an
+         in-memory TestServer, without a Kestrel socket or any of Ante's own infrastructure (MongoDB,
+         Chronicle) - see Source/Directory.Build.props for why it is Debug-only. -->
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.11" />
   </ItemGroup>
 </Project>
