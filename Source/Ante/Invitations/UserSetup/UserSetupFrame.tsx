@@ -3,6 +3,8 @@
 
 import type { ReactNode } from 'react';
 import strings from 'Strings';
+import { useBrandLogo } from '../../Branding/useBrandLogo';
+import { useTrustedBrandingStyles } from '../../Branding/useTrustedBrandingStyles';
 import { GetConfiguration } from '../../Configuration/Configuration';
 import { DisplayPreferencesMenu } from '../../DisplayPreferences/DisplayPreferencesMenu';
 import './UserSetupPage.css';
@@ -16,6 +18,8 @@ interface UserSetupFrameProps {
 export const UserSetupFrame = ({ children }: UserSetupFrameProps) => {
     const [brandingResult] = GetConfiguration.use();
     const logoUrl = brandingResult.data?.logoUrl;
+    const { showImage, onImageError } = useBrandLogo(logoUrl);
+    useTrustedBrandingStyles(brandingResult.data?.customCssUrl);
 
     return (
         <div className='user-setup-container'>
@@ -23,9 +27,9 @@ export const UserSetupFrame = ({ children }: UserSetupFrameProps) => {
             <main className='user-setup-card' aria-labelledby={HEADING_ID}>
                 <DisplayPreferencesMenu />
                 <div className='user-setup-header'>
-                    <h1 id={HEADING_ID} className={logoUrl ? 'ante-logo__heading' : 'ante-logo__text'}>
-                        {logoUrl
-                            ? <img src={logoUrl} alt={strings.branding.wordmark} className='user-setup-logo' />
+                    <h1 id={HEADING_ID} className={showImage ? 'ante-logo__heading' : 'ante-logo__text'}>
+                        {showImage
+                            ? <img src={logoUrl} alt={strings.branding.wordmark} className='user-setup-logo' onError={onImageError} />
                             : strings.branding.wordmark}
                     </h1>
                     <p className='user-setup-subtitle'>{strings.userSetup.subtitle}</p>
