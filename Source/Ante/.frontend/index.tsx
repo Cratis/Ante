@@ -13,6 +13,12 @@ import './index.css';
 import React from 'react';
 import App from './App';
 import { primeReactTheme } from './primeReactTheme';
+import { applyInitialDisplayPreferences } from '../DisplayPreferences/applyInitialDisplayPreferences';
+
+// Applied synchronously, before the first render, so the stored display preferences (Cratis/Ante#20)
+// are already on the document by the time the first frame paints - never a flash of the wrong text
+// size/contrast/spacing/motion that then snaps to the stored preference a moment later.
+applyInitialDisplayPreferences();
 
 // PrimeReact 11 verifies a license key at runtime. The application owns it and hands it straight to
 // PrimeReactProvider; Components never receives it, and takes only the boolean attestation below -

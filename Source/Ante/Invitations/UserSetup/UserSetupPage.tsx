@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@cratis/components/Common';
-import { Message, ProgressSpinner } from '@cratis/components/Display';
+import { ProgressSpinner } from '@cratis/components/Display';
 import { InputTextField } from '@cratis/components/CommandForm';
 import { CommandStepper, StepperPanel } from '@cratis/components/CommandDialog';
 import { useIdentity } from '@cratis/arc.react/identity';
@@ -18,6 +18,9 @@ import { InvitationIdentityDetails } from '../Accepting/Accepting';
 import { getInvitationIdFromToken } from '../Accepting/invitationToken';
 import { LegalAcceptanceField } from '../../Legal/LegalAcceptanceField';
 import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
+import { ErrorSummary } from '../../Accessibility/ErrorSummary';
+import { LiveRegion } from '../../Accessibility/LiveRegion';
+import { useAccessibleStepper } from '../../Accessibility/useAccessibleStepper';
 import strings from 'Strings';
 
 type UserSetupPageProps = {
@@ -74,6 +77,12 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
         privacyPolicy: legalStatus.data?.privacyPolicy ?? ''
     });
 
+    const stepperContainerRef = useRef<HTMLDivElement>(null);
+    const { announcement } = useAccessibleStepper(stepperContainerRef, {
+        idPrefix: 'user-setup',
+        announcementTemplate: strings.accessibility.stepAnnouncement
+    });
+
     useEffect(() => {
         if (!recovery.isAccepted) return;
 
@@ -101,11 +110,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
         return (
             <UserSetupFrame>
                 <div className='user-setup-card__content'>
-                    <div className='user-setup-errors'>
-                        {errorMessages.map((msg, i) => (
-                            <Message key={i} severity='error' text={msg} className='user-setup-errors__item' />
-                        ))}
-                    </div>
+                    <ErrorSummary messages={errorMessages} className='user-setup-errors' itemClassName='user-setup-errors__item' />
                 </div>
             </UserSetupFrame>
         );
@@ -130,7 +135,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
         return (
             <UserSetupFrame>
                 <div className='user-setup-card__content'>
-                    <div className='user-setup-waiting'>
+                    <div className='user-setup-waiting' role='status' aria-live='polite'>
                         <p className='user-setup-waiting__message'>{strings.onboarding.notYetConfirmed}</p>
                         <Button label={strings.onboarding.checkAgain} onClick={recovery.checkAgain} />
                         <p className='user-setup-waiting__message'>{strings.onboarding.contactSupport}</p>
@@ -145,7 +150,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
             <UserSetupFrame>
                 <div className='user-setup-card__content'>
                     <div className='user-setup-waiting'>
-                        <ProgressSpinner className='user-setup-waiting__spinner' />
+                        <ProgressSpinner className='user-setup-waiting__spinner' aria-label={strings.userSetup.setting} />
                         <p className='user-setup-waiting__message'>{strings.userSetup.setting}</p>
                     </div>
                 </div>
@@ -159,23 +164,26 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
                 value={c => c.firstName}
                 title={strings.userSetup.firstName}
                 placeholder={strings.userSetup.firstNamePlaceholder}
+                pt={{ root: { autoComplete: 'given-name' } }}
             />
             <InputTextField<AcceptInvitation>
                 value={c => c.middleName}
                 title={strings.userSetup.middleName}
                 placeholder={strings.userSetup.middleNamePlaceholder}
+                pt={{ root: { autoComplete: 'additional-name' } }}
             />
             <InputTextField<AcceptInvitation>
                 value={c => c.lastName}
                 title={strings.userSetup.lastName}
                 placeholder={strings.userSetup.lastNamePlaceholder}
+                pt={{ root: { autoComplete: 'family-name' } }}
             />
         </StepperPanel>
     );
 
     return (
         <UserSetupFrame>
-            <div className='user-setup-card__content user-setup-card__content--stepper'>
+            <div className='user-setup-card__content user-setup-card__content--stepper' ref={stepperContainerRef}>
                 <CommandStepper<AcceptInvitation>
                     command={AcceptInvitation}
                     validateOnInit
@@ -204,6 +212,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
                 </CommandStepper>
                 {legalDocuments.dialog}
             </div>
+            <LiveRegion message={announcement} />
         </UserSetupFrame>
     );
 };

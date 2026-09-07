@@ -7,6 +7,42 @@
         "checkAgain": "Check again",
         "contactSupport": "If this keeps happening, please contact support."
     },
+    "accessibility": {
+        "stepAnnouncement": "Step {current} of {total}: {label}"
+    },
+    "displayPreferences": {
+        "trigger": "Display preferences",
+        "title": "Display preferences",
+        "description": "These settings change how this page looks. They do not change your account.",
+        "textSize": {
+            "label": "Text size",
+            "default": "Default",
+            "large": "Large",
+            "largest": "Largest"
+        },
+        "contrast": {
+            "label": "Contrast",
+            "default": "Default",
+            "high": "High contrast"
+        },
+        "spacing": {
+            "label": "Spacing",
+            "default": "Default",
+            "relaxed": "Relaxed"
+        },
+        "controlSize": {
+            "label": "Control size",
+            "default": "Default",
+            "large": "Large"
+        },
+        "motion": {
+            "label": "Motion",
+            "system": "Match system setting",
+            "reduced": "Reduce motion"
+        },
+        "reset": "Reset to defaults",
+        "close": "Done"
+    },
     "legal": {
         "acceptance": "I have read and accept the {termsAndConditions} and the {privacyPolicy}.",
         "documents": {
