@@ -5,7 +5,9 @@
     "onboarding": {
         "notYetConfirmed": "This is taking longer than expected. Your information was saved - nothing was lost. This can happen during busy periods or a brief connection drop.",
         "checkAgain": "Check again",
-        "contactSupport": "If this keeps happening, please contact support."
+        "contactSupport": "If this keeps happening, please contact support.",
+        "continueToHost": "Continue",
+        "hostOutcomeReference": "Reference: {reasonCode}"
     },
     "accessibility": {
         "stepAnnouncement": "Step {current} of {total}: {label}"
@@ -79,7 +81,10 @@
         "lastNamePlaceholder": "Enter your last name",
         "setupOrganization": "Set Up Organization",
         "settingUp": "Setting up your organization...",
-        "hostAppUrlUnavailable": "Organization was created, but we could not determine where to take you next. Please contact support."
+        "hostAppUrlUnavailable": "Organization was created, but we could not determine where to take you next. Please contact support.",
+        "hostOutcomePending": "Your organization was created. We're still finishing setup with the host application.",
+        "hostOutcomeSucceeded": "Your organization was created and the host confirmed everything is ready.",
+        "hostOutcomeFailed": "Your organization was created, but the host reported a problem finishing setup."
     },
     "userSetup": {
         "subtitle": "Complete your profile",
@@ -94,6 +99,9 @@
         "acceptInvitation": "Accept Invitation",
         "setting": "Setting up your account...",
         "hostAppUrlUnavailable": "Your account was created, but we could not determine where to take you next. Please contact support.",
-        "acceptanceFailed": "We could not complete your account setup. Please contact support."
+        "acceptanceFailed": "We could not complete your account setup. Please contact support.",
+        "hostOutcomePending": "Your account was created. We're still finishing setup with the host application.",
+        "hostOutcomeSucceeded": "Your account was created and the host confirmed everything is ready.",
+        "hostOutcomeFailed": "Your account was created, but the host reported a problem finishing setup."
     }
 }

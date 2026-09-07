@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@cratis/components/Common';
 import { ProgressSpinner } from '@cratis/components/Display';
 import { InputTextField } from '@cratis/components/CommandForm';
@@ -11,6 +11,9 @@ import { Guid } from '@cratis/fundamentals';
 import { AcceptInvitation, StatusForInvitation } from './UserSetup';
 import { UserSetupAcceptanceStatus } from './UserSetupAcceptanceStatus';
 import { useOnboardingRecovery } from '../useOnboardingRecovery';
+import { useHostOutcome } from '../useHostOutcome';
+import { resolveHostOutcomeGate } from '../HostOutcomeGate';
+import { HostOutcomeStatus } from '../HostOutcome/HostOutcomeStatus';
 import { HostUrl } from '../../Configuration/Configuration';
 import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
 import { UserSetupFrame } from './UserSetupFrame';
@@ -50,6 +53,11 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     const isAccepted = statusResult.hasData && statusResult.data.status === UserSetupAcceptanceStatus.accepted;
     const recovery = useOnboardingRecovery(isRecorded, isAccepted);
 
+    // Never looked up before Ante's own onboarding has actually published - a host has nothing to report
+    // on an invitation it has not been notified of accepting yet.
+    const hostOutcome = useHostOutcome(recovery.isAccepted ? resolvedInvitationId : Guid.empty);
+    const hostOutcomeGate = resolveHostOutcomeGate(recovery.isAccepted, hostOutcome.isConfigured);
+
     // Memoized so an unrelated re-render - opening the terms dialog, a status poll tick - does not
     // recreate this object: CommandForm reasserts initialValues/currentValues onto the command whenever
     // their identity changes, and a fresh literal on every render would otherwise silently uncheck the
@@ -83,9 +91,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
         announcementTemplate: strings.accessibility.stepAnnouncement
     });
 
-    useEffect(() => {
-        if (!recovery.isAccepted) return;
-
+    const navigateToHost = useCallback(() => {
         if (!hostUrlResult.isSuccess) {
             setErrorMessages([strings.userSetup.hostAppUrlUnavailable]);
             return;
@@ -104,7 +110,15 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
             // crashed page - acceptance already published, so the person's information was not lost.
             setErrorMessages([strings.userSetup.hostAppUrlUnavailable]);
         }
-    }, [recovery.isAccepted, hostUrlResult]);
+    }, [hostUrlResult]);
+
+    useEffect(() => {
+        // Unchanged automatic redirect when the optional host-outcome screen was never configured -
+        // 'showHostOutcome' instead lets the completion screen's own Continue action call
+        // navigateToHost, and 'keepWaiting' means acceptance has not published yet.
+        if (hostOutcomeGate !== 'redirectAutomatically') return;
+        navigateToHost();
+    }, [hostOutcomeGate, navigateToHost]);
 
     if (errorMessages.length > 0) {
         return (
@@ -139,6 +153,41 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
                         <p className='user-setup-waiting__message'>{strings.onboarding.notYetConfirmed}</p>
                         <Button label={strings.onboarding.checkAgain} onClick={recovery.checkAgain} />
                         <p className='user-setup-waiting__message'>{strings.onboarding.contactSupport}</p>
+                    </div>
+                </div>
+            </UserSetupFrame>
+        );
+    }
+
+    // Checked before the generic 'waiting' phase below: OnboardingRecoveryState reports 'waiting' for
+    // both "recorded but not yet accepted" and "accepted, about to redirect" - once a host outcome
+    // adapter is configured, the latter must render this completion screen instead of an indefinite
+    // spinner, since navigateToHost is no longer called automatically. Acceptance already published by
+    // this point regardless of what (if anything) is shown here; a failed or still-pending host outcome
+    // never blocks the Continue action.
+    if (hostOutcomeGate === 'showHostOutcome') {
+        const message = hostOutcome.status === HostOutcomeStatus.succeeded
+            ? strings.userSetup.hostOutcomeSucceeded
+            : hostOutcome.status === HostOutcomeStatus.failed
+                ? strings.userSetup.hostOutcomeFailed
+                : strings.userSetup.hostOutcomePending;
+
+        return (
+            <UserSetupFrame>
+                <div className='user-setup-card__content'>
+                    <div className='user-setup-waiting' role='status' aria-live='polite'>
+                        <p className='user-setup-waiting__message'>{message}</p>
+                        {hostOutcome.status === HostOutcomeStatus.failed && hostOutcome.reasonCode && (
+                            <p className='user-setup-waiting__message'>
+                                {strings.onboarding.hostOutcomeReference.replace('{reasonCode}', hostOutcome.reasonCode)}
+                            </p>
+                        )}
+                        <div className='user-setup-host-outcome__actions'>
+                            <Button label={strings.onboarding.continueToHost} onClick={navigateToHost} />
+                            {hostOutcome.status !== HostOutcomeStatus.succeeded && (
+                                <Button label={strings.onboarding.checkAgain} variant='ghost' onClick={hostOutcome.checkAgain} />
+                            )}
+                        </div>
                     </div>
                 </div>
             </UserSetupFrame>

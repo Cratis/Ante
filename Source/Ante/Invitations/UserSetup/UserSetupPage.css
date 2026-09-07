@@ -111,6 +111,14 @@
     margin: 0;
 }
 
+/* Optional host-outcome completion screen */
+.user-setup-host-outcome__actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
 /* Error state */
 .user-setup-errors {
     display: flex;

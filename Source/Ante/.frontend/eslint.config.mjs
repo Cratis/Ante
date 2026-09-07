@@ -145,6 +145,7 @@ const defaultConfig = [
         files: [
             'Configuration/Configuration.ts',
             '**/Invitations/Accepting/Accepting.ts',
+            '**/Invitations/HostOutcome/HostOutcome.ts',
             '**/Invitations/OrganizationSetup/OrganizationSetup.ts',
             '**/Invitations/UserSetup/UserSetup.ts',
             '**/Legal/LegalDocuments.ts',
