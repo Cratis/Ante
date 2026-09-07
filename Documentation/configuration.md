@@ -85,3 +85,13 @@ Changing `Ante:EventStore` or `Ante:Namespace` on an **already-running** deploym
 4. **Rollback** is reverting the configuration value — the old store/namespace was never modified, so its data and Chronicle observer checkpoints are exactly as they were. Anything appended under the new value during the cutover window is not carried back automatically; treat a rollback as abandoning that window's facts unless they are manually replayed into the old store.
 
 There is no dual-write, no automatic backfill, and no tooling to replay one store's history into another today — a deployment that needs its accumulated invitation history to follow a store/namespace rename needs a bespoke migration, which is out of scope for Ante itself.
+
+## Guarded routes, health, and diagnostics
+
+None of the settings above configure this — it is fixed behavior, not yet exposed as configuration:
+
+- `/openapi/...` is mapped only when `ASPNETCORE_ENVIRONMENT=Development`. There is no setting to opt a non-development deployment into publishing it.
+- `/healthz/ready`'s dependency timeout (`AnteHealthChecks.DependencyTimeout`, 3 seconds) is a compiled constant, not a configuration key.
+- The identity backchannel's outage warning never logs the organization name or any other onboarding-specific value, regardless of `Ante:IdentityBackchannelUrl` — see [Deployment: Private diagnostics](./deployment.md#private-diagnostics).
+
+See [Deployment: Health check](./deployment.md#health-check) and [Deployment: Guarded routes](./deployment.md#guarded-routes) for the full behavior.
