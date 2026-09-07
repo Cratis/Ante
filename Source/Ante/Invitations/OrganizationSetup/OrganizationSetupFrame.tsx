@@ -3,6 +3,8 @@
 
 import type { ReactNode } from 'react';
 import strings from 'Strings';
+import { useBrandLogo } from '../../Branding/useBrandLogo';
+import { useTrustedBrandingStyles } from '../../Branding/useTrustedBrandingStyles';
 import { GetConfiguration } from '../../Configuration/Configuration';
 import { DisplayPreferencesMenu } from '../../DisplayPreferences/DisplayPreferencesMenu';
 import './OrganizationSetupPage.css';
@@ -17,6 +19,8 @@ interface OrganizationSetupFrameProps {
 export const OrganizationSetupFrame = ({ children, subtitle }: OrganizationSetupFrameProps) => {
     const [brandingResult] = GetConfiguration.use();
     const logoUrl = brandingResult.data?.logoUrl;
+    const { showImage, onImageError } = useBrandLogo(logoUrl);
+    useTrustedBrandingStyles(brandingResult.data?.customCssUrl);
 
     return (
         <div className='organization-setup-container'>
@@ -24,9 +28,9 @@ export const OrganizationSetupFrame = ({ children, subtitle }: OrganizationSetup
             <main className='organization-setup-card' aria-labelledby={HEADING_ID}>
                 <DisplayPreferencesMenu />
                 <div className='organization-setup-header'>
-                    <h1 id={HEADING_ID} className={logoUrl ? 'ante-logo__heading' : 'ante-logo__text'}>
-                        {logoUrl
-                            ? <img src={logoUrl} alt={strings.branding.wordmark} className='organization-setup-logo' />
+                    <h1 id={HEADING_ID} className={showImage ? 'ante-logo__heading' : 'ante-logo__text'}>
+                        {showImage
+                            ? <img src={logoUrl} alt={strings.branding.wordmark} className='organization-setup-logo' onError={onImageError} />
                             : strings.branding.wordmark}
                     </h1>
                     <p className='organization-setup-subtitle'>{subtitle ?? strings.organizationSetup.subtitle}</p>

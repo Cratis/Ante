@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { RefObject, useEffect, useState } from 'react';
+import { useLocale } from '../Locale/LocaleContext';
 import { applyStepperHeaderAria, applyStepperPanelAria, buildStepperAriaIds } from './stepperAria';
 import { formatStepAnnouncement } from './stepAnnouncement';
 import { pickCurrentStepIndex } from './stepperStepIndex';
@@ -40,6 +41,7 @@ export const useAccessibleStepper = (
     options: UseAccessibleStepperOptions
 ): { announcement: string } => {
     const [announcement, setAnnouncement] = useState('');
+    const locale = useLocale();
 
     useEffect(() => {
         const container = containerRef.current;
@@ -60,7 +62,7 @@ export const useAccessibleStepper = (
 
             const currentPanel = panels[currentIndex];
             const label = headers[currentIndex]?.textContent?.trim() ?? '';
-            setAnnouncement(formatStepAnnouncement(options.announcementTemplate, currentIndex + 1, panels.length, label));
+            setAnnouncement(formatStepAnnouncement(options.announcementTemplate, currentIndex + 1, panels.length, label, locale));
 
             // Only move focus on an actual transition - not on first mount, which would steal focus
             // away from wherever the page (or the browser) already put it on load.
@@ -73,7 +75,7 @@ export const useAccessibleStepper = (
         panels.forEach(panel => observer.observe(panel, { attributes: true, attributeFilter: ['hidden'] }));
 
         return () => observer.disconnect();
-    }, [containerRef, options.idPrefix, options.announcementTemplate]);
+    }, [containerRef, options.idPrefix, options.announcementTemplate, locale]);
 
     return { announcement };
 };

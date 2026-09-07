@@ -17,8 +17,8 @@ ASP.NET Core's configuration binder maps a nested key path to an environment var
 | `Ante:Namespace` | `Default` | The fixed Chronicle namespace this instance runs against, within `Ante:EventStore`. Applies to every request this instance serves — Ante is single-tenant per deployment, not request-selected multi-tenant (see [Boundaries](./boundaries.md#multi-tenancy-of-ante-itself)). An empty value fails startup — see [Safe routing](#safe-routing-and-startup-validation) below. |
 | `Ante:InboxSourceStore` | `Direct` | Declares which host event store Ante's inbox reactor is compiled to cross-subscribe to. This does **not** retarget the subscription — it exists purely so a value that disagrees with the compiled constant fails startup instead of being silently ignored. See [Known limitation](#known-limitation-the-inbox-source-store-is-not-configurable) below. |
 | `Ante:HostAppUrl` | _(empty)_ | Base URL of the host application. The wizards redirect here once an invitation is accepted or a registration completes. Supports a `{tenant}` placeholder, substituted with the organization name at redirect time. |
-| `Ante:LogoUrl` | _(empty)_ | URL of a custom logo shown in the lobby. Empty renders a plain "Ante" wordmark. Overridable by mounting a file into the container. |
-| `Ante:CustomCssUrl` | _(empty)_ | URL of a custom CSS file injected into the lobby. Overridable the same way. |
+| `Ante:LogoUrl` | _(empty)_ | URL of a custom logo shown in the lobby. Empty renders a plain "Ante" wordmark; a configured URL that fails to load (404, revoked, blocked) falls back to the wordmark too rather than a broken-image icon. Overridable by mounting a file into the container. |
+| `Ante:CustomCssUrl` | _(empty)_ | URL of a custom CSS file loaded into the lobby via a `<link rel="stylesheet">` — see [Boundaries: Branding presets](./boundaries.md#branding-presets) for the trust boundary and what "loaded" actually guarantees. Overridable the same way as `Ante:LogoUrl`. |
 | `Ante:IdentityBackchannelUrl` | _(empty)_ | Base URL of a host endpoint Ante calls to pre-flight-check whether a signed-in identity is already associated with a user in the organization being joined. Empty skips the check entirely — see [Host Integration](./host-integration.md#the-identity-backchannel). |
 
 ## Invitation token signing (`Ante:Invitations:Token`, bound to `InvitationTokenConfig`)
@@ -95,3 +95,7 @@ None of the settings above configure this — it is fixed behavior, not yet expo
 - The identity backchannel's outage warning never logs the organization name or any other onboarding-specific value, regardless of `Ante:IdentityBackchannelUrl` — see [Deployment: Private diagnostics](./deployment.md#private-diagnostics).
 
 See [Deployment: Health check](./deployment.md#health-check) and [Deployment: Guarded routes](./deployment.md#guarded-routes) for the full behavior.
+
+## Locale
+
+There is no `Ante:*` locale setting because there is nothing yet to select: the lobby ships one supported UI locale, English (`en`), end to end. `Program.cs` pins the backend to `CultureInfo.InvariantCulture` deliberately, so validation messages are always English too — the frontend and the backend cannot drift into different languages for the same rejection, because neither ever varies. A browser requesting any other language falls back to English deterministically; there is no partial translation and no development-only override to preview one. See [Boundaries: Localization](./boundaries.md#localization) for what adding a second locale actually requires.

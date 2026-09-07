@@ -33,6 +33,24 @@ Ante resolves *who is onboarding* and hands the host a correlated accepted/regis
 
 `Ante:LogoUrl` and `Ante:CustomCssUrl` let a deployment point at its own logo and stylesheet, but Ante ships no built-in theme catalog or design-system integration beyond that. A host wanting a fully branded lobby supplies its own assets through those two settings.
 
+`Ante:CustomCssUrl` is loaded through a real `<link rel="stylesheet">`, appended once, deterministically, after the lobby's own built-in styles — never `dangerouslySetInnerHTML` of fetched CSS text — so the browser, and the deployment's own Content-Security-Policy, govern the request exactly as they would any other stylesheet. It is refused outright (falling back to the default styling) when it cannot be parsed as a URL, when it uses a scheme other than `http:`/`https:`, or when it is cross-origin over plain `http:`; a same-origin value (e.g. a file mounted into Ante's own `wwwroot`) is always allowed, at whatever scheme the document itself was served over. A configured value that loads but fails afterwards (blocked, 404, network failure) is removed and logged to the console, never surfaced to the person using the lobby.
+
+**This is the honest limit of that guarantee, stated rather than left implicit:** `CustomCssUrl` is deployment-owned configuration — the same trust level as `Ante:HostAppUrl` or `Ante:LogoUrl` — not end-user input, so none of the above is sanitization against a hostile value. Ante does not, and cannot, sanitize the CSS content itself; arbitrary trusted CSS can still affect accessibility (contrast, focus visibility, layout) once it loads, and that is the deploying operator's responsibility to get right, not something Ante can verify. Ante also does not maintain its own per-origin allow-list for cross-origin stylesheets — a deployment wanting finer-grained control enforces it with its own Content-Security-Policy `style-src` directive, which the browser honors independently.
+
+A configured `Ante:LogoUrl` that fails to load falls back to the plain "Ante" text wordmark rather than the browser's broken-image icon, the same neutral-default philosophy the accessibility work in [#20](https://github.com/Cratis/Ante/issues/20) applies to display preferences.
+
+## Localization
+
+The lobby ships one supported UI locale today: English (`en`). This is a deliberate, documented scope boundary, not an oversight — see [Configuration: Locale](./configuration.md#locale) for why the frontend and backend cannot drift apart on language while that remains true.
+
+Adding a second locale is real work, not just a translation file: it needs reviewed human translations (not machine translation, and not another product's roster copy-pasted in), the locale added to the frontend's closed `SUPPORTED_LOCALES` set, **and** the backend's own validation messages localized to match — `Program.cs` currently pins the whole backend to `CultureInfo.InvariantCulture` deliberately, so introducing a second frontend locale without also localizing the backend would let the interface and the server disagree about what language a rejection is in. There is deliberately no development-only locale override to preview an unreviewed translation outside that process.
+
+A locale change is a UI-language change only. Legal content and its version are always host-authoritative through `ILegalDocumentSource`, regardless of which locale the interface is rendering in — switching the interface language must never, by itself, invent a new legal version or force re-consent; only the host's own document content actually changing does that (see [Invitation Lifecycle: Legal consent](./invitation-lifecycle.md#legal-consent)).
+
+## Render failure recovery
+
+A render error inside the lobby (a bug in a component, a provider failing to initialize) degrades to a minimal, safe-language recovery screen with a reload action — never a blank or half-rendered page — via a single boundary wrapping the entire application, including the branding and component-library providers themselves. It never displays the caught error's message or stack trace, since a render failure can be carrying request/form state that must not be echoed back as diagnostic text; the real error is still logged to the console for whoever is watching devtools or server logs. This boundary catches render errors only — network and command failures already have their own explicit journey states (see [Wizards: Status polling, recovery, and redirect](./wizards.md#status-polling-recovery-and-redirect)) and are never routed through it.
+
 ## Next steps
 
 - [Host Integration](./host-integration.md) — what Ante does hand the host, precisely.

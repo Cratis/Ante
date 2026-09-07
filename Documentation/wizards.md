@@ -65,6 +65,10 @@ On `accepted`, all three build a redirect URL from the `HostAppUrl` query (`Conf
 
 `RegistrationPage` has no invitation to derive an id from, so it persists a versioned, opaque registration-id pointer per browser tab (`RegistrationOperation.ts`, `sessionStorage`) rather than minting a new id on every mount — a reload or a return later resumes polling the same durable registration instead of losing track of what was already submitted. The pointer is never more than an id: no profile draft, identity claim, legal content, or token is ever persisted client-side. Two tabs opened to `/register` each get their own pointer (`sessionStorage` is per-tab); a person who deliberately wants to register a different organization can clear it explicitly (the "Register a different organization" action on the timed-out/error states).
 
+## Render failure recovery
+
+None of the phases above are what a render error looks like. A bug in a component, or a branding/provider initialization failure, is caught by a boundary wrapping the whole application and replaced with a minimal, safe-language recovery screen and a reload action — see [Boundaries: Render failure recovery](./boundaries.md#render-failure-recovery). The `form`/`waiting`/`timedOut` phases above remain how the wizards represent network and command outcomes; the recovery boundary never intercepts those, only an actual render error.
+
 ## Next steps
 
 - [Invitation Lifecycle](./invitation-lifecycle.md) — the events and commands behind each wizard.
