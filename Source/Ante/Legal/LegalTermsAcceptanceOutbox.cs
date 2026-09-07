@@ -12,6 +12,7 @@ namespace Ante.Legal;
 /// record of who accepted what, and when.
 /// </summary>
 /// <remarks>
+/// <para>
 /// All three onboarding flows - self-service registration, setting up an organization from an
 /// invitation, and joining an existing one - append the same acceptance event, so one reactor covers
 /// all of them rather than each slice growing its own copy. Because it is shared, it cannot know by
@@ -19,10 +20,21 @@ namespace Ante.Legal;
 /// <see cref="IPublicationStatusNotifier"/> a chance to check - the ones that do not recognize the id do
 /// nothing. This is what closes the live-status gap for the (uncommon) case where the legal fact reaches
 /// the outbox after the flow's own accept/registration fact rather than before it.
+/// </para>
+/// <para>
+/// Pinned to <see cref="EventLogAttribute"/> deliberately: <see cref="LegalTermsAccepted"/> is declared in
+/// <c>Cratis.Ante.Contracts</c>, whose assembly-level <c>[EventStore("Ante")]</c> attribute exists so a
+/// *host's own* reactor can observe it without knowing Ante's configured store name. Left unattributed
+/// itself, this reactor would fall into that same inference and get its handled event's declared store
+/// ("Ante", the compiled literal) compared against whatever this deployment's actual store is named - a
+/// deployment renamed away from that literal (see <see cref="AnteOptions.EventStore"/>) would silently
+/// mismatch and reroute local forwarding onto a nonexistent inbox sequence instead of the event log.
+/// </para>
 /// </remarks>
 /// <param name="eventStore">The event store.</param>
 /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>.</param>
 [Reactor]
+[EventLog]
 public class LegalTermsAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers) : IReactor
 {
     /// <summary>
