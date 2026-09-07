@@ -65,4 +65,15 @@ public class AnteOptions
     /// constraint.
     /// </summary>
     public string IdentityBackchannelUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the base URL of an optional host endpoint Ante calls to look up what happened to a
+    /// specific onboarding attempt after Ante's own publication - for example, whether downstream
+    /// provisioning in the host succeeded or failed. Purely informational: it is never required, never
+    /// implies host membership or provisioning is Ante's responsibility, and never changes whether Ante's
+    /// own onboarding published successfully. When empty, no host outcome is looked up or displayed and
+    /// every wizard behaves exactly as it does without this setting - see
+    /// <see href="https://github.com/Cratis/Ante/issues/22">Cratis/Ante#22</see>.
+    /// </summary>
+    public string HostOutcomeUrl { get; set; } = string.Empty;
 }
