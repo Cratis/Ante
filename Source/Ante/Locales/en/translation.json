@@ -43,6 +43,11 @@
         "reset": "Reset to defaults",
         "close": "Done"
     },
+    "renderRecovery": {
+        "title": "Something went wrong",
+        "message": "This page ran into a problem it could not recover from on its own. Reloading usually fixes it.",
+        "reload": "Reload"
+    },
     "legal": {
         "acceptance": "I have read and accept the {termsAndConditions} and the {privacyPolicy}.",
         "documents": {
