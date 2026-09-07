@@ -68,7 +68,7 @@ public class IdentityBackchannel(
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or NotSupportedException or System.Text.Json.JsonException)
         {
-            logger.LogIdentityBackchannelUnavailable(organization, ex);
+            logger.LogIdentityBackchannelUnavailable(ex);
             return false;
         }
     }
