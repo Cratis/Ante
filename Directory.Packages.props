@@ -5,16 +5,16 @@
   <ItemGroup>
     <!-- Cratis — keep the public Cratis / Arc family aligned so generated self-bindings and runtime
          contracts are built against the same Chronicle contract generation. -->
-    <PackageVersion Include="Cratis" Version="22.10.1" />
+    <PackageVersion Include="Cratis" Version="22.13.1" />
     <PackageVersion Include="Cratis.Arc" Version="22.10.1" />
-    <PackageVersion Include="Cratis.Arc.ProxyGenerator.Build" Version="22.10.1" />
-    <PackageVersion Include="Cratis.Arc.Chronicle.Testing" Version="22.10.1" />
-    <PackageVersion Include="Cratis.Arc.MongoDB" Version="22.10.1" />
+    <PackageVersion Include="Cratis.Arc.ProxyGenerator.Build" Version="22.13.1" />
+    <PackageVersion Include="Cratis.Arc.Chronicle.Testing" Version="22.13.1" />
+    <PackageVersion Include="Cratis.Arc.MongoDB" Version="22.13.1" />
     <PackageVersion Include="Cratis.Arc.Core" Version="22.10.1" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.18.3" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.19.2" />
     <!-- Keep Chronicle clients and testing support on the same release. -->
-    <PackageVersion Include="Cratis.Chronicle" Version="16.44.1" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="16.44.1" />
+    <PackageVersion Include="Cratis.Chronicle" Version="18.1.0" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="18.1.0" />
     <!-- Compiler toolset — pinned to match the Roslyn version Cratis.Arc.Core's and Cratis.Chronicle's
          analyzers were built against (CS9057 otherwise). -->
     <PackageVersion Include="Microsoft.Net.Compilers.Toolset" Version="5.9.0" />
@@ -25,11 +25,11 @@
          FileNotFoundException the moment a CommandScenario spec runs. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" NoWarn="NU5104" />
-    <PackageVersion Include="Roslynator.Analyzers" Version="4.16.0" />
-    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.151" />
+    <PackageVersion Include="Roslynator.Analyzers" Version="5.0.0" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.235" />
     <!-- Microsoft -->
     <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.22.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.11" />
     <!-- Data -->
     <PackageVersion Include="MongoDB.Driver" Version="3.11.0" />
@@ -37,12 +37,12 @@
     <PackageVersion Include="Cratis.Specifications" Version="4.1.0" />
     <PackageVersion Include="Cratis.Specifications.XUnit" Version="4.1.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
     <PackageVersion Include="NSubstitute" Version="6.2.0" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
     <!-- Drives real ASP.NET Core routing/endpoint behavior (guarded routes, health endpoints) against an
          in-memory TestServer, without a Kestrel socket or any of Ante's own infrastructure (MongoDB,
          Chronicle) - see Source/Directory.Build.props for why it is Debug-only. -->
-    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
   </ItemGroup>
 </Project>
