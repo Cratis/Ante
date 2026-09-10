@@ -4,7 +4,7 @@
 namespace Ante;
 
 /// <summary>
-/// Represents the runtime configuration options for the Ante service, bound from the <c>Ante</c>
+/// Represents the runtime configuration options for the Ante service, bound from the <c language="csharp">Ante</c>
 /// configuration section.
 /// </summary>
 public class AnteOptions
@@ -26,7 +26,7 @@ public class AnteOptions
 
     /// <summary>
     /// Gets or sets the name of the host product's event store Ante's inbox reactor expects to
-    /// cross-subscribe to. This does not retarget the subscription - Chronicle's <c>[EventStore]</c>
+    /// cross-subscribe to. This does not retarget the subscription - Chronicle's <c language="csharp">[EventStore]</c>
     /// attribute requires a compile-time constant, so the actual source store is
     /// <see cref="Invitations.Receiving.InboxSourceStore.Name"/> and changing it requires editing that
     /// constant and rebuilding (tracked upstream as Cratis/Chronicle#3951). This setting exists solely so
@@ -38,8 +38,8 @@ public class AnteOptions
     /// <summary>
     /// Gets or sets the base URL of the host application. Once an invitation is accepted or a
     /// self-service registration completes, the wizard redirects here.
-    /// For localhost development use the pattern <c>http://{tenant}.localhost:8090/</c> where the
-    /// placeholder <c>{tenant}</c> is replaced by the subdomain at runtime.
+    /// For localhost development use the pattern <c language="csharp">http://{tenant}.localhost:8090/</c> where the
+    /// placeholder <c language="csharp">{tenant}</c> is replaced by the subdomain at runtime.
     /// </summary>
     public string HostAppUrl { get; set; } = string.Empty;
 
@@ -60,7 +60,7 @@ public class AnteOptions
     /// <summary>
     /// Gets or sets the base URL of the identity backchannel Ante calls to check whether the identity a
     /// user signed in with is already associated with a user in the organization they are joining
-    /// (for example <c>https://host.example.com/api/internal/identity-providers</c>).
+    /// (for example <c language="csharp">https://host.example.com/api/internal/identity-providers</c>).
     /// When empty, the check is skipped and onboarding relies solely on the host's own uniqueness
     /// constraint.
     /// </summary>

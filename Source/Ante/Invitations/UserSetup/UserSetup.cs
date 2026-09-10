@@ -260,8 +260,8 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
 /// Forwards <see cref="InvitationToJoinTenantAccepted"/> to the outbox so the host can subscribe.
 /// </summary>
 /// <remarks>
-/// Pinned to <see cref="EventLogAttribute"/> deliberately - see the remarks on <c>LegalTermsAcceptanceOutbox</c>
-/// for why an unattributed reactor handling a <c>Cratis.Ante.Contracts</c> event is unsafe to route once a
+/// Pinned to <see cref="EventLogAttribute"/> deliberately - see the remarks on <c language="csharp">LegalTermsAcceptanceOutbox</c>
+/// for why an unattributed reactor handling a <c language="csharp">Cratis.Ante.Contracts</c> event is unsafe to route once a
 /// deployment renames its store away from the compiled "Ante" literal.
 /// </remarks>
 /// <param name="eventStore">The event store.</param>

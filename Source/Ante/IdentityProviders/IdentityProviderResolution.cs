@@ -13,7 +13,7 @@ public interface IIdentityProviderResolver
     /// Resolves a reported identity provider to the configured provider it belongs to.
     /// </summary>
     /// <param name="reported">
-    /// What the authentication proxy reported - an <c>iss</c> claim, nothing at all for a provider that
+    /// What the authentication proxy reported - an <c language="csharp">iss</c> claim, nothing at all for a provider that
     /// issues none, or a value previously recorded for the same sign-in.
     /// </param>
     /// <returns>
@@ -43,12 +43,12 @@ public class ConfiguredIdentityProvider
 {
     /// <summary>
     /// Gets or sets the provider's display name, exactly as the authentication proxy is configured with
-    /// it - for example <c>GitHub</c> or <c>Google</c>. This is the name a sign-in is recorded under.
+    /// it - for example <c language="csharp">GitHub</c> or <c language="csharp">Google</c>. This is the name a sign-in is recorded under.
     /// </summary>
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the issuer the provider identifies itself with in the <c>iss</c> claim, if it issues
+    /// Gets or sets the issuer the provider identifies itself with in the <c language="csharp">iss</c> claim, if it issues
     /// one. OAuth2-only providers - GitHub, for one - have no issuer at all, which is precisely why a
     /// sign-in through them arrives with nothing identifying the provider.
     /// </summary>
@@ -57,7 +57,7 @@ public class ConfiguredIdentityProvider
 
 /// <summary>
 /// Represents the identity providers the host's authentication proxy has been configured with, bound
-/// from the <c>IdentityProviders</c> configuration section.
+/// from the <c language="csharp">IdentityProviders</c> configuration section.
 /// </summary>
 /// <remarks>
 /// The authentication proxy is a separate component that owns the provider registrations; Ante never

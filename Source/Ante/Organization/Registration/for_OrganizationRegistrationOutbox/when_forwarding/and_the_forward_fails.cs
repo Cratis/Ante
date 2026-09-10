@@ -16,7 +16,7 @@ namespace Ante.Organization.Registration.for_OrganizationRegistrationOutbox.when
 /// <summary>
 /// A failed outbox append must never notify a live status subscription that the fact was published.
 /// <see cref="OutboxForwarder"/> throws <see cref="OutboxPublicationFailed"/> in this situation (covered
-/// directly by <c>for_OutboxForwarder</c>) so Chronicle's reactor invoker - which owns catching that
+/// directly by <c language="csharp">for_OutboxForwarder</c>) so Chronicle's reactor invoker - which owns catching that
 /// exception to pause and retry the partition, and does not re-surface it to this scenario - never lets
 /// the invocation reach the point where it would otherwise call every notifier.
 /// </summary>

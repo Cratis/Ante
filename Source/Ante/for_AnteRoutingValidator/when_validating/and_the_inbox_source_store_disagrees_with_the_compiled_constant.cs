@@ -7,7 +7,7 @@ using Ante.Invitations.Receiving;
 namespace Ante.for_AnteRoutingValidator.when_validating;
 
 /// <summary>
-/// Chronicle's <c>[EventStore]</c> attribute requires a compile-time constant argument (Cratis/Chronicle#3951),
+/// Chronicle's <c language="csharp">[EventStore]</c> attribute requires a compile-time constant argument (Cratis/Chronicle#3951),
 /// so <see cref="AnteOptions.InboxSourceStore"/> cannot actually retarget
 /// <see cref="InboxSourceStore.Name"/> at runtime. A deployment supplying a different value here must be
 /// rejected loudly rather than silently ignored - the option would otherwise look accepted while doing

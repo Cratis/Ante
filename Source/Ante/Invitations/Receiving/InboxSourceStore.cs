@@ -10,14 +10,14 @@ namespace Ante.Invitations.Receiving;
 /// <remarks>
 /// <para>
 /// <b>This is a compile-time literal, not a runtime configuration value, and that is a known
-/// limitation - not a design choice.</b> Chronicle's <c>[EventStore]</c> attribute, the only mechanism
+/// limitation - not a design choice.</b> Chronicle's <c language="csharp">[EventStore]</c> attribute, the only mechanism
 /// for pointing an observer at a store other than its own, takes a C# attribute-constructor argument,
 /// which the language requires to be a compile-time constant. There is currently no fluent/runtime
 /// equivalent in the Cratis.Chronicle client API that would let this name come from
-/// <c>IConfiguration</c> the way <c>Ante:EventStore</c> does for Ante's own store (see the
-/// <c>AddCratis</c> call in <c>Program.cs</c>). Investigated for this
+/// <c language="csharp">IConfiguration</c> the way <c language="csharp">Ante:EventStore</c> does for Ante's own store (see the
+/// <c language="csharp">AddCratis</c> call in <c language="csharp">Program.cs</c>). Investigated for this
 /// extraction: the Chronicle 16.44.1 / 17.0.0 XML documentation for
-/// <c>Cratis.Chronicle.Events.EventStoreAttribute</c> confirms the attribute is the sole mechanism - "when an
+/// <c language="csharp">Cratis.Chronicle.Events.EventStoreAttribute</c> confirms the attribute is the sole mechanism - "when an
 /// observer (Reactor, Reducer, or Projection) handles event types annotated with this attribute, it will
 /// automatically subscribe to the inbox event sequence for the specified event store" - with no
 /// programmatic alternative documented or discoverable in the shipped API surface.
@@ -28,7 +28,7 @@ namespace Ante.Invitations.Receiving;
 /// isolated to this one file, named after the reference "Direct" host instance the Ante README
 /// documents, precisely so that edit is the only thing that has to happen - no other file in this
 /// project names a source store. An upstream issue describing the missing capability belongs on
-/// Cratis/Chronicle; this comment is the workaround note <c>upstream-issues.md</c> asks for, kept next
+/// Cratis/Chronicle; this comment is the workaround note <c language="csharp">upstream-issues.md</c> asks for, kept next
 /// to the one place the workaround lives.
 /// </para>
 /// <para>

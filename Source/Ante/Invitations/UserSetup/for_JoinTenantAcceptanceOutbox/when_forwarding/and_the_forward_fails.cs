@@ -16,7 +16,7 @@ namespace Ante.Invitations.UserSetup.for_JoinTenantAcceptanceOutbox.when_forward
 /// A failed outbox append must never notify a live status subscription that the fact was published, and
 /// must never complete as if nothing were wrong. <see cref="OutboxForwarder"/> throws
 /// <see cref="OutboxPublicationFailed"/> in this situation (covered directly by
-/// <c>for_OutboxForwarder</c>) so Chronicle's reactor invoker - which owns catching that exception to
+/// <c language="csharp">for_OutboxForwarder</c>) so Chronicle's reactor invoker - which owns catching that exception to
 /// pause and retry the partition, and does not re-surface it to this scenario - never lets the invocation
 /// reach the point where it would otherwise call every notifier.
 /// </summary>

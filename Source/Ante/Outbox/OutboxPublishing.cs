@@ -9,7 +9,7 @@ namespace Ante.Outbox;
 /// </summary>
 /// <remarks>
 /// Implemented once per onboarding flow (join-tenant, organization setup/registration) so the shared
-/// <c>LegalTermsAcceptanceOutbox</c> reactor can accelerate whichever flow a given acceptance belongs to
+/// <c language="csharp">LegalTermsAcceptanceOutbox</c> reactor can accelerate whichever flow a given acceptance belongs to
 /// without depending on any flow's internals directly - it just asks every registered notifier to check,
 /// and the ones that do not recognize the id do nothing. A flow's own accept-forwarding reactor also
 /// calls this after its own successful forward, covering the common case where the accept fact is the

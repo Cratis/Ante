@@ -39,7 +39,7 @@ public static class AnteRoutingValidator
 }
 
 /// <summary>
-/// The exception that is thrown when Ante is configured with an empty <c>Ante:EventStore</c>.
+/// The exception that is thrown when Ante is configured with an empty <c language="csharp">Ante:EventStore</c>.
 /// </summary>
 public class AnteEventStoreNotConfigured() : Exception(
     "Ante:EventStore is empty. The Chronicle event store this instance runs against must be named " +
@@ -47,7 +47,7 @@ public class AnteEventStoreNotConfigured() : Exception(
     "('Ante') rather than supplying an empty value for it.");
 
 /// <summary>
-/// The exception that is thrown when Ante is configured with an empty <c>Ante:Namespace</c>.
+/// The exception that is thrown when Ante is configured with an empty <c language="csharp">Ante:Namespace</c>.
 /// </summary>
 public class AnteNamespaceNotConfigured() : Exception(
     "Ante:Namespace is empty. The fixed Chronicle namespace this instance runs against must be named " +
@@ -55,7 +55,7 @@ public class AnteNamespaceNotConfigured() : Exception(
     "('Default') rather than supplying an empty value for it.");
 
 /// <summary>
-/// The exception that is thrown when <c>Ante:InboxSourceStore</c> disagrees with the compiled
+/// The exception that is thrown when <c language="csharp">Ante:InboxSourceStore</c> disagrees with the compiled
 /// <see cref="Invitations.Receiving.InboxSourceStore.Name"/> constant.
 /// </summary>
 /// <param name="configured">The value read from configuration.</param>

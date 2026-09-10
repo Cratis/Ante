@@ -71,7 +71,7 @@ public interface IHostOutcomeBackchannel
 /// <summary>
 /// The answer a host's outcome backchannel gives for one attempt.
 /// </summary>
-/// <param name="Status">One of <c>"pending"</c>, <c>"succeeded"</c>, or <c>"failed"</c>.</param>
+/// <param name="Status">One of <c language="csharp">"pending"</c>, <c language="csharp">"succeeded"</c>, or <c language="csharp">"failed"</c>.</param>
 /// <param name="ReasonCode">
 /// A stable, low-cardinality reason code accompanying a terminal result - never free text or an internal
 /// exception message, the same private-diagnostics discipline every other Ante-facing status uses.

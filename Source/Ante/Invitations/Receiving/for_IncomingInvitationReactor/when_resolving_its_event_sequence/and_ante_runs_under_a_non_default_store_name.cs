@@ -5,7 +5,7 @@
 namespace Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_resolving_its_event_sequence;
 
 /// <summary>
-/// <see cref="IncomingInvitationReactor"/> carries an explicit <c>[EventStore(InboxSourceStore.Name)]"</c>,
+/// <see cref="IncomingInvitationReactor"/> carries an explicit <c language="csharp">[EventStore(InboxSourceStore.Name)]"</c>,
 /// which always wins over Chronicle's store-name inference (see the sibling spec on the four outbox
 /// reactors for what happens when it doesn't). This proves the explicit form does what it should
 /// regardless of which store *this* Ante instance is renamed to: it always cross-subscribes to

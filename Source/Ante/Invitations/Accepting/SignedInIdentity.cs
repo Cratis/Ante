@@ -31,7 +31,7 @@ public interface ISignedInIdentity
 
     /// <summary>
     /// Determines whether the current request is a verified owner of an invitation - either the invite
-    /// token's own <c>jti</c> claim names it directly, or the request's subject has exchanged this exact
+    /// token's own <c language="csharp">jti</c> claim names it directly, or the request's subject has exchanged this exact
     /// invitation for a session that has not yet expired.
     /// </summary>
     /// <remarks>

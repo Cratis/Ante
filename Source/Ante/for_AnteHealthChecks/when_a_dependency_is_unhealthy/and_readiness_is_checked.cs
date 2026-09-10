@@ -8,7 +8,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 namespace Ante.for_AnteHealthChecks.when_a_dependency_is_unhealthy;
 
 /// <summary>
-/// Readiness (<c>/healthz/ready</c>'s predicate - every check tagged <see cref="AnteHealthChecks.ReadyTag"/>)
+/// Readiness (<c language="csharp">/healthz/ready</c>'s predicate - every check tagged <see cref="AnteHealthChecks.ReadyTag"/>)
 /// must reflect a dependency outage, the counterpart to <see cref="and_liveness_is_checked"/> staying
 /// unaffected by the very same outage.
 /// </summary>

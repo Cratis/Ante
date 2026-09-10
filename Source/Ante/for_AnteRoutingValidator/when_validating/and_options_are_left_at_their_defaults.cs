@@ -5,8 +5,8 @@
 namespace Ante.for_AnteRoutingValidator.when_validating;
 
 /// <summary>
-/// An instance that never touches <c>Ante:EventStore</c>, <c>Ante:Namespace</c> or
-/// <c>Ante:InboxSourceStore</c> at all must keep booting exactly as it did before this validation existed.
+/// An instance that never touches <c language="csharp">Ante:EventStore</c>, <c language="csharp">Ante:Namespace</c> or
+/// <c language="csharp">Ante:InboxSourceStore</c> at all must keep booting exactly as it did before this validation existed.
 /// </summary>
 public class and_options_are_left_at_their_defaults : Specification
 {

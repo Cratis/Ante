@@ -172,7 +172,7 @@ public record AcceptedOrganizationName([Key] TenantName TenantName);
 /// get the claim belonging to its own invitation.
 /// <para>
 /// It lives here rather than as a static method on <see cref="AcceptedOrganizationName"/> because every
-/// static method on a <c>[ReadModel]</c> is discovered as a query and published as a proxy, and this is
+/// static method on a <c language="csharp">[ReadModel]</c> is discovered as a query and published as a proxy, and this is
 /// command-side only.
 /// </para>
 /// </remarks>
@@ -327,8 +327,8 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
 /// Forwards <see cref="InvitationToCreateTenantAccepted"/> to the outbox so the host can subscribe.
 /// </summary>
 /// <remarks>
-/// Pinned to <see cref="EventLogAttribute"/> deliberately - see the remarks on <c>LegalTermsAcceptanceOutbox</c>
-/// for why an unattributed reactor handling a <c>Cratis.Ante.Contracts</c> event is unsafe to route once a
+/// Pinned to <see cref="EventLogAttribute"/> deliberately - see the remarks on <c language="csharp">LegalTermsAcceptanceOutbox</c>
+/// for why an unattributed reactor handling a <c language="csharp">Cratis.Ante.Contracts</c> event is unsafe to route once a
 /// deployment renames its store away from the compiled "Ante" literal.
 /// </remarks>
 /// <param name="eventStore">The event store.</param>

@@ -9,7 +9,7 @@ namespace Ante.Contracts.Invitations;
 /// once this is appended - provisioning is entirely the host's responsibility.
 /// </summary>
 /// <param name="TenantName">The name of the tenant the user joined.</param>
-/// <param name="IdentityProvider">The identity provider the user authenticated with (e.g. the <c>iss</c> claim).</param>
+/// <param name="IdentityProvider">The identity provider the user authenticated with (e.g. the <c language="csharp">iss</c> claim).</param>
 /// <param name="IdentityProviderSubject">
 /// The stable subject the identity provider issued for the user. Carried in the event body because the
 /// compliance subject does not propagate to downstream observers - the host keys its own user registry

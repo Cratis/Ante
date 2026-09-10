@@ -21,8 +21,8 @@ namespace Ante.Invitations;
 /// stored.
 /// <para>
 /// The length limit is expressed in UTF-16 code units - the same unit JavaScript's
-/// <c>string.length</c> uses - so client and server agree on the unit without a separate client-side
-/// copy of the number: the wizard discovers a violation through the same eager <c>/validate</c> round
+/// <c language="csharp">string.length</c> uses - so client and server agree on the unit without a separate client-side
+/// copy of the number: the wizard discovers a violation through the same eager <c language="csharp">/validate</c> round
 /// trip it uses for every other field, and this validator is the only place the limit is defined.
 /// </para>
 /// <para>

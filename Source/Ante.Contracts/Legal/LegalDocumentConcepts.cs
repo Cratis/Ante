@@ -7,7 +7,7 @@ namespace Ante.Contracts.Legal;
 
 /// <summary>
 /// The text of one legal document - typically the terms and conditions, or the privacy policy - as
-/// markdown. A host supplies this through its own <c>ILegalDocumentSource</c> implementation; Ante
+/// markdown. A host supplies this through its own <c language="csharp">ILegalDocumentSource</c> implementation; Ante
 /// carries no legal text of its own.
 /// </summary>
 /// <param name="Value">The underlying value.</param>
@@ -33,7 +33,7 @@ public record LegalDocumentBody(string Value) : ConceptAs<string>(Value)
 
 /// <summary>
 /// Identifies one revision of the legal document set a host presents through its
-/// <c>ILegalDocumentSource</c>. Recorded on every acceptance so a client that has been open across a
+/// <c language="csharp">ILegalDocumentSource</c>. Recorded on every acceptance so a client that has been open across a
 /// document change, or one replaying an older payload, cannot record consent to a revision the user
 /// never saw.
 /// </summary>

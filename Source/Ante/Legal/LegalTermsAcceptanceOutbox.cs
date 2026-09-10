@@ -23,7 +23,7 @@ namespace Ante.Legal;
 /// </para>
 /// <para>
 /// Pinned to <see cref="EventLogAttribute"/> deliberately: <see cref="LegalTermsAccepted"/> is declared in
-/// <c>Cratis.Ante.Contracts</c>, whose assembly-level <c>[EventStore("Ante")]</c> attribute exists so a
+/// <c language="csharp">Cratis.Ante.Contracts</c>, whose assembly-level <c language="csharp">[EventStore("Ante")]</c> attribute exists so a
 /// *host's own* reactor can observe it without knowing Ante's configured store name. Left unattributed
 /// itself, this reactor would fall into that same inference and get its handled event's declared store
 /// ("Ante", the compiled literal) compared against whatever this deployment's actual store is named - a

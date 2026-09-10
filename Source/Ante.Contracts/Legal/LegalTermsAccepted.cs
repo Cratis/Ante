@@ -7,7 +7,7 @@ namespace Ante.Contracts.Legal;
 
 /// <summary>
 /// Event published to Ante's outbox when a user accepts the legal document set a host supplied through
-/// its <c>ILegalDocumentSource</c>, while onboarding through Ante - whether by self-service
+/// its <c language="csharp">ILegalDocumentSource</c>, while onboarding through Ante - whether by self-service
 /// registration, by setting up a new organization from an invitation, or by joining an existing one.
 /// Only appended when the host has actually registered a legal document source; a host that has not
 /// never sees this event, because the wizards never presented a terms step to accept.

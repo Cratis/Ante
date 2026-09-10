@@ -10,13 +10,13 @@ using Ante.Organization.Registration;
 namespace Ante.Outbox.for_OutboxForwardingReactors.when_resolving_their_event_sequence;
 
 /// <summary>
-/// The events these four reactors handle (<c>InvitationToCreateTenantAccepted</c>,
-/// <c>InvitationToJoinTenantAccepted</c>, <c>OrganizationRegistrationCompleted</c>, <c>LegalTermsAccepted</c>)
-/// are all declared in <c>Cratis.Ante.Contracts</c>, whose assembly-level <c>[EventStore("Ante")]</c>
+/// The events these four reactors handle (<c language="csharp">InvitationToCreateTenantAccepted</c>,
+/// <c language="csharp">InvitationToJoinTenantAccepted</c>, <c language="csharp">OrganizationRegistrationCompleted</c>, <c language="csharp">LegalTermsAccepted</c>)
+/// are all declared in <c language="csharp">Cratis.Ante.Contracts</c>, whose assembly-level <c language="csharp">[EventStore("Ante")]</c>
 /// attribute exists so a *host's own* reactor can observe them without knowing Ante's configured store
 /// name. Chronicle resolves an unattributed reactor's event sequence by comparing that declared store
 /// ("Ante", the compiled literal) against the reactor's *actual* current store - so before these reactors
-/// were pinned with <c>[EventLog]</c>, a deployment renamed away from the literal "Ante" (which is exactly
+/// were pinned with <c language="csharp">[EventLog]</c>, a deployment renamed away from the literal "Ante" (which is exactly
 /// what <see cref="AnteOptions.EventStore"/> exists to let an operator do, and what
 /// Documentation/configuration.md's own "DirectLobby" example demonstrates) made every one of these
 /// reactors resolve to a nonexistent inbox sequence instead of the local event log - forwarding to the

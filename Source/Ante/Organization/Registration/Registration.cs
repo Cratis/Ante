@@ -58,7 +58,7 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
 
 /// <summary>
 /// Command for self-service organization registration, used when a user signs in via the host's
-/// <c>/register</c> entry point without an invitation.
+/// <c language="csharp">/register</c> entry point without an invitation.
 /// </summary>
 /// <param name="RegistrationId">
 /// A client-generated identifier used as the event source id and as a correlation key for polling
@@ -147,8 +147,8 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
 /// Forwards <see cref="OrganizationRegistrationCompleted"/> to the outbox so the host can subscribe.
 /// </summary>
 /// <remarks>
-/// Pinned to <see cref="EventLogAttribute"/> deliberately - see the remarks on <c>LegalTermsAcceptanceOutbox</c>
-/// for why an unattributed reactor handling a <c>Cratis.Ante.Contracts</c> event is unsafe to route once a
+/// Pinned to <see cref="EventLogAttribute"/> deliberately - see the remarks on <c language="csharp">LegalTermsAcceptanceOutbox</c>
+/// for why an unattributed reactor handling a <c language="csharp">Cratis.Ante.Contracts</c> event is unsafe to route once a
 /// deployment renames its store away from the compiled "Ante" literal.
 /// </remarks>
 /// <param name="eventStore">The event store.</param>

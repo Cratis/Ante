@@ -29,9 +29,9 @@ public interface IMongoConnectivityProbe
 /// readiness - see Documentation/deployment.md.
 /// </summary>
 /// <remarks>
-/// <c>/healthz</c> is preserved deliberately: it keeps answering unconditionally, exactly as it always
+/// <c language="csharp">/healthz</c> is preserved deliberately: it keeps answering unconditionally, exactly as it always
 /// has, so nothing that already probes it for "is the process alive" ever regresses because a dependency
-/// went away. <c>/healthz/ready</c> is the new, separate signal for "can this instance actually serve
+/// went away. <c language="csharp">/healthz/ready</c> is the new, separate signal for "can this instance actually serve
 /// traffic right now" - it runs the tagged dependency checks, each individually bounded by
 /// <see cref="DependencyTimeout"/>, so one stuck dependency can never hang the whole probe or accumulate
 /// blocked work behind it.
@@ -61,7 +61,7 @@ public static class AnteHealthChecks
     }
 
     /// <summary>
-    /// Maps the liveness (<c>/healthz</c>) and readiness (<c>/healthz/ready</c>) endpoints.
+    /// Maps the liveness (<c language="csharp">/healthz</c>) and readiness (<c language="csharp">/healthz/ready</c>) endpoints.
     /// </summary>
     /// <param name="endpoints">The endpoint route builder to map the endpoints on.</param>
     public static void MapAnteHealthChecks(this IEndpointRouteBuilder endpoints)
@@ -78,7 +78,7 @@ public static class AnteHealthChecks
 }
 
 /// <summary>
-/// Probes MongoDB connectivity by running the lightweight <c>ping</c> command against the database
+/// Probes MongoDB connectivity by running the lightweight <c language="csharp">ping</c> command against the database
 /// backing an already-registered collection, rather than introducing a new binding for
 /// <see cref="IMongoDatabase"/> purely for this check.
 /// </summary>

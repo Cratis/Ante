@@ -132,9 +132,9 @@ public record TenantName(string Value) : ConceptAs<string>(Value)
 
 /// <summary>
 /// Represents the name of the identity provider a person authenticated with (e.g. resolved from the
-/// <c>iss</c> claim). Named with the <c>Name</c> suffix - like its sibling concepts <see cref="TenantName"/>
-/// and <see cref="RoleName"/> - because <c>Cratis.Arc.Identity</c> already defines its own unrelated
-/// <c>IdentityProvider</c> type (an authentication-scheme marker), and the two would otherwise collide
+/// <c language="csharp">iss</c> claim). Named with the <c language="csharp">Name</c> suffix - like its sibling concepts <see cref="TenantName"/>
+/// and <see cref="RoleName"/> - because <c language="csharp">Cratis.Arc.Identity</c> already defines its own unrelated
+/// <c language="csharp">IdentityProvider</c> type (an authentication-scheme marker), and the two would otherwise collide
 /// wherever both are in scope.
 /// </summary>
 /// <param name="Value">The underlying value.</param>

@@ -15,9 +15,9 @@ namespace Ante.Organization.Registration;
 /// </summary>
 /// <remarks>
 /// The proxy forwards the provider's claims verbatim, and providers disagree on which claim carries the
-/// address: an OpenID Connect sign-in usually has <c>email</c>, Microsoft Entra puts it on <c>upn</c> or
-/// <c>preferred_username</c>, and the proxy additionally stamps the user details it was given onto the
-/// name claim and the <c>x-ms-client-principal-name</c> header. Every one of those is asked, most
+/// address: an OpenID Connect sign-in usually has <c language="csharp">email</c>, Microsoft Entra puts it on <c language="csharp">upn</c> or
+/// <c language="csharp">preferred_username</c>, and the proxy additionally stamps the user details it was given onto the
+/// name claim and the <c language="csharp">x-ms-client-principal-name</c> header. Every one of those is asked, most
 /// specific first.
 /// <para>
 /// Each candidate has to look like an address before it is accepted, because the least specific of them

@@ -8,7 +8,7 @@ namespace Ante.Configuration;
 /// <summary>
 /// Response model for the host application URL configuration endpoint.
 /// </summary>
-/// <param name="HostAppUrl">The host application base URL template. Replace <c>{tenant}</c> with the tenant subdomain at runtime.</param>
+/// <param name="HostAppUrl">The host application base URL template. Replace <c language="csharp">{tenant}</c> with the tenant subdomain at runtime.</param>
 /// <param name="SignInPath">
 /// The path on the host application that signs the current user in with the provider they are already
 /// using here, so crossing from the lobby to the host is a silent round trip instead of a second

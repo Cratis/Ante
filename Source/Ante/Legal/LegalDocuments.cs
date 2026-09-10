@@ -43,7 +43,7 @@ public record LegalDocumentSet(LegalDocumentBody TermsAndConditions, LegalDocume
 /// The validation rules every command that captures acceptance of the legal document set applies.
 /// </summary>
 /// <remarks>
-/// This is the <em>preflight</em> check - what the wizard's eager <c>/validate</c> round trip runs
+/// This is the <em>preflight</em> check - what the wizard's eager <c language="csharp">/validate</c> round trip runs
 /// while the user is still filling in the form, advisory by nature because the host's document can
 /// change between that call and the moment the command actually executes. <see cref="LegalAcceptanceEvidence"/>
 /// is the authoritative counterpart that runs during execution itself, resolving the document source
@@ -113,7 +113,7 @@ public static class LegalTermsRules
 /// <remarks>
 /// <see cref="LegalTermsRules"/> validates the same claim earlier, as advisory preflight feedback -
 /// but it reads the document source independently, and a host's document can change between that call
-/// and command execution. A command's <c>Handle()</c> calls this, once, as the last word: it re-reads
+/// and command execution. A command's <c language="csharp">Handle()</c> calls this, once, as the last word: it re-reads
 /// the source itself rather than trusting either the client's claim or the preflight validator's
 /// earlier read, so a document that changed, disappeared, or was never configured between display and
 /// execution cannot produce a mismatch between what was validated and what gets appended.

@@ -16,14 +16,14 @@ public interface IInvitationTokenIssuer
     /// <summary>
     /// Issues a JWT token for a join-tenant invitation.
     /// </summary>
-    /// <param name="invitationId">The invitation identifier embedded as the <c>jti</c> claim.</param>
+    /// <param name="invitationId">The invitation identifier embedded as the <c language="csharp">jti</c> claim.</param>
     /// <returns>A signed JWT token string.</returns>
     string IssueJoinTenantInvitation(Guid invitationId);
 
     /// <summary>
     /// Issues a JWT token for a create-tenant invitation.
     /// </summary>
-    /// <param name="invitationId">The invitation identifier embedded as the <c>jti</c> claim.</param>
+    /// <param name="invitationId">The invitation identifier embedded as the <c language="csharp">jti</c> claim.</param>
     /// <returns>A signed JWT token string.</returns>
     string IssueCreateTenantInvitation(Guid invitationId);
 }
@@ -41,7 +41,7 @@ public static class InvitationClaims
 
 /// <summary>
 /// Represents the configuration used to sign invitation JWT tokens, bound from the
-/// <c>Ante:Invitations:Token</c> configuration section.
+/// <c language="csharp">Ante:Invitations:Token</c> configuration section.
 /// </summary>
 public class InvitationTokenConfig
 {
@@ -57,12 +57,12 @@ public class InvitationTokenConfig
     public string PublicKeyPem { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the issuer recorded on issued tokens. Left empty, no <c>iss</c> claim is validated.
+    /// Gets or sets the issuer recorded on issued tokens. Left empty, no <c language="csharp">iss</c> claim is validated.
     /// </summary>
     public string Issuer { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the audience recorded on issued tokens. Left empty, no <c>aud</c> claim is validated.
+    /// Gets or sets the audience recorded on issued tokens. Left empty, no <c language="csharp">aud</c> claim is validated.
     /// </summary>
     public string Audience { get; set; } = string.Empty;
 

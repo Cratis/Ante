@@ -11,8 +11,8 @@ namespace Ante.Contracts.Organization;
 /// tenant and the user, exactly as it would for <see cref="InvitationToCreateTenantAccepted"/>.
 /// </summary>
 /// <param name="TenantName">The name of the tenant (organization) to create.</param>
-/// <param name="Subject">The subject (<c>sub</c>) claim of the authenticated user who registered.</param>
-/// <param name="IdentityProvider">The identity provider the user authenticated with (e.g. the <c>iss</c> claim).</param>
+/// <param name="Subject">The subject (<c language="csharp">sub</c>) claim of the authenticated user who registered.</param>
+/// <param name="IdentityProvider">The identity provider the user authenticated with (e.g. the <c language="csharp">iss</c> claim).</param>
 /// <param name="FirstName">The first name of the registering user.</param>
 /// <param name="MiddleName">The middle name of the registering user.</param>
 /// <param name="LastName">The last name of the registering user.</param>

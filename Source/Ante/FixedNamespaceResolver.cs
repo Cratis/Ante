@@ -8,7 +8,7 @@ namespace Ante;
 /// </summary>
 /// <remarks>
 /// Ante is single-tenant per deployment, not request-selected multi-tenant (see
-/// <c>Documentation/boundaries.md#multi-tenancy-of-ante-itself</c>): a product needing several isolated
+/// <c language="csharp">Documentation/boundaries.md#multi-tenancy-of-ante-itself</c>): a product needing several isolated
 /// lobbies runs several Ante instances, each differentiated by <see cref="AnteOptions.EventStore"/>, not by
 /// one instance resolving a different namespace per request. This resolver reflects that on purpose - it
 /// always returns the same value regardless of the caller or the current identity, unlike

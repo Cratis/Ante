@@ -14,10 +14,10 @@ namespace Ante.Invitations.Accepting;
 /// The request body sent by the host's authentication proxy to the invite-exchange endpoint after the
 /// user completes OIDC login.
 /// </summary>
-/// <param name="Subject">The subject (<c>sub</c>) claim of the authenticated user.</param>
+/// <param name="Subject">The subject (<c language="csharp">sub</c>) claim of the authenticated user.</param>
 /// <param name="IdentityProvider">
 /// What the authentication proxy can say about the provider the user authenticated with - its
-/// <c>iss</c> claim, or nothing at all for an OAuth2-only provider, which issues none. It is resolved
+/// <c language="csharp">iss</c> claim, or nothing at all for an OAuth2-only provider, which issues none. It is resolved
 /// against the deployment's configured providers rather than recorded verbatim.
 /// </param>
 /// <param name="ProviderKey">
@@ -32,13 +32,13 @@ public record ExchangeInviteRequest(string Subject, string IdentityProvider, str
 /// The session recorded when a login exchanges an invitation token, so later requests from the same
 /// login can be traced back to the invitation without the token itself.
 /// </summary>
-/// <param name="Subject">The subject (<c>sub</c>) claim of the authenticated user.</param>
+/// <param name="Subject">The subject (<c language="csharp">sub</c>) claim of the authenticated user.</param>
 /// <param name="IdentityProvider">The resolved identity provider the user authenticated with.</param>
 /// <param name="InvitationId">The invitation exchanged.</param>
 /// <param name="FlowType">The type of invitation flow this login is going through.</param>
 /// <param name="AcceptedAtUtc">When the exchange happened.</param>
 /// <param name="ExpiresAtUtc">
-/// When this session stops authorizing, copied verbatim from the invitation token's own <c>exp</c>
+/// When this session stops authorizing, copied verbatim from the invitation token's own <c language="csharp">exp</c>
 /// claim. Because it is never computed from "now", retrying the exchange with the same token can never
 /// push it further out - it is the same value every time.
 /// </param>
@@ -59,7 +59,7 @@ public static class InviteExchangeProcessor
     /// <summary>
     /// Validates the bearer token carried on the exchange request and, when valid, records the session.
     /// </summary>
-    /// <param name="authorizationHeader">The <c>Authorization</c> header of the exchange request.</param>
+    /// <param name="authorizationHeader">The <c language="csharp">Authorization</c> header of the exchange request.</param>
     /// <param name="request">The exchange request body.</param>
     /// <param name="acceptedInvitations">The collection accepted invitation sessions are recorded in.</param>
     /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
@@ -146,7 +146,7 @@ public static class AcceptedInvitationIndexes
 {
     /// <summary>
     /// Creates the indexes, if they do not already exist. Safe to call every time the application
-    /// starts - <c>CreateManyAsync</c> is a no-op for an index that already matches.
+    /// starts - <c language="csharp">CreateManyAsync</c> is a no-op for an index that already matches.
     /// </summary>
     /// <param name="acceptedInvitations">The collection to create indexes on.</param>
     public static Task EnsureCreated(IMongoCollection<AcceptedInvitation> acceptedInvitations)
@@ -263,9 +263,9 @@ public record InvitationIdentityDetails(InvitationId InvitationId, InvitationFlo
 
 /// <summary>
 /// Provides identity details for the Ante application.
-/// A user is only authorized when the authentication proxy has forwarded a valid <c>jti</c> claim from
+/// A user is only authorized when the authentication proxy has forwarded a valid <c language="csharp">jti</c> claim from
 /// the invite token, and that claim corresponds to a pending invitation.
-/// The <c>jti</c> and <c>invite_type</c> claims are forwarded by the authentication proxy's invite
+/// The <c language="csharp">jti</c> and <c language="csharp">invite_type</c> claims are forwarded by the authentication proxy's invite
 /// claims enricher.
 /// </summary>
 /// <param name="acceptedInvitations">Collection used to resolve accepted invitation sessions for fallback identity resolution.</param>

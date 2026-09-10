@@ -14,7 +14,7 @@ namespace Ante.for_ApiRouteGuard;
 /// Exercises the real routing wiring Program.cs installs - <see cref="ApiRouteGuard"/>,
 /// <see cref="ConditionalOpenApi"/> and <see cref="AnteHealthChecks"/> - against an in-memory
 /// <see cref="TestServer"/>, with a stand-in registered route and SPA fallback in place of Ante's own
-/// Arc/Chronicle-backed endpoints and <c>index.html</c>. No MongoDB or Chronicle is involved: the MongoDB
+/// Arc/Chronicle-backed endpoints and <c language="csharp">index.html</c>. No MongoDB or Chronicle is involved: the MongoDB
 /// dependency check is substituted with a fake probe.
 /// </summary>
 public class and_configured_end_to_end : Specification

@@ -8,7 +8,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 namespace Ante.for_AnteHealthChecks.when_a_dependency_is_unhealthy;
 
 /// <summary>
-/// Liveness (<c>/healthz</c>'s predicate, <c>_ =&gt; false</c>) must stay unaffected by a dependency
+/// Liveness (<c language="csharp">/healthz</c>'s predicate, <c language="csharp">_ =&gt; false</c>) must stay unaffected by a dependency
 /// outage - only readiness (<see cref="and_readiness_is_checked"/>) is allowed to react to it. This is
 /// what "preserve /healthz compatibility" means in practice: dependency failure changes readiness, never
 /// liveness.

@@ -12,9 +12,9 @@ namespace Ante.Organization;
 /// </summary>
 /// <remarks>
 /// Chronicle namespaces commonly become part of a MongoDB database name, and MongoDB database names
-/// cannot contain a space or any of the characters <c>/ \ . " $ * &lt; &gt; : | ?</c> (nor the null
+/// cannot contain a space or any of the characters <c language="csharp">/ \ . " $ * &lt; &gt; : | ?</c> (nor the null
 /// character). A name with any of those would permanently break whichever host tries to provision an
-/// event store namespace from it. These rules reject those characters - plus <c>+</c>, which Chronicle
+/// event store namespace from it. These rules reject those characters - plus <c language="csharp">+</c>, which Chronicle
 /// uses as its own namespace separator - at the command boundary, before the name is ever turned into a
 /// namespace. See
 /// https://www.mongodb.com/docs/manual/reference/limits/#mongodb-limit-Restrictions-on-Database-Names.
@@ -29,7 +29,7 @@ public static class OrganizationNameValidation
 
     /// <summary>
     /// The characters not permitted in an organization / tenant name because they are invalid in a
-    /// MongoDB database name, or are reserved by Chronicle's namespace composition (the <c>+</c>
+    /// MongoDB database name, or are reserved by Chronicle's namespace composition (the <c language="csharp">+</c>
     /// separator).
     /// </summary>
     static readonly SearchValues<char> _invalidCharacters = SearchValues.Create(" /\\.\"$*<>:|?+\0");
