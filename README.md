@@ -36,7 +36,7 @@ Full documentation — configuration reference, the invitation lifecycle, the ho
 
 ## Part of the Cratis ecosystem
 
-Ante is a [Cratis](https://www.cratis.io) project, built on event sourcing with [Chronicle](https://github.com/Cratis/Chronicle) and CQRS with [Arc](https://github.com/Cratis/Arc) for ASP.NET Core, following the vertical-slice conventions in [`.ai/`](./.ai). The lobby SPA is built with [`@cratis/components`](https://github.com/Cratis/Components) on PrimeReact. Everything Cratis publishes today is MIT licensed and free to use — join the community on [Discord](https://discord.gg/kt4AMpV8WV).
+Ante is a [Cratis](https://www.cratis.io) project, built on event sourcing with [Chronicle](https://github.com/Cratis/Chronicle) and CQRS with [Arc](https://github.com/Cratis/Arc) for ASP.NET Core, following the Cratis AI conventions (see `.cratis/PROJECT.md` and the [Cratis AI guide](https://www.cratis.io/ai/)). The lobby SPA is built with [`@cratis/components`](https://github.com/Cratis/Components) on PrimeReact. Everything Cratis publishes today is MIT licensed and free to use — join the community on [Discord](https://discord.gg/kt4AMpV8WV).
 
 ## License
 
