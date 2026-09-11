@@ -5,16 +5,16 @@
   <ItemGroup>
     <!-- Cratis — keep the public Cratis / Arc family aligned so generated self-bindings and runtime
          contracts are built against the same Chronicle contract generation. -->
-    <PackageVersion Include="Cratis" Version="22.13.1" />
+    <PackageVersion Include="Cratis" Version="22.14.0" />
     <PackageVersion Include="Cratis.Arc" Version="22.10.1" />
-    <PackageVersion Include="Cratis.Arc.ProxyGenerator.Build" Version="22.13.1" />
-    <PackageVersion Include="Cratis.Arc.Chronicle.Testing" Version="22.13.1" />
-    <PackageVersion Include="Cratis.Arc.MongoDB" Version="22.13.1" />
+    <PackageVersion Include="Cratis.Arc.ProxyGenerator.Build" Version="22.14.0" />
+    <PackageVersion Include="Cratis.Arc.Chronicle.Testing" Version="22.14.0" />
+    <PackageVersion Include="Cratis.Arc.MongoDB" Version="22.14.0" />
     <PackageVersion Include="Cratis.Arc.Core" Version="22.10.1" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.19.2" />
     <!-- Keep Chronicle clients and testing support on the same release. -->
-    <PackageVersion Include="Cratis.Chronicle" Version="18.1.0" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="18.1.0" />
+    <PackageVersion Include="Cratis.Chronicle" Version="18.1.5" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="18.1.5" />
     <!-- Compiler toolset — pinned to match the Roslyn version Cratis.Arc.Core's and Cratis.Chronicle's
          analyzers were built against (CS9057 otherwise). -->
     <PackageVersion Include="Microsoft.Net.Compilers.Toolset" Version="5.9.0" />
