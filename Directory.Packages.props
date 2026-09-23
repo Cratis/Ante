@@ -5,16 +5,16 @@
   <ItemGroup>
     <!-- Cratis — keep the public Cratis / Arc family aligned so generated self-bindings and runtime
          contracts are built against the same Chronicle contract generation. -->
-    <PackageVersion Include="Cratis" Version="22.16.1" />
+    <PackageVersion Include="Cratis" Version="22.19.1" />
     <PackageVersion Include="Cratis.Arc" Version="22.10.1" />
-    <PackageVersion Include="Cratis.Arc.ProxyGenerator.Build" Version="22.16.1" />
-    <PackageVersion Include="Cratis.Arc.Chronicle.Testing" Version="22.16.1" />
-    <PackageVersion Include="Cratis.Arc.MongoDB" Version="22.16.1" />
+    <PackageVersion Include="Cratis.Arc.ProxyGenerator.Build" Version="22.19.1" />
+    <PackageVersion Include="Cratis.Arc.Chronicle.Testing" Version="22.19.1" />
+    <PackageVersion Include="Cratis.Arc.MongoDB" Version="22.19.1" />
     <PackageVersion Include="Cratis.Arc.Core" Version="22.10.1" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.19.3" />
     <!-- Keep Chronicle clients and testing support on the same release. -->
-    <PackageVersion Include="Cratis.Chronicle" Version="19.1.7" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.1.7" />
+    <PackageVersion Include="Cratis.Chronicle" Version="19.3.2" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.3.2" />
     <!-- Compiler toolset — pinned to match the Roslyn version Cratis.Arc.Core's and Cratis.Chronicle's
          analyzers were built against (CS9057 otherwise). -->
     <PackageVersion Include="Microsoft.Net.Compilers.Toolset" Version="5.9.0" />
@@ -26,7 +26,7 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" NoWarn="NU5104" />
     <PackageVersion Include="Roslynator.Analyzers" Version="5.0.0" />
-    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.270" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.283" />
     <!-- Microsoft -->
     <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.23.0" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
