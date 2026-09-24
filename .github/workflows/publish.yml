@@ -42,6 +42,7 @@ on:
       - ".github/workflows/publish.yml"
 
 permissions:
+  issues: write
   contents: write
   # Pushing images to ghcr.io/cratis. The workflow's own GITHUB_TOKEN is the publishing credential,
   # so there is no registry secret to hold or rotate.
@@ -163,6 +164,7 @@ jobs:
     needs: [release]
     runs-on: ubuntu-latest
     permissions:
+      issues: write
       contents: read
       # Required for NuGet trusted publishing using OIDC tokens.
       id-token: write
