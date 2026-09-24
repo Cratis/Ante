@@ -16,9 +16,7 @@ namespace Ante.Organization.Registration.for_OrganizationRegistrationOutbox.when
 /// <summary>
 /// A failed outbox append must never notify a live status subscription that the fact was published.
 /// <see cref="OutboxForwarder"/> throws <see cref="OutboxPublicationFailed"/> in this situation (covered
-/// directly by <c language="csharp">for_OutboxForwarder</c>) so Chronicle's reactor invoker - which owns catching that
-/// exception to pause and retry the partition, and does not re-surface it to this scenario - never lets
-/// the invocation reach the point where it would otherwise call every notifier.
+/// directly by <c language="csharp">for_OutboxForwarder</c>), so the invocation stops before it would call any notifier.
 /// </summary>
 public class and_the_forward_fails : Specification
 {
@@ -28,6 +26,7 @@ public class and_the_forward_fails : Specification
 
     IPublicationStatusNotifier _notifier = null!;
     ReactorScenario<OrganizationRegistrationOutbox> _scenario = null!;
+    Exception? _exception;
 
     void Establish()
     {
@@ -55,7 +54,19 @@ public class and_the_forward_fails : Specification
             .BuildServiceProvider());
     }
 
-    async Task Because() => await _scenario.Given.ForEventSource(_registrationId).Events(_completed);
+    async Task Because()
+    {
+        try
+        {
+            await _scenario.Given.ForEventSource(_registrationId).Events(_completed);
+        }
+        catch (Exception exception)
+        {
+            _exception = exception;
+        }
+    }
+
+    [Fact] void should_fail_the_publication() => Assert.IsType<OutboxPublicationFailed>(_exception);
 
     [Fact]
     async Task should_not_have_notified_anyone() =>
