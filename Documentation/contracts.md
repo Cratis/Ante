@@ -33,8 +33,8 @@ For an invited journey, the host mints a **GUID** invitation id and uses its str
 
 | Caller → receiver | Route | Request / response and limits |
 | --- | --- | --- |
-| Trusted proxy → Ante | `POST /_invite/exchange` | `Authorization: Bearer <invitation JWT>` plus camelCase JSON `subject: string`, `identityProvider: string`, `providerKey?: string`, `issuer?: string`. Returns 200 on stored session, 400 for malformed JSON, missing/blank subject, unresolved provider, or a missing/invalid/expired token; a MongoDB failure can return 500. Ante verifies RS256 against its signing public key plus the optional additional public key, and checks configured issuer/audience. |
-| Browser → Ante | `/invite/{token}` or `?token=...` | SPA URL used to select the invitation flow; not an authenticated API result. |
+| Trusted proxy → Ante | `POST /_invite/exchange` | `Authorization: Bearer <invitation JWT>` plus camelCase JSON `subject: string`, `identityProvider: string`, `providerKey?: string`, `issuer?: string`. Returns 200 on stored session, 400 for malformed JSON, missing/blank subject, unresolved provider, or a missing/invalid/expired token; a MongoDB failure can return 500. Ante verifies RS256 against its signing public key plus the optional additional public key, and checks configured issuer/audience (fixed in [Ante #51](https://github.com/Cratis/Ante/issues/51)). |
+| Browser → Ante | `/invite/{token}` or `?token=...` | SPA URL used to select the invitation flow; not an authenticated API result. Until [Ante #68](https://github.com/Cratis/Ante/issues/68) ships, a direct `/invite/{token}` request to Ante returns 404 because the dots in the JWT make the SPA fallback treat it as a file; use `/?token=...` or have the proxy serve the shell. |
 | Browser → Ante | `/register` or `/register/*` | Self-service SPA route. |
 | Probe → Ante | `GET /healthz`, `GET /healthz/ready` | Liveness without dependency checks; readiness checks MongoDB only (200 healthy, 503 unhealthy). |
 | Developer → Ante | `/openapi/...` | Development-only generated OpenAPI endpoints; not served outside Development. |

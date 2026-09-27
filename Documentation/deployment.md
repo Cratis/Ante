@@ -4,7 +4,7 @@ description: Prepare a secure Ante instance, connect dependencies, and check the
 ---
 
 :::danger[Do not expose Ante directly]
-`/_invite/exchange` verifies RS256 signatures, lifetime, GUID `jti`, and configured issuer/audience before recording a session. Ante must still only be reachable through a trusted proxy that controls forwarded identity claims and headers; a forwarded `jti` on later requests is trusted from that proxy, not revalidated by Ante. Restrict generated `/api` routes as well, even though pending-invitation and status queries now check ownership. See [Security and trust](./security.md), [trust protocol #11](https://github.com/Cratis/Ante/issues/11), and [ownership #13](https://github.com/Cratis/Ante/issues/13).
+`/_invite/exchange` verifies RS256 signatures, lifetime, GUID `jti`, and configured issuer/audience before recording a session (fixed in [Ante #51](https://github.com/Cratis/Ante/issues/51)). Ante must still only be reachable through a trusted proxy that controls forwarded identity claims and headers; a forwarded `jti` on later requests is trusted from that proxy, not revalidated by Ante. Restrict generated `/api` routes as well, even though pending-invitation and status queries now check ownership. See [Security and trust](./security.md), [trust protocol #11](https://github.com/Cratis/Ante/issues/11), and [ownership #13](https://github.com/Cratis/Ante/issues/13).
 :::
 
 ## Prepare the dependencies
