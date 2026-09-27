@@ -15,7 +15,7 @@ After authentication the proxy is expected to POST the bearer invitation token a
 
 Arc's Microsoft identity platform handler decodes the request principal from the `x-ms-client-principal` header, with `x-ms-client-principal-id` and `x-ms-client-principal-name` alongside it. The proxy must strip any client-supplied copy of all three headers and set them itself. Inside that principal, Ante trusts `jti`, `invite_type`, `iss`, `urn:cratis:identity:subject`, `urn:cratis:identity:provider-key`, `urn:cratis:identity:issuer`, `NameIdentifier` and `sub`; a spoofed `iss` can change the published `IdentityProvider` key. Registration email also uses the `email`, `upn`, `preferred_username`, `Name`, `ClaimTypes.Email` and `ClaimTypes.Upn` claims. Do not let a browser set these as trusted identity. Self-service `RegisterOrganization` has no invitation-owner check but rejects a missing signed-in subject or unresolved provider; absent a plausible email, the published field can be empty.
 
-The browser decodes the unverified URL token to choose the wizard and to prefill the invitation id it submits and polls. Neither is verification: invitation commands are gated server-side by `IsVerifiedOwnerOf`. For the exact exchange request see [Contracts](./contracts.md#http-surface).
+The browser chooses the wizard from identity details first and falls back to the URL token's unverified `invite_type`; when a token is present, it also uses the token's unverified `jti` as the invitation id it submits and polls. Neither is verification: invitation commands are gated server-side by `IsVerifiedOwnerOf`. For the exact exchange request see [Contracts](./contracts.md#http-surface).
 
 ## Generated API exposure
 
