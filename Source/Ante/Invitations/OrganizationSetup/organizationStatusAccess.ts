@@ -10,6 +10,12 @@ export const organizationStatusIds = (id: Guid, isRegistration: boolean) => ({
     registrationId: isRegistration ? id : Guid.empty,
 });
 
-/** A registration without a recorded owner starts as an unknown snapshot; keep checking until published. */
-export const shouldRecheckRegistrationStatus = (isRegistration: boolean, hasData: boolean, status?: OrganizationSetupAcceptanceStatus) =>
-    isRegistration && (!hasData || status !== OrganizationSetupAcceptanceStatus.accepted);
+/** Recheck only after submission or while recovering an existing pointer, within the recovery window. */
+export const shouldRecheckRegistrationStatus = (
+    isRegistration: boolean,
+    isSubmittedOrRecovering: boolean,
+    recoveryExpired: boolean,
+    hasData: boolean,
+    status?: OrganizationSetupAcceptanceStatus) =>
+    isRegistration && isSubmittedOrRecovering && !recoveryExpired &&
+    (!hasData || status !== OrganizationSetupAcceptanceStatus.accepted);

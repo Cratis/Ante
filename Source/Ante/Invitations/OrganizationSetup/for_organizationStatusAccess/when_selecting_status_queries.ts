@@ -21,12 +21,21 @@ describe('when selecting onboarding status queries', () => {
         selected.registrationId.toString().should.equal(Guid.empty.toString());
     });
 
-    it('should recheck an unknown registration while its owner projection catches up', () =>
-        shouldRecheckRegistrationStatus(true, true, OrganizationSetupAcceptanceStatus.pending).should.be.true);
+    it('should not recheck a newly created id before the command succeeds', () =>
+        shouldRecheckRegistrationStatus(true, false, false, true, OrganizationSetupAcceptanceStatus.pending).should.be.false);
+
+    it('should recheck after a successful submission', () =>
+        shouldRecheckRegistrationStatus(true, true, false, true, OrganizationSetupAcceptanceStatus.pending).should.be.true);
+
+    it('should recheck an unknown registration recovered from a persisted id', () =>
+        shouldRecheckRegistrationStatus(true, true, false, false).should.be.true);
+
+    it('should stop rechecking after the recovery window expires', () =>
+        shouldRecheckRegistrationStatus(true, true, true, false).should.be.false);
 
     it('should stop rechecking when the registration is published', () =>
-        shouldRecheckRegistrationStatus(true, true, OrganizationSetupAcceptanceStatus.accepted).should.be.false);
+        shouldRecheckRegistrationStatus(true, true, false, true, OrganizationSetupAcceptanceStatus.accepted).should.be.false);
 
     it('should not recheck registration status in invited flows', () =>
-        shouldRecheckRegistrationStatus(false, false).should.be.false);
+        shouldRecheckRegistrationStatus(false, true, false, false).should.be.false);
 });

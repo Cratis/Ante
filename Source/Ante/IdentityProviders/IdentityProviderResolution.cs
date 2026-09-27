@@ -86,7 +86,7 @@ public class IdentityProviderResolver(IOptions<IdentityProviderOptions> options)
 {
     /// <summary>
     /// The literal that an unidentified sign-in may be recorded under upstream. It identifies nothing,
-    /// so it is treated exactly as if nothing had been reported.
+    /// and is not sufficient to infer a provider even in a single-provider deployment.
     /// </summary>
     public const string Unidentified = "Unknown";
 
@@ -106,8 +106,8 @@ public class IdentityProviderResolver(IOptions<IdentityProviderOptions> options)
     public string ResolveFrom(IEnumerable<string?> reported)
     {
         var configured = options.Value.Providers;
-        var candidates = reported
-            .Select(value => (value ?? string.Empty).Trim())
+        var values = reported.Select(value => (value ?? string.Empty).Trim()).ToArray();
+        var candidates = values
             .Where(value => value.Length > 0 && !value.Equals(Unidentified, StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
@@ -122,25 +122,21 @@ public class IdentityProviderResolver(IOptions<IdentityProviderOptions> options)
 
         var identifying = candidates.FirstOrDefault(value => !value.Equals(FederatedAuthenticationType, StringComparison.OrdinalIgnoreCase));
 
-        return identifying ?? (candidates.Length > 0 ? string.Empty : Unreported(configured));
-    }
-
-    // A provider that issues an `iss` would have been identified by it, so a sign-in that reported
-    // nothing can only have come from one that issues none. When exactly one such provider is
-    // configured there is no guesswork left - it is the only login that could have produced this. The
-    // same holds trivially when the deployment has a single provider of any kind. Anything else is
-    // genuinely ambiguous and stays unset rather than being attributed to whichever provider happens to
-    // be listed first.
-    static string Unreported(IList<ConfiguredIdentityProvider> configured)
-    {
-        var withoutIssuer = configured.Where(provider => string.IsNullOrWhiteSpace(provider.Issuer)).ToArray();
-
-        return (withoutIssuer.Length, configured.Count) switch
+        if (identifying is not null)
         {
-            (1, _) => withoutIssuer[0].Name,
-            (_, 1) => configured[0].Name,
-            _ => string.Empty
-        };
+            return identifying;
+        }
+
+        // A Federation authentication type rules out an OAuth2-only provider. It can identify
+        // a provider only in a deployment with exactly one issuer-bearing provider.
+        if (candidates.Length > 0)
+        {
+            return configured.Count == 1 && !string.IsNullOrWhiteSpace(configured[0].Issuer)
+                ? configured[0].Name
+                : string.Empty;
+        }
+
+        return configured.Count == 1 && values.All(string.IsNullOrWhiteSpace) ? configured[0].Name : string.Empty;
     }
 
     // The reported value is matched against the issuer first, since that is what a provider actually

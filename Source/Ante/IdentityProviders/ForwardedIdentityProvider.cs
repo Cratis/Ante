@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Identity;
 using Microsoft.AspNetCore.Http;
 
 namespace Ante.IdentityProviders;
@@ -35,24 +36,18 @@ public static class ForwardedIdentityProvider
             values.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:provider-key").Value,
             values.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:issuer").Value,
             values.FirstOrDefault(claim => claim.Key == "iss").Value,
+            values.FirstOrDefault(claim => claim.Key == MicrosoftIdentityPlatformClaims.IdentityProvider).Value,
             fallback
         ],
         resolver);
     }
 
     /// <summary>
-    /// Resolves proxy-reported providers at exchange and on subsequent requests using the same fallback.
+    /// Resolves proxy-reported providers at exchange and on subsequent requests.
     /// </summary>
     /// <param name="reported">Provider key, issuer, and provider name in priority order.</param>
     /// <param name="resolver">The configured resolver.</param>
     /// <returns>The normalized provider name, or empty when ambiguous.</returns>
-    public static string ResolveReported(IEnumerable<string?> reported, IIdentityProviderResolver resolver)
-    {
-        var candidates = reported.ToArray();
-        var provider = resolver.ResolveFrom(candidates);
-        return string.IsNullOrWhiteSpace(provider) && candidates.All(value =>
-            string.IsNullOrWhiteSpace(value) || value.Equals("AuthenticationTypes.Federation", StringComparison.OrdinalIgnoreCase))
-            ? resolver.ResolveFrom([])
-            : provider;
-    }
+    public static string ResolveReported(IEnumerable<string?> reported, IIdentityProviderResolver resolver) =>
+        resolver.ResolveFrom(reported);
 }

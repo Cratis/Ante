@@ -7,7 +7,7 @@ import { ProgressSpinner } from '@cratis/components/Display';
 import { InputTextField } from '@cratis/components/CommandForm';
 import { CommandStepper, StepperPanel } from '@cratis/components/CommandDialog';
 import { RegisterOrganization } from './Registration';
-import { getOrCreateRegistrationId, clearRegistrationOperation } from './RegistrationOperation';
+import { getOrCreateRegistrationOperation, clearRegistrationOperation } from './RegistrationOperation';
 import { useOrganizationSetupHandoff } from '../../Invitations/OrganizationSetup/useOrganizationSetupHandoff';
 import { OrganizationSetupFrame } from '../../Invitations/OrganizationSetup/OrganizationSetupFrame';
 import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
@@ -22,13 +22,15 @@ export const RegistrationPage = () => {
     // Persisted per-tab (not merely a mount-local value) so a reload or a return later resumes polling
     // the same durable registration instead of losing track of what was already submitted - see
     // RegistrationOperation.ts for what is, and is never, stored.
-    const registrationId = useMemo(() => getOrCreateRegistrationId(), []);
+    const operation = useMemo(() => getOrCreateRegistrationOperation(), []);
+    const registrationId = operation.id;
     const [legalStatus] = LegalDocumentsCurrent.use();
 
     const handoff = useOrganizationSetupHandoff({
         invitationId: registrationId,
         hostAppUnavailableMessage: strings.registration.hostAppUrlUnavailable,
         isRegistration: true,
+        recoveringRegistration: operation.isRecovered,
     });
 
     // Memoized so an unrelated re-render - opening the terms dialog, a status poll tick - does not

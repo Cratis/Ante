@@ -6,6 +6,7 @@ import { Guid } from '@cratis/fundamentals';
 import { StatusForInvitation, StatusForRegistration } from './OrganizationSetup';
 import { OrganizationSetupAcceptanceStatus } from './OrganizationSetupAcceptanceStatus';
 import { organizationStatusIds, shouldRecheckRegistrationStatus } from './organizationStatusAccess';
+import { startRegistrationStatusPolling } from './registrationStatusPolling';
 import { HostUrl } from '../../Configuration/Configuration';
 import { resolveHostAppRedirectUrl } from '../../Configuration/hostAppRedirect';
 import { useOnboardingRecovery } from '../useOnboardingRecovery';
@@ -21,6 +22,8 @@ export type OrganizationSetupHandoffOptions = {
     hostAppUnavailableMessage: string;
     /** Uses the separately owner-verified registration status instead of invitation status. */
     isRegistration?: boolean;
+    /** True when this registration id was persisted before the current page load. */
+    recoveringRegistration?: boolean;
     /**
      * Opts into the optional host-outcome completion screen once accepted, in place of today's
      * unconditional automatic redirect - only when this deployment also has a host outcome backchannel
@@ -71,20 +74,12 @@ export type OrganizationSetupHandoffState = {
  * @param options The invitation/registration id to track, the message to show on a destination failure, and whether this wizard supports the optional host-outcome screen.
  * @returns The current phase and the actions the page's `CommandStepper` and completion screen drive it with.
  */
-export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMessage, supportsHostOutcome = false, isRegistration = false }: OrganizationSetupHandoffOptions): OrganizationSetupHandoffState => {
+export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMessage, supportsHostOutcome = false, isRegistration = false, recoveringRegistration = false }: OrganizationSetupHandoffOptions): OrganizationSetupHandoffState => {
     const statusIds = organizationStatusIds(invitationId, isRegistration);
     const [invitationStatus] = StatusForInvitation.when(!isRegistration).use({ invitationId: statusIds.invitationId });
     const [registrationStatus, refreshRegistration] = StatusForRegistration.when(isRegistration).use({ registrationId: statusIds.registrationId });
     const statusResult = isRegistration ? registrationStatus : invitationStatus;
 
-    // Before a registration is submitted there is no durably recorded owner, so the first snapshot
-    // cannot subscribe to a shared status stream safely. Recheck the owner-bound snapshot until the
-    // projection and outbox have caught up, including after a page reload.
-    useEffect(() => {
-        if (!shouldRecheckRegistrationStatus(isRegistration, registrationStatus.hasData, registrationStatus.data?.status)) return;
-        const interval = window.setInterval(() => refreshRegistration({ registrationId: invitationId }), 1500);
-        return () => window.clearInterval(interval);
-    }, [isRegistration, registrationStatus.hasData, registrationStatus.data?.status, refreshRegistration, invitationId]);
     const [hostUrlResult] = HostUrl.use();
     const [errorMessages, setErrorMessages] = useState<string[]>([]);
     const organizationNameRef = useRef('');
@@ -92,6 +87,28 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     const isRecorded = statusResult.hasData && statusResult.data.status !== OrganizationSetupAcceptanceStatus.pending;
     const isAccepted = statusResult.hasData && statusResult.data.status === OrganizationSetupAcceptanceStatus.accepted;
     const recovery = useOnboardingRecovery(isRecorded, isAccepted);
+    const [submitted, setSubmitted] = useState(false);
+    const [pollWindowExpired, setPollWindowExpired] = useState(false);
+    const pollRef = useRef({ refreshRegistration, isPerforming: registrationStatus.isPerforming });
+    pollRef.current = { refreshRegistration, isPerforming: registrationStatus.isPerforming };
+
+    // A fresh registration id is not an operation yet: never poll it until the command succeeds.
+    // A pointer recovered after reload may already have an owner, so recheck its initial snapshot.
+    // Stop after the recovery window; Check Again starts a fresh window for a pending operation.
+    useEffect(() => {
+        if (!isRegistration || !(submitted || recoveringRegistration) || pollWindowExpired || isAccepted) return;
+        const timeout = globalThis.setTimeout(() => setPollWindowExpired(true), 20000);
+        return () => globalThis.clearTimeout(timeout);
+    }, [isRegistration, submitted, recoveringRegistration, pollWindowExpired, isAccepted]);
+
+    useEffect(() => {
+        if (!shouldRecheckRegistrationStatus(
+            isRegistration, submitted || recoveringRegistration,
+            pollWindowExpired || recovery.phase === 'timedOut', registrationStatus.hasData, registrationStatus.data?.status)) return;
+        return startRegistrationStatusPolling(
+            () => pollRef.current.refreshRegistration({ registrationId: invitationId }),
+            () => pollRef.current.isPerforming);
+    }, [isRegistration, submitted, recoveringRegistration, pollWindowExpired, recovery.phase, registrationStatus.hasData, registrationStatus.data?.status, invitationId]);
 
     // Never looked up before Ante's own onboarding has actually published - a host has nothing to report
     // on an attempt it has not been notified of yet - and never looked up at all for a caller that has
@@ -131,8 +148,8 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
         phase: gate === 'showHostOutcome' ? 'hostOutcome' : recovery.phase,
         errorMessages,
         captureOrganizationName: (organizationName: string) => { organizationNameRef.current = organizationName; },
-        markSubmitted: () => recovery.markSubmitted(),
-        checkAgain: () => recovery.checkAgain(),
+        markSubmitted: () => { setSubmitted(true); recovery.markSubmitted(); },
+        checkAgain: () => { setPollWindowExpired(false); recovery.checkAgain(); },
         hostOutcomeStatus: hostOutcome.status,
         hostOutcomeReasonCode: hostOutcome.reasonCode,
         checkHostOutcomeAgain: hostOutcome.checkAgain,
