@@ -12,7 +12,7 @@ public class and_a_legacy_receipt_precedes_a_new_marker : a_local_invitation_his
 
     void Establish()
     {
-        AlreadyRecorded(new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]));
+        AlreadyRecorded(new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]), 1);
         AlreadyRecorded(new JoinTenantInvitationReceived("other@example.com", "Acme", ["Member"]));
         AlreadyRecorded(new InvitationInboxEventRecorded(2));
         AlreadyRecorded(new InvitationRevocationReceived());

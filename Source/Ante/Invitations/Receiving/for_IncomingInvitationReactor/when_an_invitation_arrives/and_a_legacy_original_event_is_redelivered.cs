@@ -12,7 +12,7 @@ public class and_a_legacy_original_event_is_redelivered : a_local_invitation_his
 
     void Establish()
     {
-        AlreadyRecorded(new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]));
+        AlreadyRecorded(new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]), 1);
         AlreadyRecorded(new InvitationRevocationReceived());
         InboxHistory.Add(new(EventContext.Empty with { SequenceNumber = 1 }, new UserInvitedToJoinTenant("jane@example.com", "Acme", ["Member"])));
     }

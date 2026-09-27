@@ -21,7 +21,7 @@ The Debug build regenerates TypeScript proxies and compiles colocated backend sp
 ANTE_UPDATE_EVENT_SCHEMA_SNAPSHOT=1 dotnet test Source/Ante.Contracts/Ante.Contracts.csproj --filter FullyQualifiedName~and_comparing_the_snapshot
 ```
 
-Review and commit `Source/Ante.Contracts/EventSchemas.snapshot.json`, then rerun tests without the variable. The guard refuses to overwrite an existing event type/generation's schema even in update mode; bump its generation and add an `EventTypeMigration` instead. The Release build deliberately disables a second proxy generation. To match CI's frontend job, from the repository root run:
+Review and commit `Source/Ante.Contracts/EventSchemas.snapshot.json`, then rerun tests without the variable. The guard refuses to overwrite schemas for released generations listed in `Source/Ante.Contracts/ReleasedEventSchemas.json`, even in update mode; bump a released generation and add an `EventTypeMigration` instead. Unreleased generations can still change. The Release build deliberately disables a second proxy generation. To match CI's frontend job, from the repository root run:
 
 ```bash
 dotnet build Ante.slnx --configuration Debug

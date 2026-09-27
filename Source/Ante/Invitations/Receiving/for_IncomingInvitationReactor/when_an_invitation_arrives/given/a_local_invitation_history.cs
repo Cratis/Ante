@@ -3,8 +3,10 @@
 
 #if DEBUG
 using System.Collections.Immutable;
+using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
+using Cratis.Chronicle.Reactors;
 using Cratis.Execution;
 
 namespace Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_an_invitation_arrives.given;
@@ -47,8 +49,32 @@ public class a_local_invitation_history : Specification
         Reactor = new(Store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance);
     }
 
-    protected void AlreadyRecorded(object @event) => History.Add(new(
-        EventContext.Empty with { EventType = @event.GetType().GetEventType(), SequenceNumber = (ulong)History.Count }, @event));
+    protected void AlreadyRecorded(object @event, EventSequenceNumber? inboxNumber = null, string? inboxSequence = null)
+    {
+        var sourceEventType = @event switch
+        {
+            JoinTenantInvitationReceived => typeof(UserInvitedToJoinTenant).GetEventType(),
+            CreateTenantInvitationReceived => typeof(UserInvitedToCreateTenant).GetEventType(),
+            _ => EventType.Unknown,
+        };
+        var causation = inboxNumber is null ? [] : new Causation[]
+        {
+            new(DateTimeOffset.UtcNow, ReactorHandler.CausationType, new Dictionary<string, string>
+            {
+                [ReactorHandler.CausationEventSequenceIdProperty] = inboxSequence ?? $"{EventSequenceId.InboxPrefix}{InboxSourceStore.Name}",
+                [ReactorHandler.CausationEventSequenceNumberProperty] = inboxNumber.ToString(),
+                [ReactorHandler.CausationEventTypeIdProperty] = sourceEventType.Id.ToString(),
+            }),
+        };
+        History.Add(new(
+            EventContext.Empty with
+            {
+                EventType = @event.GetType().GetEventType(),
+                SequenceNumber = (ulong)History.Count,
+                Causation = causation,
+            },
+            @event));
+    }
 
     static IImmutableList<AppendedEvent> Filter(IEnumerable<AppendedEvent> events, IEnumerable<EventType> filter)
     {
