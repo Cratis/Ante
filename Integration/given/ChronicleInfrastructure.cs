@@ -28,9 +28,23 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
     const ushort HttpPort = 8080;
     const ushort MongoDBPort = 27017;
 
+    static ChronicleInfrastructure? _current;
     IContainer? _container;
 
+    /// <summary>
+    /// Gets the kernel started for <see cref="ChronicleCollection"/>. Specs reach it statically rather than through
+    /// constructor injection: Cratis.Specifications only runs Establish/Because once per class for classes with a
+    /// parameterless constructor.
+    /// </summary>
+    public static ChronicleInfrastructure Current => _current ?? throw new InvalidOperationException($"Specs using the kernel must be in [Collection({nameof(ChronicleCollection)}.{nameof(ChronicleCollection.Name)})].");
+
     public static string Image => Environment.GetEnvironmentVariable("ANTE_CHRONICLE_IMAGE") is { Length: > 0 } image ? image : DefaultImage;
+
+    /// <summary>
+    /// Gets a value indicating whether to leave the container running after the run for inspection
+    /// (<c>ANTE_INTEGRATION_KEEP_CONTAINER=true</c>). Remove it yourself afterwards.
+    /// </summary>
+    public static bool KeepContainer => string.Equals(Environment.GetEnvironmentVariable("ANTE_INTEGRATION_KEEP_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase);
 
     public string ChronicleConnectionString => $"chronicle://localhost:{Container.GetMappedPublicPort(ChroniclePort)}/?skipTlsValidation=true";
 
@@ -47,17 +61,19 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
             .WithPortBinding(HttpPort, assignRandomHostPort: true)
             .WithPortBinding(MongoDBPort, assignRandomHostPort: true)
             .WithLabel("cratis.ante.integration", "true")
+            .WithCleanUp(!KeepContainer)
             .WithWaitStrategy(Wait.ForUnixContainer()
                 .UntilInternalTcpPortIsAvailable(MongoDBPort)
                 .AddCustomWaitStrategy(new ChronicleHealthWait(ChroniclePort, HttpPort)))
             .Build();
 
         await _container.StartAsync();
+        _current = this;
     }
 
     public async Task DisposeAsync()
     {
-        if (_container is not null)
+        if (_container is not null && !KeepContainer)
         {
             await _container.DisposeAsync();
         }

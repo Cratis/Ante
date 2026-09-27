@@ -35,9 +35,4 @@ public static class Eventually
     public static async Task Until(Func<Task<bool>> condition, TimeSpan? timeout = default, string? what = default) =>
         await Get<object>(async () => await condition() ? true : null, timeout, what);
 
-    /// <summary>
-    /// Gives asynchronous observers time to produce an effect that must NOT happen, so its absence is meaningful:
-    /// waits until <paramref name="settled"/> holds (proof the pipeline processed later work), then returns.
-    /// </summary>
-    public static Task Settled(Func<Task<bool>> settled, TimeSpan? timeout = default) => Until(settled, timeout, "the pipeline to settle");
 }

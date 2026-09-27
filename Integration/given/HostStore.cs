@@ -92,10 +92,19 @@ public sealed class HostStore : IAsyncDisposable
 
     public async Task<TEvent> WaitForFromAnte<TEvent>(string eventSourceId, TimeSpan? timeout = default)
     {
-        var received = await Eventually.Get(
-            async () => (await ReceivedFromAnte(eventSourceId)).Select(appended => appended.Content).OfType<TEvent>().FirstOrDefault(),
-            timeout);
-        return received;
+        try
+        {
+            return await Eventually.Get(
+                async () => (await ReceivedFromAnte(eventSourceId)).Select(appended => appended.Content).OfType<TEvent>().FirstOrDefault(),
+                timeout,
+                $"{typeof(TEvent).Name} for {eventSourceId} in {Name}'s inbox");
+        }
+        catch (TimeoutException timeout_)
+        {
+            var received = await ReceivedFromAnte(eventSourceId);
+            var seen = string.Join(", ", received.Select(appended => $"{appended.Context.EventType} as {appended.Content?.GetType().Name ?? "null"}"));
+            throw new TimeoutException($"{timeout_.Message} Received so far: [{seen}].", timeout_);
+        }
     }
 
     public async ValueTask DisposeAsync()

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
+using System.Text.Json;
 using Ante.Legal;
 
 namespace Ante.Integration.given;
@@ -13,10 +14,9 @@ namespace Ante.Integration.given;
 /// Every spec class gets its own Ante store, host stores and read-model database (unique names), so specs sharing
 /// the one kernel never observe each other's invitations.
 /// </remarks>
-/// <param name="infrastructure">The shared Chronicle kernel.</param>
-public class a_running_ante(ChronicleInfrastructure infrastructure) : Specification
+public class a_running_ante : Specification
 {
-    protected readonly ChronicleInfrastructure Infrastructure = infrastructure;
+    protected readonly ChronicleInfrastructure Infrastructure = ChronicleInfrastructure.Current;
     protected readonly string Suffix = Guid.NewGuid().ToString("N")[..8];
     protected AnteApplication Ante;
     protected Dictionary<string, HostStore> Hosts = new(StringComparer.Ordinal);
@@ -55,10 +55,50 @@ public class a_running_ante(ChronicleInfrastructure infrastructure) : Specificat
             await host.DisposeAsync();
         }
 
-        await Ante.DisposeAsync();
+        if (Ante is not null)
+        {
+            await Ante.DisposeAsync();
+        }
     }
 
     protected static Guid NewInvitationId() => Guid.NewGuid();
+
+    /// <summary>
+    /// Publishes an invitation from a host and waits for Ante's token to come back to that host.
+    /// </summary>
+    protected static async Task<InvitationTokenIssued> Invite(HostStore host, Guid invitationId, object invitation)
+    {
+        await host.Publish(invitationId, invitation, subject: Guid.NewGuid());
+        return await host.WaitForFromAnte<InvitationTokenIssued>(invitationId.ToString());
+    }
+
+    /// <summary>
+    /// Executes a wizard command until it succeeds, tolerating the pending-invitation projection lagging the token.
+    /// Throws with the last command result when it never succeeds, so a rejected command is not mistaken for a
+    /// delivery that never arrived.
+    /// </summary>
+    protected async Task<JsonDocument> ExecuteOnceProjected(string route, object command, string subject, string? email = default)
+    {
+        var deadline = DateTimeOffset.UtcNow + Eventually.DefaultTimeout;
+        while (true)
+        {
+            var result = await Ante.Execute(route, command, subject, email);
+            if (IsSuccess(result))
+            {
+                return result;
+            }
+
+            if (DateTimeOffset.UtcNow > deadline)
+            {
+                throw new InvalidOperationException($"{route} did not succeed: {result.RootElement}");
+            }
+
+            await Task.Delay(250);
+        }
+    }
+
+    protected static bool IsSuccess(JsonDocument commandResult) =>
+        commandResult.RootElement.TryGetProperty("isSuccess", out var success) && success.GetBoolean();
 
     protected static UserInvitedToJoinTenant JoinInvitation(string tenant = "Acme") =>
         new($"{Guid.NewGuid():N}@example.com", tenant, ["member"]);

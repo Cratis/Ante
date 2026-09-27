@@ -7,7 +7,7 @@ using Microsoft.IdentityModel.JsonWebTokens;
 namespace Ante.Integration.Invitations.when_a_host_invites_a_user_to_join;
 
 [Collection(ChronicleCollection.Name)]
-public class and_the_invitation_id_is_canonical(ChronicleInfrastructure infrastructure) : a_running_ante(infrastructure)
+public class and_the_invitation_id_is_canonical : a_running_ante
 {
     Guid _invitationId;
     InvitationTokenIssued _issued;
