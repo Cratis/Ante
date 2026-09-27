@@ -7,7 +7,7 @@ Ante owns signing invitation tokens, the onboarding UI and its local acceptance 
 
 ## Deployment boundary
 
-One Ante instance uses one configured Chronicle store and fixed namespace; it does not select a namespace per request. Its **incoming** host store is compiled as `Direct`, so a different host store requires a rebuild, even though Ante's own store is configurable. The host must also supply a proxy that enforces the [Security and trust](./security.md) boundary and controls access to generated API queries. These are current limits, not security properties supplied by Ante. See [Architecture](./architecture.md).
+One Ante instance uses one configured Chronicle store and fixed namespace; it does not select a namespace per request. It receives invitations from each trusted source store configured in `Ante:HostStores` (`["Direct"]` by default), all within that fixed namespace. This is not tenant isolation or flow-specific source authorization. The host must also supply a proxy that enforces the [Security and trust](./security.md) boundary and controls access to generated API queries. These are current limits, not security properties supplied by Ante. See [Architecture](./architecture.md).
 
 ## Optional surfaces
 
