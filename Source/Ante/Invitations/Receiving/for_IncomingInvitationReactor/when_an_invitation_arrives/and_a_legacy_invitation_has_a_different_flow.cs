@@ -6,15 +6,15 @@ using Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_an_invitatio
 
 namespace Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_an_invitation_arrives;
 
-public class and_a_legacy_id_is_reinvited : a_local_invitation_history
+public class and_a_legacy_invitation_has_a_different_flow : a_local_invitation_history
 {
     EventsWithConcurrencyScopes? _produced;
 
     void Establish()
     {
-        AlreadyRecorded(new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]));
+        AlreadyRecorded(new CreateTenantInvitationReceived("jane@example.com", ["Owner"]));
         AlreadyRecorded(new InvitationRevocationReceived());
-        InboxHistory.Add(new(EventContext.Empty with { SequenceNumber = 1 }, new UserInvitedToJoinTenant("jane@example.com", "Acme", ["Member"])));
+        InboxHistory.Add(new(EventContext.Empty with { SequenceNumber = 1 }, new UserInvitedToCreateTenant("jane@example.com", ["Owner"])));
         InboxHistory.Add(new(EventContext.Empty with { SequenceNumber = 3 }, new UserInvitedToJoinTenant("jane@example.com", "Acme", ["Member"])));
     }
 
@@ -22,7 +22,7 @@ public class and_a_legacy_id_is_reinvited : a_local_invitation_history
         new UserInvitedToJoinTenant("jane@example.com", "Acme", ["Member"]),
         EventContext.Empty with { EventSourceId = Id, EventType = typeof(UserInvitedToJoinTenant).GetEventType(), SequenceNumber = 3 });
 
-    [Fact] void should_reject_even_when_the_payload_is_identical() => ShouldRejectReusedId();
-    [Fact] void should_not_record_another_invitation_or_issue_a_token() => Assert.Null(_produced);
+    [Fact] void should_reject_the_cross_flow_reuse() => ShouldRejectReusedId();
+    [Fact] void should_not_record_the_invitation() => Assert.Null(_produced);
 }
 #endif

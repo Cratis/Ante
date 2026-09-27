@@ -8,7 +8,7 @@ namespace Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_an_invit
 
 public class and_the_original_inbox_event_is_redelivered_after_revocation : a_local_invitation_history
 {
-    IEnumerable<EventForEventSourceId> _produced = null!;
+    EventsWithConcurrencyScopes? _produced;
 
     void Establish()
     {
@@ -22,6 +22,6 @@ public class and_the_original_inbox_event_is_redelivered_after_revocation : a_lo
         EventContext.Empty with { EventSourceId = Id, SequenceNumber = 1 });
 
     [Fact] void should_not_reject_the_original_delivery() => ShouldNotReject();
-    [Fact] void should_not_record_it_a_second_time() => Assert.Empty(_produced);
+    [Fact] void should_not_record_it_a_second_time() => Assert.Null(_produced);
 }
 #endif

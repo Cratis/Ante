@@ -14,25 +14,9 @@ public enum InvitationRejectionReason
 }
 
 /// <summary>
-/// The original rejection reason set retained for the first generation of the public event.
-/// </summary>
-public enum InvitationRejectionReasonV1
-{
-    /// <summary>The host used a non-GUID event source id for an invitation.</summary>
-    InvalidInvitationId = 0,
-}
-
-/// <summary>
 /// Published to Ante's outbox on the host's original event source id when an inbound invitation
 /// cannot be accepted. No token is minted for a rejected invitation.
 /// </summary>
 /// <param name="Reason">Why the invitation was rejected.</param>
-[EventType(generation: 2)]
+[EventType]
 public record InvitationRejected(InvitationRejectionReason Reason);
-
-/// <summary>
-/// The original rejection shape retained for replay and older consumers.
-/// </summary>
-/// <param name="Reason">The original reason for rejection.</param>
-[EventTypeGenerationFor<InvitationRejected>(1)]
-public record InvitationRejectedV1(InvitationRejectionReasonV1 Reason);

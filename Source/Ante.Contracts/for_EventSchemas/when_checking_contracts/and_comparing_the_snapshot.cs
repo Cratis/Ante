@@ -17,11 +17,12 @@ using Xunit;
 namespace Ante.Contracts.for_EventSchemas.when_checking_contracts;
 
 /// <summary>
-/// Guards Ante's camelCase Chronicle wire schemas of all published contract events, including historical generations.
+/// Guards released contract generations while keeping the snapshot current for unreleased ones.
 /// </summary>
 public class and_comparing_the_snapshot : Specification
 {
     const string SnapshotName = "EventSchemas.snapshot.json";
+    const string ReleasedName = "ReleasedEventSchemas.json";
     const string UpdateVariable = "ANTE_UPDATE_EVENT_SCHEMA_SNAPSHOT";
     static readonly JsonSerializerOptions _snapshotOptions = new() { WriteIndented = true };
 
@@ -59,24 +60,29 @@ public class and_comparing_the_snapshot : Specification
         var existing = File.Exists(path)
             ? JsonSerializer.Deserialize<Dictionary<string, JsonNode>>(File.ReadAllText(path))!
             : new Dictionary<string, JsonNode>(StringComparer.Ordinal);
-        var changed = existing.Keys.Intersect(schemas.Keys).Where(key =>
+        var releasedPath = Path.Combine(directory.FullName, ReleasedName);
+        Assert.True(File.Exists(releasedPath), $"Missing released-generation marker: {releasedPath}");
+        var released = JsonSerializer.Deserialize<string[]>(File.ReadAllText(releasedPath))!;
+        Assert.Equal(released.Length, released.Distinct(StringComparer.Ordinal).Count());
+        var missingReleased = released.Where(key => !existing.ContainsKey(key) || !schemas.ContainsKey(key)).ToArray();
+        Assert.True(missingReleased.Length == 0,
+            $"Released event generations must remain in both the snapshot and code: {string.Join(", ", missingReleased)}.");
+        var changedReleased = released.Where(key => existing.ContainsKey(key) && schemas.ContainsKey(key) &&
             !JsonNode.DeepEquals(existing[key], schemas[key])).ToArray();
-        Assert.True(changed.Length == 0,
-            $"Event schemas changed without a new generation: {string.Join(", ", changed)}. Bump the generation and add a migration; the snapshot cannot overwrite existing generations.");
+        Assert.True(changedReleased.Length == 0,
+            $"Released event schemas changed: {string.Join(", ", changedReleased)}. Bump the generation and add a migration; never overwrite a released snapshot.");
 
-        var missing = existing.Keys.Except(schemas.Keys).ToArray();
-        Assert.True(missing.Length == 0,
-            $"Previously snapshotted event generations are missing: {string.Join(", ", missing)}. Retain the previous generation record.");
-
-        var added = schemas.Keys.Except(existing.Keys).ToArray();
         if (Environment.GetEnvironmentVariable(UpdateVariable) == "1")
         {
             File.WriteAllText(path, JsonSerializer.Serialize(schemas, _snapshotOptions) + "\n");
             return;
         }
 
-        Assert.True(added.Length == 0 && File.Exists(path),
-            $"Event schema snapshot needs updating for: {string.Join(", ", added)}. Run {UpdateVariable}=1 dotnet test Source/Ante.Contracts/Ante.Contracts.csproj --filter FullyQualifiedName~and_comparing_the_snapshot, then commit the snapshot.");
+        var outOfDate = existing.Keys.Union(schemas.Keys).Where(key =>
+            !existing.TryGetValue(key, out var previous) || !schemas.TryGetValue(key, out var current) ||
+            !JsonNode.DeepEquals(previous, current)).ToArray();
+        Assert.True(outOfDate.Length == 0 && File.Exists(path),
+            $"Event schema snapshot needs updating for: {string.Join(", ", outOfDate)}. Run {UpdateVariable}=1 dotnet test Source/Ante.Contracts/Ante.Contracts.csproj --filter FullyQualifiedName~and_comparing_the_snapshot, then commit the snapshot.");
     }
 
     static JsonNode SchemaFor(Type type, JsonSchemaGenerator generator)

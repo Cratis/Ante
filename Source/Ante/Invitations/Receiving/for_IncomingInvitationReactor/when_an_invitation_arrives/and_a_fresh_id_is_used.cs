@@ -8,14 +8,15 @@ namespace Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_an_invit
 
 public class and_a_fresh_id_is_used : a_local_invitation_history
 {
-    IEnumerable<EventForEventSourceId> _produced = null!;
+    EventsWithConcurrencyScopes _produced = null!;
 
     async Task Because() => _produced = await Reactor.On(
         new UserInvitedToCreateTenant("jane@example.com", ["Owner"]),
         EventContext.Empty with { EventSourceId = Id, SequenceNumber = 7 });
 
-    [Fact] void should_record_a_pending_invitation() => Assert.Contains(_produced, entry => entry.Event is CreateTenantInvitationReceived);
-    [Fact] void should_record_the_source_delivery_in_the_same_batch() => Assert.Contains(_produced, entry => entry.Event is InvitationInboxEventRecorded { InboxSequenceNumber.Value: 7 });
+    [Fact] void should_record_a_pending_invitation() => Assert.Contains(_produced.Events, entry => entry.Event is CreateTenantInvitationReceived);
+    [Fact] void should_record_the_source_delivery_in_the_same_batch() => Assert.Contains(_produced.Events, entry => entry.Event is InvitationInboxEventRecorded { InboxSequenceNumber.Value: 7 });
     [Fact] void should_not_reject_a_fresh_id() => ShouldNotReject();
+    [Fact] void should_guard_the_first_append_against_a_concurrent_acceptance() => Assert.True(_produced.ConcurrencyScopes[Id].ExpectsNoMatchingEvent);
 }
 #endif

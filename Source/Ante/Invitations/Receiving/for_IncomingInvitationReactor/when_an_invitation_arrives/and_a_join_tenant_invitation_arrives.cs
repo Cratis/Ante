@@ -23,5 +23,8 @@ public class and_a_join_tenant_invitation_arrives : Specification
     [Fact]
     void should_record_the_invitation_locally() =>
         _scenario.ShouldHaveProduced<JoinTenantInvitationReceived>(e => e.Email == _invited.Email && e.TenantName == _invited.TenantName);
+
+    [Fact] void should_record_the_inbox_delivery_in_the_same_batch() =>
+        _scenario.ShouldHaveProduced<InvitationInboxEventRecorded>();
 }
 #endif

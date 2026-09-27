@@ -15,22 +15,23 @@ public class a_local_invitation_history : Specification
     protected readonly List<AppendedEvent> History = [];
     protected readonly List<AppendedEvent> InboxHistory = [];
     protected IEventSequence Outbox = null!;
+    protected IEventStore Store = null!;
     protected IEventLog LocalLog = null!;
     protected IncomingInvitationReactor Reactor = null!;
 
     void Establish()
     {
-        var store = Substitute.For<IEventStore>();
+        Store = Substitute.For<IEventStore>();
         LocalLog = Substitute.For<IEventLog>();
-        store.EventLog.Returns(LocalLog);
+        Store.EventLog.Returns(LocalLog);
         LocalLog.GetForEventSourceIdAndEventTypes(Id, Arg.Any<IEnumerable<EventType>>(), Arg.Any<EventStreamType>(), Arg.Any<EventStreamId>(), Arg.Any<EventSourceType>())
-            .Returns(_ => Task.FromResult<IImmutableList<AppendedEvent>>(History.ToImmutableList()));
+            .Returns(call => Task.FromResult<IImmutableList<AppendedEvent>>(Filter(History, (IEnumerable<EventType>)call[1])));
         var inbox = Substitute.For<IEventSequence>();
-        store.GetEventSequence((EventSequenceId)$"{EventSequenceId.InboxPrefix}{InboxSourceStore.Name}").Returns(inbox);
+        Store.GetEventSequence((EventSequenceId)$"{EventSequenceId.InboxPrefix}{InboxSourceStore.Name}").Returns(inbox);
         inbox.GetForEventSourceIdAndEventTypes(Id, Arg.Any<IEnumerable<EventType>>(), Arg.Any<EventStreamType>(), Arg.Any<EventStreamId>(), Arg.Any<EventSourceType>())
-            .Returns(_ => Task.FromResult<IImmutableList<AppendedEvent>>(InboxHistory.ToImmutableList()));
+            .Returns(call => Task.FromResult<IImmutableList<AppendedEvent>>(Filter(InboxHistory, (IEnumerable<EventType>)call[1])));
         Outbox = Substitute.For<IEventSequence>();
-        store.GetEventSequence(EventSequenceId.Outbox).Returns(Outbox);
+        Store.GetEventSequence(EventSequenceId.Outbox).Returns(Outbox);
         Outbox.Append(
             Arg.Any<EventSourceId>(),
             Arg.Any<object>(),
@@ -43,10 +44,17 @@ public class a_local_invitation_history : Specification
             Arg.Any<DateTimeOffset?>(),
             Arg.Any<Cratis.Chronicle.Subject>())
             .Returns(AppendResult.Success(CorrelationId.New(), 1));
-        Reactor = new(store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance);
+        Reactor = new(Store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance);
     }
 
-    protected void AlreadyRecorded(object @event) => History.Add(new(EventContext.Empty, @event));
+    protected void AlreadyRecorded(object @event) => History.Add(new(
+        EventContext.Empty with { EventType = @event.GetType().GetEventType(), SequenceNumber = (ulong)History.Count }, @event));
+
+    static IImmutableList<AppendedEvent> Filter(IEnumerable<AppendedEvent> events, IEnumerable<EventType> filter)
+    {
+        var types = filter.ToHashSet();
+        return events.Where(entry => types.Count == 0 || types.Contains(entry.Content.GetType().GetEventType())).ToImmutableList();
+    }
 
     protected void ShouldRejectReusedId() => Assert.IsType<InvitationRejected>(Assert.Single(Outbox.ReceivedCalls()).GetArguments()[1])
         .Reason.ShouldEqual(InvitationRejectionReason.InvitationIdReused);

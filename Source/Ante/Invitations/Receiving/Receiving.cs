@@ -3,6 +3,7 @@
 
 using Ante.Invitations.Issuing;
 using Ante.Outbox;
+using Cratis.Chronicle.EventSequences.Concurrency;
 using MongoDB.Driver;
 
 namespace Ante.Invitations.Receiving;
@@ -51,29 +52,36 @@ public record InvitationInboxEventRecorded(EventSequenceNumber InboxSequenceNumb
 [EventStore(InboxSourceStore.Name)]
 public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger) : IReactor
 {
+    static readonly EventType[] _decisionEventTypes =
+    [
+        typeof(InvitationInboxEventRecorded).GetEventType(),
+        typeof(JoinTenantInvitationReceived).GetEventType(),
+        typeof(CreateTenantInvitationReceived).GetEventType(),
+        typeof(InvitationRevocationReceived).GetEventType(),
+        typeof(InvitationToJoinTenantAccepted).GetEventType(),
+        typeof(InvitationToCreateTenantAccepted).GetEventType(),
+    ];
+
     /// <summary>
     /// Handles join-tenant invitation events by recording them in the local event log.
     /// </summary>
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
-    public async Task<IEnumerable<EventForEventSourceId>> On(UserInvitedToJoinTenant @event, EventContext context)
+    public async Task<EventsWithConcurrencyScopes?> On(UserInvitedToJoinTenant @event, EventContext context)
     {
         if (!InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out _))
         {
             await Reject(context, InvitationRejectionReason.InvalidInvitationId);
-            return [];
+            return null;
         }
 
-        if (!await CanReceive(context))
-        {
-            return [];
-        }
-
-        return
-        [
-            new(context.EventSourceId, new JoinTenantInvitationReceived(@event.Email, @event.TenantName, @event.Roles)) { Subject = context.Subject },
-            new(context.EventSourceId, new InvitationInboxEventRecorded(context.SequenceNumber)),
-        ];
+        var scope = await ScopeForNewInvitation(context);
+        return scope is null ? null : new EventsWithConcurrencyScopes(
+            [
+                new(context.EventSourceId, new JoinTenantInvitationReceived(@event.Email, @event.TenantName, @event.Roles)) { Subject = context.Subject },
+                new(context.EventSourceId, new InvitationInboxEventRecorded(context.SequenceNumber)),
+            ],
+            [new(context.EventSourceId, scope)]);
     }
 
     /// <summary>
@@ -81,24 +89,21 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
     /// </summary>
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
-    public async Task<IEnumerable<EventForEventSourceId>> On(UserInvitedToCreateTenant @event, EventContext context)
+    public async Task<EventsWithConcurrencyScopes?> On(UserInvitedToCreateTenant @event, EventContext context)
     {
         if (!InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out _))
         {
             await Reject(context, InvitationRejectionReason.InvalidInvitationId);
-            return [];
+            return null;
         }
 
-        if (!await CanReceive(context))
-        {
-            return [];
-        }
-
-        return
-        [
-            new(context.EventSourceId, new CreateTenantInvitationReceived(@event.Email, @event.Roles)) { Subject = context.Subject },
-            new(context.EventSourceId, new InvitationInboxEventRecorded(context.SequenceNumber)),
-        ];
+        var scope = await ScopeForNewInvitation(context);
+        return scope is null ? null : new EventsWithConcurrencyScopes(
+            [
+                new(context.EventSourceId, new CreateTenantInvitationReceived(@event.Email, @event.Roles)) { Subject = context.Subject },
+                new(context.EventSourceId, new InvitationInboxEventRecorded(context.SequenceNumber)),
+            ],
+            [new(context.EventSourceId, scope)]);
     }
 
     /// <summary>
@@ -110,59 +115,53 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
     public InvitationRevocationReceived? On(InvitationRevoked @event, EventContext context) =>
         InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out _) ? new() : null;
 
-    async Task<bool> CanReceive(EventContext context)
+    async Task<ConcurrencyScope?> ScopeForNewInvitation(EventContext context)
     {
         // The local event log is authoritative even while the pending-invitation projection lags.
-        // The marker is appended in the same side-effect transaction as the receipt; on recovery the
-        // same inbox sequence number is a no-op, while a later host event with the same id is reuse.
-        var history = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(
-            context.EventSourceId,
-            [
-                typeof(InvitationInboxEventRecorded).GetEventType(),
-                typeof(JoinTenantInvitationReceived).GetEventType(),
-                typeof(CreateTenantInvitationReceived).GetEventType(),
-                typeof(InvitationRevocationReceived).GetEventType(),
-                typeof(InvitationToJoinTenantAccepted).GetEventType(),
-                typeof(InvitationToCreateTenantAccepted).GetEventType(),
-            ]);
+        // Read exactly the types in the optimistic scope: if an acceptance arrives before the
+        // receipt is appended, the append fails and Chronicle retries against the new history.
+        var history = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(context.EventSourceId, _decisionEventTypes);
         if (history.Any(entry => entry.Content is InvitationInboxEventRecorded recorded && recorded.InboxSequenceNumber == context.SequenceNumber))
         {
-            return false;
+            return null;
         }
 
         if (history.Any(entry => entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted))
         {
-            // Before inbox receipts carried a sequence number, the original event can still be
-            // identified by its position in the durable per-source inbox (but not by payload or
-            // correlation id, which a later invite could reuse).
-            if (!history.Any(entry => entry.Content is InvitationInboxEventRecorded) &&
-                history.Any(entry => entry.Content is JoinTenantInvitationReceived) &&
-                context.EventType == typeof(UserInvitedToJoinTenant).GetEventType() &&
-                await IsOriginalInboxEvent(context))
+            // The first marker partitions old receipts from new ones. Its immediately preceding
+            // receipt was written in the same batch and is not legacy. Each earlier receipt
+            // corresponds to an inbox event of its flow; payload/correlation are not identities.
+            var oldHistory = history.TakeWhile(entry => entry.Content is not InvitationInboxEventRecorded).ToArray();
+            if (oldHistory.Length < history.Count && oldHistory.Length > 0 &&
+                oldHistory[^1].Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived)
             {
-                return false;
+                oldHistory = oldHistory[..^1];
             }
 
-            if (!history.Any(entry => entry.Content is InvitationInboxEventRecorded) &&
-                history.Any(entry => entry.Content is CreateTenantInvitationReceived) &&
-                context.EventType == typeof(UserInvitedToCreateTenant).GetEventType() &&
-                await IsOriginalInboxEvent(context))
+            var legacyCount = context.EventType switch
             {
-                return false;
+                var type when type == typeof(UserInvitedToJoinTenant).GetEventType() => oldHistory.Count(entry => entry.Content is JoinTenantInvitationReceived),
+                var type when type == typeof(UserInvitedToCreateTenant).GetEventType() => oldHistory.Count(entry => entry.Content is CreateTenantInvitationReceived),
+                _ => 0,
+            };
+            if (legacyCount > 0 && await IsOriginalInboxEvent(context, legacyCount))
+            {
+                return null;
             }
 
             await Reject(context, InvitationRejectionReason.InvitationIdReused);
-            return false;
+            return null;
         }
 
-        return true;
+        var tail = history.Count > 0 ? history[^1].Context.SequenceNumber : EventSequenceNumber.BeforeFirst;
+        return new(tail, context.EventSourceId, EventTypes: _decisionEventTypes);
     }
 
-    async Task<bool> IsOriginalInboxEvent(EventContext context)
+    async Task<bool> IsOriginalInboxEvent(EventContext context, int legacyCount)
     {
         var inbox = eventStore.GetEventSequence((EventSequenceId)$"{EventSequenceId.InboxPrefix}{InboxSourceStore.Name}");
         var invitations = await inbox.GetForEventSourceIdAndEventTypes(context.EventSourceId, [context.EventType]);
-        return invitations.Count > 0 && invitations[0].Context.SequenceNumber == context.SequenceNumber;
+        return invitations.Take(legacyCount).Any(entry => entry.Context.SequenceNumber == context.SequenceNumber);
     }
 
     async Task Reject(EventContext context, InvitationRejectionReason reason)

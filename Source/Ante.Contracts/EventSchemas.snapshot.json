@@ -1,5 +1,5 @@
 {
-  "InvitationRejected:2": {
+  "InvitationRejected:1": {
     "type": "object",
     "properties": {
       "reason": {
@@ -11,24 +11,6 @@
         "x-enumNames": [
           "InvalidInvitationId",
           "InvitationIdReused"
-        ]
-      }
-    },
-    "required": [
-      "reason"
-    ],
-    "title": "InvitationRejected"
-  },
-  "InvitationRejected:1": {
-    "type": "object",
-    "properties": {
-      "reason": {
-        "type": "integer",
-        "enum": [
-          0
-        ],
-        "x-enumNames": [
-          "InvalidInvitationId"
         ]
       }
     },

@@ -6,28 +6,25 @@ using Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_an_invitatio
 
 namespace Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_an_invitation_arrives;
 
-public class and_a_legacy_original_event_is_redelivered : a_local_invitation_history
+public class and_a_legacy_receipt_precedes_a_new_marker : a_local_invitation_history
 {
     EventsWithConcurrencyScopes? _produced;
 
     void Establish()
     {
         AlreadyRecorded(new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]));
+        AlreadyRecorded(new JoinTenantInvitationReceived("other@example.com", "Acme", ["Member"]));
+        AlreadyRecorded(new InvitationInboxEventRecorded(2));
         AlreadyRecorded(new InvitationRevocationReceived());
         InboxHistory.Add(new(EventContext.Empty with { SequenceNumber = 1 }, new UserInvitedToJoinTenant("jane@example.com", "Acme", ["Member"])));
+        InboxHistory.Add(new(EventContext.Empty with { SequenceNumber = 2 }, new UserInvitedToJoinTenant("other@example.com", "Acme", ["Member"])));
     }
 
     async Task Because() => _produced = await Reactor.On(
         new UserInvitedToJoinTenant("jane@example.com", "Acme", ["Member"]),
         EventContext.Empty with { EventSourceId = Id, EventType = typeof(UserInvitedToJoinTenant).GetEventType(), SequenceNumber = 1 });
 
-    [Fact] void should_not_reject_the_original_delivery() => ShouldNotReject();
-    [Fact] void should_not_record_it_a_second_time() => Assert.Null(_produced);
-    [Fact] async Task should_read_the_original_receipt_from_the_event_log() => await LocalLog.Received(1).GetForEventSourceIdAndEventTypes(
-        Id,
-        Arg.Is<IEnumerable<EventType>>(types => types.Contains(typeof(JoinTenantInvitationReceived).GetEventType())),
-        Arg.Any<EventStreamType>(),
-        Arg.Any<EventStreamId>(),
-        Arg.Any<EventSourceType>());
+    [Fact] void should_not_reject_the_older_receipt() => ShouldNotReject();
+    [Fact] void should_not_record_it_again() => Assert.Null(_produced);
 }
 #endif

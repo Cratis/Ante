@@ -8,7 +8,7 @@ namespace Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_an_invit
 
 public class and_a_revoked_id_is_invited_again : a_local_invitation_history
 {
-    IEnumerable<EventForEventSourceId> _produced = null!;
+    EventsWithConcurrencyScopes? _produced;
 
     void Establish()
     {
@@ -22,6 +22,6 @@ public class and_a_revoked_id_is_invited_again : a_local_invitation_history
         EventContext.Empty with { EventSourceId = Id, SequenceNumber = 2 });
 
     [Fact] void should_reject_the_reused_id() => ShouldRejectReusedId();
-    [Fact] void should_not_record_another_invitation_or_issue_a_token() => Assert.Empty(_produced);
+    [Fact] void should_not_record_another_invitation_or_issue_a_token() => Assert.Null(_produced);
 }
 #endif
