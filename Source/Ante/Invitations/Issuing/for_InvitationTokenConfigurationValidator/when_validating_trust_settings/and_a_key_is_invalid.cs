@@ -9,9 +9,13 @@ namespace Ante.Invitations.Issuing.for_InvitationTokenConfigurationValidator.whe
 public class and_a_key_is_invalid : Specification
 {
     [Fact]
-    void should_reject_a_missing_private_key_even_in_development() =>
+    void should_allow_a_missing_private_key_for_existing_deployments() =>
+        InvitationTokenConfigurationValidator.Validate(new InvitationTokenConfig());
+
+    [Fact]
+    void should_reject_a_malformed_private_key() =>
         Assert.Contains("PrivateKeyPem", Assert.Throws<InvitationTokenConfigurationInvalid>(() =>
-            InvitationTokenConfigurationValidator.Validate(new InvitationTokenConfig())).Message);
+            InvitationTokenConfigurationValidator.Validate(new InvitationTokenConfig { PrivateKeyPem = "not PEM" })).Message);
 
     [Fact]
     void should_reject_a_public_key_in_the_private_key_setting()

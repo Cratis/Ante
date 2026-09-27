@@ -12,7 +12,7 @@ namespace Ante.IdentityProviders;
 public static class ForwardedIdentityProvider
 {
     /// <summary>
-    /// Resolves canonical provider claims before falling back to the sign-in issuer.
+    /// Resolves canonical claims, then the sign-in issuer and legacy proxy claims, before Arc metadata.
     /// </summary>
     /// <param name="httpContextAccessor">Accessor for the current request.</param>
     /// <param name="resolver">The configured identity provider resolver.</param>
@@ -22,7 +22,7 @@ public static class ForwardedIdentityProvider
         Resolve(httpContextAccessor.HttpContext?.User?.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value)) ?? [], resolver, fallback);
 
     /// <summary>
-    /// Resolves canonical provider claims from Arc's identity context.
+    /// Resolves canonical and legacy proxy provider claims from Arc's identity context.
     /// </summary>
     /// <param name="claims">Claims forwarded by the trusted proxy.</param>
     /// <param name="resolver">The configured identity provider resolver.</param>
@@ -36,6 +36,8 @@ public static class ForwardedIdentityProvider
             values.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:provider-key").Value,
             values.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:issuer").Value,
             values.FirstOrDefault(claim => claim.Key == "iss").Value,
+            values.FirstOrDefault(claim => claim.Key == "identity_provider").Value,
+            values.FirstOrDefault(claim => claim.Key == "http://schemas.microsoft.com/accesscontrolservice/2010/07/claims/identityprovider").Value,
             values.FirstOrDefault(claim => claim.Key == MicrosoftIdentityPlatformClaims.IdentityProvider).Value,
             fallback
         ],
@@ -45,7 +47,7 @@ public static class ForwardedIdentityProvider
     /// <summary>
     /// Resolves proxy-reported providers at exchange and on subsequent requests.
     /// </summary>
-    /// <param name="reported">Provider key, issuer, and provider name in priority order.</param>
+    /// <param name="reported">Provider key, issuer, legacy provider claims, and Arc metadata in priority order.</param>
     /// <param name="resolver">The configured resolver.</param>
     /// <returns>The normalized provider name, or empty when ambiguous.</returns>
     public static string ResolveReported(IEnumerable<string?> reported, IIdentityProviderResolver resolver) =>

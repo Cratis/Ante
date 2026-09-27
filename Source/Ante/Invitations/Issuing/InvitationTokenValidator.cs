@@ -32,11 +32,18 @@ public class InvitationTokenValidator(IOptions<InvitationTokenConfig> config, IL
     static readonly TimeSpan _clockSkew = TimeSpan.FromSeconds(30);
 
     readonly JsonWebTokenHandler _handler = new();
+    readonly bool _hasSigningKey = !string.IsNullOrWhiteSpace(config.Value.PrivateKeyPem);
     readonly TokenValidationParameters _parameters = CreateParameters(config.Value);
 
     /// <inheritdoc/>
     public async Task<ValidatedInvitationToken?> Validate(string authorizationHeader)
     {
+        if (!_hasSigningKey)
+        {
+            logger.LogInvitationTokenRejected("SigningKeyNotConfigured");
+            return null;
+        }
+
         if (!authorizationHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {
             logger.LogInvitationTokenRejected("MissingBearer");
@@ -91,7 +98,11 @@ public class InvitationTokenValidator(IOptions<InvitationTokenConfig> config, IL
 
     static TokenValidationParameters CreateParameters(InvitationTokenConfig config)
     {
-        var trustedKeys = new List<SecurityKey> { PublicKeyFrom(config.PrivateKeyPem) };
+        var trustedKeys = new List<SecurityKey>();
+        if (!string.IsNullOrWhiteSpace(config.PrivateKeyPem))
+        {
+            trustedKeys.Add(PublicKeyFrom(config.PrivateKeyPem));
+        }
         if (!string.IsNullOrWhiteSpace(config.PublicKeyPem))
         {
             trustedKeys.Add(PublicKeyFrom(config.PublicKeyPem));

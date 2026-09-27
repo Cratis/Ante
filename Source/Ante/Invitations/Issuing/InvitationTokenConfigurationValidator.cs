@@ -17,7 +17,10 @@ public sealed class InvitationTokenConfigurationValidator
     /// <exception cref="InvitationTokenConfigurationInvalid">Thrown for an unusable key configuration.</exception>
     public static void Validate(InvitationTokenConfig config)
     {
-        ValidateKey(config.PrivateKeyPem, nameof(config.PrivateKeyPem), requiresPrivateKey: true);
+        if (!string.IsNullOrWhiteSpace(config.PrivateKeyPem))
+        {
+            ValidateKey(config.PrivateKeyPem, nameof(config.PrivateKeyPem), requiresPrivateKey: true);
+        }
         if (!string.IsNullOrWhiteSpace(config.PublicKeyPem))
         {
             ValidateKey(config.PublicKeyPem, nameof(config.PublicKeyPem), requiresPrivateKey: false);
@@ -25,13 +28,18 @@ public sealed class InvitationTokenConfigurationValidator
     }
 
     /// <summary>
-    /// Warns operators about optional issuer or audience checks absent outside Development.
+    /// Warns operators when the signing key or optional claim checks are absent.
     /// </summary>
     /// <param name="config">The token configuration.</param>
     /// <param name="isDevelopment">Whether the application runs in Development.</param>
     /// <param name="logger">The startup logger.</param>
     public static void WarnForMissingClaims(InvitationTokenConfig config, bool isDevelopment, ILogger<InvitationTokenConfigurationValidator> logger)
     {
+        if (string.IsNullOrWhiteSpace(config.PrivateKeyPem))
+        {
+            logger.LogPrivateKeyNotConfigured();
+        }
+
         if (isDevelopment)
         {
             return;

@@ -145,6 +145,10 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
         }
 
         var (identityProvider, complianceSubject) = signedInIdentity.Resolve(InvitationId, (Cratis.Chronicle.Subject)pendingInvitation.Subject);
+        if (string.IsNullOrWhiteSpace(identityProvider.Value))
+        {
+            return ValidationResult.Error("A signed-in subject and provider are required to accept this invitation.");
+        }
 
         // The same person can hold several invitations to one organization - for instance one per email
         // address they were invited under. Onboarding a second one under a login that already belongs

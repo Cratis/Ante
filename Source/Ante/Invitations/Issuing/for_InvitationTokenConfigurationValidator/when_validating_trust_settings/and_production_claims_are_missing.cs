@@ -40,6 +40,15 @@ public class and_production_claims_are_missing : Specification
         Assert.Empty(logger.ReceivedCalls());
     }
 
+    [Fact]
+    void should_warn_about_a_missing_signing_key_even_in_development()
+    {
+        var logger = Substitute.For<ILogger<InvitationTokenConfigurationValidator>>();
+        logger.IsEnabled(LogLevel.Warning).Returns(true);
+        InvitationTokenConfigurationValidator.WarnForMissingClaims(new InvitationTokenConfig(), true, logger);
+        Assert.Single(logger.ReceivedCalls(), call => call.GetMethodInfo().Name == "Log");
+    }
+
     static InvitationTokenConfig WithValidSigningKey()
     {
         using var rsa = RSA.Create(2048);

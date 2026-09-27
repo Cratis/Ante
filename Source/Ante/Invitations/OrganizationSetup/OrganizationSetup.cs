@@ -253,6 +253,10 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         }
 
         var (identityProviderValue, complianceSubject) = signedInIdentity.Resolve(InvitationId, (Cratis.Chronicle.Subject)pendingInvitation.Subject);
+        if (string.IsNullOrWhiteSpace(identityProviderValue.Value))
+        {
+            return ValidationResult.Error("A signed-in subject and provider are required to set up an organization.");
+        }
 
         var legalResolution = await LegalAcceptanceEvidence.Resolve(
             legalDocumentSource,

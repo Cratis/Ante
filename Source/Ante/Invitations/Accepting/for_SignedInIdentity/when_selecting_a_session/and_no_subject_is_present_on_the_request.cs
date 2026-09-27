@@ -17,12 +17,10 @@ public class and_no_subject_is_present_on_the_request : Specification
 
     AcceptedInvitation? _result;
 
-    // No subject to disambiguate with - the most recent session for the invitation is the best guess
-    // available. This fallback exists only for resolving which login a request belongs to, never for
-    // deciding ownership - IsVerifiedOwnerOf never reaches it (see for_SignedInIdentity/when_verifying_ownership).
+    // No forwarded subject means there is no evidence this request owns any exchange session.
     void Because() =>
         _result = SignedInIdentity.SelectSession([_session], _invitationId, null, "github", DateTimeOffset.UtcNow);
 
-    [Fact] void should_select_the_only_session() => Assert.Same(_session, _result);
+    [Fact] void should_not_select_any_session() => Assert.Null(_result);
 }
 #endif

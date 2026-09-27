@@ -249,11 +249,10 @@ public class InviteExchangeController(
 public record InvitationIdentityDetails(InvitationId InvitationId, InvitationFlowType FlowType);
 
 /// <summary>
-/// Provides identity details for the Ante application.
-/// A user is only authorized when the authentication proxy has forwarded a valid <c language="csharp">jti</c> claim from
-/// the invite token, and that claim corresponds to a pending invitation.
-/// The <c language="csharp">jti</c> and <c language="csharp">invite_type</c> claims are forwarded by the authentication proxy's invite
-/// claims enricher.
+/// Provides identity details for the Ante application. The proxy may forward <c language="csharp">jti</c>
+/// and <c language="csharp">invite_type</c> claims from an invitation, or a live exchange session may
+/// identify the invitation by the request's forwarded subject and resolved provider. This provider
+/// supplies details; invitation-bound commands enforce ownership separately.
 /// </summary>
 /// <param name="acceptedInvitations">Collection used to resolve accepted invitation sessions for fallback identity resolution.</param>
 /// <param name="identityProviderResolver">Resolver for the forwarded request's identity provider.</param>
@@ -289,7 +288,7 @@ public class InvitationIdentityProvider(
         // A subject can occur at more than one provider. Select only this request's live exchange
         // session, using the same rule as invitation queries and commands. The forwarded-jti path above
         // still relies on the proxy to have verified that claim independently.
-        var sessions = await acceptedInvitations.Find(Builders<AcceptedInvitation>.Filter.Empty).ToListAsync();
+        var sessions = await acceptedInvitations.Find(Builders<AcceptedInvitation>.Filter.Eq(a => a.Subject, subject)).ToListAsync();
         var acceptedInvitation = SignedInIdentity.SelectSession(sessions, InvitationId.NotSet, subject, (IdentityProviderName)provider, DateTimeOffset.UtcNow);
 
         return acceptedInvitation is null
