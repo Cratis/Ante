@@ -4,7 +4,7 @@
 /** Polls serially, without superseding the initial status query while it is still running. */
 export const startRegistrationStatusPolling = (
     refresh: () => Promise<void>,
-    isInitialQueryPerforming: () => boolean,
+    isInitialQueryPending: () => boolean,
     intervalMs = 1500): (() => void) => {
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
@@ -13,7 +13,7 @@ export const startRegistrationStatusPolling = (
     };
     const tick = async () => {
         if (!active) return;
-        if (!isInitialQueryPerforming()) await refresh();
+        if (!isInitialQueryPending()) await refresh();
         if (active) schedule();
     };
     schedule();

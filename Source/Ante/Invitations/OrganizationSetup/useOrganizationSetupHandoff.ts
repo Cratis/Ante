@@ -89,8 +89,15 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     const recovery = useOnboardingRecovery(isRecorded, isAccepted);
     const [submitted, setSubmitted] = useState(false);
     const [pollWindowExpired, setPollWindowExpired] = useState(false);
-    const pollRef = useRef({ refreshRegistration, isPerforming: registrationStatus.isPerforming });
-    pollRef.current = { refreshRegistration, isPerforming: registrationStatus.isPerforming };
+    const firstRegistrationResultRef = useRef({ id: invitationId.toString(), result: registrationStatus });
+    if (firstRegistrationResultRef.current.id !== invitationId.toString()) {
+        firstRegistrationResultRef.current = { id: invitationId.toString(), result: registrationStatus };
+    }
+    // A cached snapshot starts with isPerforming=false even while Arc's automatic initial fetch is
+    // in flight. Wait for that fetch to settle into a new result before starting any refresh.
+    const initialQueryPending = registrationStatus === firstRegistrationResultRef.current.result || registrationStatus.isPerforming;
+    const pollRef = useRef({ refreshRegistration, initialQueryPending });
+    pollRef.current = { refreshRegistration, initialQueryPending };
 
     // A fresh registration id is not an operation yet: never poll it until the command succeeds.
     // A pointer recovered after reload may already have an owner, so recheck its initial snapshot.
@@ -107,7 +114,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
             pollWindowExpired || recovery.phase === 'timedOut', registrationStatus.hasData, registrationStatus.data?.status)) return;
         return startRegistrationStatusPolling(
             () => pollRef.current.refreshRegistration({ registrationId: invitationId }),
-            () => pollRef.current.isPerforming);
+            () => pollRef.current.initialQueryPending);
     }, [isRegistration, submitted, recoveringRegistration, pollWindowExpired, recovery.phase, registrationStatus.hasData, registrationStatus.data?.status, invitationId]);
 
     // Never looked up before Ante's own onboarding has actually published - a host has nothing to report
