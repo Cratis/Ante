@@ -31,14 +31,19 @@ public static class ForwardedIdentityProvider
     public static string Resolve(IEnumerable<KeyValuePair<string, string>> claims, IIdentityProviderResolver resolver, string? fallback = null)
     {
         var values = claims.ToArray();
+
+        // AuthProxy forwards the first present legacy signal (iss, identity_provider, schema claim,
+        // then its Arc provider metadata). Do not let a configured lower-priority claim override an
+        // unconfigured higher-priority value that the exchange already recorded.
+        var legacyProvider = values.FirstOrDefault(claim => claim.Key == "iss").Value
+            ?? values.FirstOrDefault(claim => claim.Key == "identity_provider").Value
+            ?? values.FirstOrDefault(claim => claim.Key == "http://schemas.microsoft.com/accesscontrolservice/2010/07/claims/identityprovider").Value
+            ?? values.FirstOrDefault(claim => claim.Key == MicrosoftIdentityPlatformClaims.IdentityProvider).Value;
         return ResolveReported(
         [
             values.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:provider-key").Value,
             values.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:issuer").Value,
-            values.FirstOrDefault(claim => claim.Key == "iss").Value,
-            values.FirstOrDefault(claim => claim.Key == "identity_provider").Value,
-            values.FirstOrDefault(claim => claim.Key == "http://schemas.microsoft.com/accesscontrolservice/2010/07/claims/identityprovider").Value,
-            values.FirstOrDefault(claim => claim.Key == MicrosoftIdentityPlatformClaims.IdentityProvider).Value,
+            legacyProvider,
             fallback
         ],
         resolver);

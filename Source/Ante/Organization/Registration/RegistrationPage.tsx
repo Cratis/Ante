@@ -8,7 +8,7 @@ import { InputTextField } from '@cratis/components/CommandForm';
 import { CommandStepper, StepperPanel } from '@cratis/components/CommandDialog';
 import { RegisterOrganization } from './Registration';
 import { getOrCreateRegistrationOperation, clearRegistrationOperation } from './RegistrationOperation';
-import { shouldResumeRegistrationAfterFailure } from './shouldResumeRegistrationAfterFailure';
+import { registrationValidationFailure } from './registrationValidationFailure';
 import { useOrganizationSetupHandoff } from '../../Invitations/OrganizationSetup/useOrganizationSetupHandoff';
 import { OrganizationSetupFrame } from '../../Invitations/OrganizationSetup/OrganizationSetupFrame';
 import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
@@ -143,9 +143,7 @@ export const RegistrationPage = () => {
                         return values;
                     }}
                     onSuccess={async () => { handoff.markSubmitted(); }}
-                    onFailed={async result => {
-                        if (shouldResumeRegistrationAfterFailure(result)) handoff.markSubmitted();
-                    }}
+                    {...registrationValidationFailure(handoff.markSubmitted)}
                 >
                     <StepperPanel header={strings.organizationSetup.stepOrganization}>
                         <InputTextField<RegisterOrganization>

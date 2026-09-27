@@ -2,12 +2,11 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { describe, it } from 'vitest';
-import { CommandResult } from '@cratis/arc/commands';
 import { ValidationResult, ValidationResultReason, ValidationResultSeverity } from '@cratis/arc/validation';
 import { shouldResumeRegistrationAfterFailure } from '../shouldResumeRegistrationAfterFailure';
 
 const rejected = (reason: ValidationResultReason, reasonDetail?: string, state?: string) =>
-    CommandResult.validationFailed([new ValidationResult(ValidationResultSeverity.Error, 'The wording can change', [], state, reason, reasonDetail)]);
+    [new ValidationResult(ValidationResultSeverity.Error, 'The wording can change', [], state, reason, reasonDetail)];
 
 describe('when retrying a registration after a lost response', () => {
     it('should resume after the validator recognizes an earlier submission', () =>
@@ -25,6 +24,6 @@ describe('when retrying a registration after a lost response', () => {
     it('should not resume after an unrelated constraint rejects the command', () =>
         shouldResumeRegistrationAfterFailure(rejected(ValidationResultReason.ConstraintViolation, 'UniqueOrganizationName')).should.be.false);
 
-    it('should not resume after a transport or execution failure', () =>
-        shouldResumeRegistrationAfterFailure(CommandResult.failed(['Error'])).should.be.false);
+    it('should not resume without a one-use validation result', () =>
+        shouldResumeRegistrationAfterFailure([]).should.be.false);
 });
