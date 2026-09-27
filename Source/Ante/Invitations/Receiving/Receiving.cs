@@ -112,6 +112,7 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
     /// </summary>
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
+    [OnceOnly]
     public InvitationRevocationReceived? On(InvitationRevoked @event, EventContext context) =>
         InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out _) ? new() : null;
 
