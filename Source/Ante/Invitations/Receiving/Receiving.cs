@@ -48,21 +48,18 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
     /// </summary>
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
-    public async Task<IEnumerable<EventForEventSourceId>> On(UserInvitedToJoinTenant @event, EventContext context)
+    public async Task<EventForEventSourceId?> On(UserInvitedToJoinTenant @event, EventContext context)
     {
-        if (!Guid.TryParse(context.EventSourceId.Value, out _))
+        if (!InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out _))
         {
             await Reject(context);
-            return [];
+            return null;
         }
 
-        return
-        [
-            new(context.EventSourceId, new JoinTenantInvitationReceived(@event.Email, @event.TenantName, @event.Roles))
-            {
-                Subject = context.Subject,
-            },
-        ];
+        return new(context.EventSourceId, new JoinTenantInvitationReceived(@event.Email, @event.TenantName, @event.Roles))
+        {
+            Subject = context.Subject,
+        };
     }
 
     /// <summary>
@@ -70,21 +67,18 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
     /// </summary>
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
-    public async Task<IEnumerable<EventForEventSourceId>> On(UserInvitedToCreateTenant @event, EventContext context)
+    public async Task<EventForEventSourceId?> On(UserInvitedToCreateTenant @event, EventContext context)
     {
-        if (!Guid.TryParse(context.EventSourceId.Value, out _))
+        if (!InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out _))
         {
             await Reject(context);
-            return [];
+            return null;
         }
 
-        return
-        [
-            new(context.EventSourceId, new CreateTenantInvitationReceived(@event.Email, @event.Roles))
-            {
-                Subject = context.Subject,
-            },
-        ];
+        return new(context.EventSourceId, new CreateTenantInvitationReceived(@event.Email, @event.Roles))
+        {
+            Subject = context.Subject,
+        };
     }
 
     /// <summary>
@@ -93,8 +87,8 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
     /// </summary>
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
-    public IEnumerable<object> On(InvitationRevoked @event, EventContext context) =>
-        Guid.TryParse(context.EventSourceId.Value, out _) ? [new InvitationRevocationReceived()] : [];
+    public InvitationRevocationReceived? On(InvitationRevoked @event, EventContext context) =>
+        InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out _) ? new() : null;
 
     async Task Reject(EventContext context)
     {
@@ -124,7 +118,7 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
     /// <param name="context">The event context.</param>
     public async Task On(JoinTenantInvitationReceived @event, EventContext context)
     {
-        if (!Guid.TryParse(context.EventSourceId.Value, out var invitationId))
+        if (!InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out var invitationId))
         {
             await Reject(context);
             return;
@@ -141,7 +135,7 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
     /// <param name="context">The event context.</param>
     public async Task On(CreateTenantInvitationReceived @event, EventContext context)
     {
-        if (!Guid.TryParse(context.EventSourceId.Value, out var invitationId))
+        if (!InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out var invitationId))
         {
             await Reject(context);
             return;
