@@ -31,6 +31,14 @@ public record CreateTenantInvitationReceived(Email Email, IReadOnlyList<RoleName
 public record InvitationRevocationReceived;
 
 /// <summary>
+/// Identifies the host inbox event that created a local invitation receipt, so a retry of the same
+/// delivery is not mistaken for a new invitation using the same id.
+/// </summary>
+/// <param name="InboxSequenceNumber">The sequence number of the original host inbox event.</param>
+[EventType]
+public record InvitationInboxEventRecorded(EventSequenceNumber InboxSequenceNumber);
+
+/// <summary>
 /// Reacts to invitation events a host product appends to its own outbox and records valid invitations locally.
 /// </summary>
 /// <remarks>
@@ -48,18 +56,24 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
     /// </summary>
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
-    public async Task<EventForEventSourceId?> On(UserInvitedToJoinTenant @event, EventContext context)
+    public async Task<IEnumerable<EventForEventSourceId>> On(UserInvitedToJoinTenant @event, EventContext context)
     {
         if (!InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out _))
         {
-            await Reject(context);
-            return null;
+            await Reject(context, InvitationRejectionReason.InvalidInvitationId);
+            return [];
         }
 
-        return new(context.EventSourceId, new JoinTenantInvitationReceived(@event.Email, @event.TenantName, @event.Roles))
+        if (!await CanReceive(context))
         {
-            Subject = context.Subject,
-        };
+            return [];
+        }
+
+        return
+        [
+            new(context.EventSourceId, new JoinTenantInvitationReceived(@event.Email, @event.TenantName, @event.Roles)) { Subject = context.Subject },
+            new(context.EventSourceId, new InvitationInboxEventRecorded(context.SequenceNumber)),
+        ];
     }
 
     /// <summary>
@@ -67,18 +81,24 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
     /// </summary>
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
-    public async Task<EventForEventSourceId?> On(UserInvitedToCreateTenant @event, EventContext context)
+    public async Task<IEnumerable<EventForEventSourceId>> On(UserInvitedToCreateTenant @event, EventContext context)
     {
         if (!InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out _))
         {
-            await Reject(context);
-            return null;
+            await Reject(context, InvitationRejectionReason.InvalidInvitationId);
+            return [];
         }
 
-        return new(context.EventSourceId, new CreateTenantInvitationReceived(@event.Email, @event.Roles))
+        if (!await CanReceive(context))
         {
-            Subject = context.Subject,
-        };
+            return [];
+        }
+
+        return
+        [
+            new(context.EventSourceId, new CreateTenantInvitationReceived(@event.Email, @event.Roles)) { Subject = context.Subject },
+            new(context.EventSourceId, new InvitationInboxEventRecorded(context.SequenceNumber)),
+        ];
     }
 
     /// <summary>
@@ -90,10 +110,69 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
     public InvitationRevocationReceived? On(InvitationRevoked @event, EventContext context) =>
         InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out _) ? new() : null;
 
-    async Task Reject(EventContext context)
+    async Task<bool> CanReceive(EventContext context)
     {
-        logger.LogInvalidInvitationId();
-        await eventStore.PublishToOutbox(context, new InvitationRejected(InvitationRejectionReason.InvalidInvitationId), []);
+        // The local event log is authoritative even while the pending-invitation projection lags.
+        // The marker is appended in the same side-effect transaction as the receipt; on recovery the
+        // same inbox sequence number is a no-op, while a later host event with the same id is reuse.
+        var history = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(
+            context.EventSourceId,
+            [
+                typeof(InvitationInboxEventRecorded).GetEventType(),
+                typeof(JoinTenantInvitationReceived).GetEventType(),
+                typeof(CreateTenantInvitationReceived).GetEventType(),
+                typeof(InvitationRevocationReceived).GetEventType(),
+                typeof(InvitationToJoinTenantAccepted).GetEventType(),
+                typeof(InvitationToCreateTenantAccepted).GetEventType(),
+            ]);
+        if (history.Any(entry => entry.Content is InvitationInboxEventRecorded recorded && recorded.InboxSequenceNumber == context.SequenceNumber))
+        {
+            return false;
+        }
+
+        if (history.Any(entry => entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted))
+        {
+            // Before inbox receipts carried a sequence number, the original event can still be
+            // identified by its position in the durable per-source inbox (but not by payload or
+            // correlation id, which a later invite could reuse).
+            if (!history.Any(entry => entry.Content is InvitationInboxEventRecorded) &&
+                history.Any(entry => entry.Content is JoinTenantInvitationReceived) &&
+                context.EventType == typeof(UserInvitedToJoinTenant).GetEventType() &&
+                await IsOriginalInboxEvent(context))
+            {
+                return false;
+            }
+
+            if (!history.Any(entry => entry.Content is InvitationInboxEventRecorded) &&
+                history.Any(entry => entry.Content is CreateTenantInvitationReceived) &&
+                context.EventType == typeof(UserInvitedToCreateTenant).GetEventType() &&
+                await IsOriginalInboxEvent(context))
+            {
+                return false;
+            }
+
+            await Reject(context, InvitationRejectionReason.InvitationIdReused);
+            return false;
+        }
+
+        return true;
+    }
+
+    async Task<bool> IsOriginalInboxEvent(EventContext context)
+    {
+        var inbox = eventStore.GetEventSequence((EventSequenceId)$"{EventSequenceId.InboxPrefix}{InboxSourceStore.Name}");
+        var invitations = await inbox.GetForEventSourceIdAndEventTypes(context.EventSourceId, [context.EventType]);
+        return invitations.Count > 0 && invitations[0].Context.SequenceNumber == context.SequenceNumber;
+    }
+
+    async Task Reject(EventContext context, InvitationRejectionReason reason)
+    {
+        if (reason == InvitationRejectionReason.InvalidInvitationId)
+        {
+            logger.LogInvalidInvitationId();
+        }
+
+        await eventStore.PublishToOutbox(context, new InvitationRejected(reason), []);
     }
 }
 

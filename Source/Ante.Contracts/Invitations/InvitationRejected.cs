@@ -8,6 +8,18 @@ public enum InvitationRejectionReason
 {
     /// <summary>The host used a non-GUID event source id for an invitation.</summary>
     InvalidInvitationId = 0,
+
+    /// <summary>The invitation id was already revoked or accepted and cannot be used again.</summary>
+    InvitationIdReused = 1,
+}
+
+/// <summary>
+/// The original rejection reason set retained for the first generation of the public event.
+/// </summary>
+public enum InvitationRejectionReasonV1
+{
+    /// <summary>The host used a non-GUID event source id for an invitation.</summary>
+    InvalidInvitationId = 0,
 }
 
 /// <summary>
@@ -15,5 +27,12 @@ public enum InvitationRejectionReason
 /// cannot be accepted. No token is minted for a rejected invitation.
 /// </summary>
 /// <param name="Reason">Why the invitation was rejected.</param>
-[EventType]
+[EventType(generation: 2)]
 public record InvitationRejected(InvitationRejectionReason Reason);
+
+/// <summary>
+/// The original rejection shape retained for replay and older consumers.
+/// </summary>
+/// <param name="Reason">The original reason for rejection.</param>
+[EventTypeGenerationFor<InvitationRejected>(1)]
+public record InvitationRejectedV1(InvitationRejectionReasonV1 Reason);
