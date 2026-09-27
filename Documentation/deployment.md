@@ -4,7 +4,7 @@ description: Prepare a secure Ante instance, connect dependencies, and check the
 ---
 
 :::danger[Do not expose Ante directly]
-`/_invite/exchange` checks JWT shape, GUID `jti`, and expiry, but does **not** validate signature, issuer or audience. Ante must only be reachable through a verifying proxy that controls forwarded identity claims and headers. Restrict generated `/api` routes as well: some queries expose pending invitations without owner checks. See [Security and trust](./security.md), [trust protocol #11](https://github.com/Cratis/Ante/issues/11), [ownership #13](https://github.com/Cratis/Ante/issues/13), and [API exposure #58](https://github.com/Cratis/Ante/issues/58).
+`/_invite/exchange` checks JWT shape, GUID `jti`, and expiry, but does **not** validate signature, issuer or audience ([Ante #51](https://github.com/Cratis/Ante/issues/51)). Ante must only be reachable through a verifying proxy that controls forwarded identity claims and headers. Restrict generated `/api` routes as well: some queries expose pending invitations without owner checks. See [Security and trust](./security.md), [trust protocol #11](https://github.com/Cratis/Ante/issues/11), [ownership #13](https://github.com/Cratis/Ante/issues/13), and [API exposure #58](https://github.com/Cratis/Ante/issues/58).
 :::
 
 ## Prepare the dependencies

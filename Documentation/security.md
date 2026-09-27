@@ -4,7 +4,7 @@ description: The invitation token, proxy, exchange session, ownership check, and
 ---
 
 :::danger[Proxy verification is mandatory]
-Ante's `POST /_invite/exchange` parses the JWT with `ReadJsonWebToken` and checks that `jti` is a GUID and `exp` has not passed. It does **not** verify the signature, issuer, or audience. Ante must only be reachable through a trusted proxy that verifies invitation tokens before forwarding the exchange and prevents untrusted clients from supplying identity or invitation claims. The repository does not establish that any deployment has this boundary correctly configured.
+Ante's `POST /_invite/exchange` parses the JWT with `ReadJsonWebToken` and checks that `jti` is a GUID and `exp` has not passed. It does **not** verify the signature, issuer, or audience ([Ante #51](https://github.com/Cratis/Ante/issues/51)). Ante must only be reachable through a trusted proxy that verifies invitation tokens before forwarding the exchange and prevents untrusted clients from supplying identity or invitation claims. The repository does not establish that any deployment has this boundary correctly configured.
 :::
 
 ## Token and identity boundaries
@@ -15,7 +15,7 @@ After authentication the proxy is expected to POST the bearer invitation token a
 
 Arc's Microsoft identity platform handler decodes the request principal from the `x-ms-client-principal` header, with `x-ms-client-principal-id` and `x-ms-client-principal-name` alongside it. The proxy must strip any client-supplied copy of all three headers and set them itself. Inside that principal, Ante trusts the claims `jti`, `invite_type`, `iss`, `urn:cratis:identity:subject`, `urn:cratis:identity:provider-key`, `urn:cratis:identity:issuer`, `NameIdentifier` and `sub`; the `IdentityProvider` Ante publishes comes from `iss` or the canonical provider claims, so a spoofed `iss` changes the identity key the host receives. It also trusts, via Arc's `MicrosoftIdentityPlatformHeaders.IdentityIdHeader` and, for registration email, `email`, `upn`, `preferred_username`, `Name` and `MicrosoftIdentityPlatformHeaders.IdentityNameHeader` (plus .NET `ClaimTypes.Email` and `ClaimTypes.Upn`). Do not let a browser set these as trusted identity. Self-service `RegisterOrganization` has no invitation-owner check and derives email from those sign-in values; absent a plausible email, the published field can be empty.
 
-The browser decodes the URL token only to select a wizard. That decoding is not verification. For the exact exchange request see [Contracts](./contracts.md#http-surface).
+The browser decodes the unverified URL token to choose the wizard and to prefill the invitation id it submits and polls. Neither is verification: invitation commands are gated server-side by `IsVerifiedOwnerOf`. For the exact exchange request see [Contracts](./contracts.md#http-surface).
 
 ## Generated API exposure
 
