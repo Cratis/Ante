@@ -90,7 +90,7 @@ public class IncomingInvitationSubscriptions(
         }
     }
 
-    /// <summary>Whether all configured reactor streams have subscribed to their inboxes.</summary>
+    /// <summary>Whether all configured reactor streams are subscribed and active (or replaying).</summary>
     /// <param name="options">Validated startup routing options.</param>
     /// <returns>Whether all inboxes have a subscribed reactor.</returns>
     public async Task<bool> IsReady(AnteOptions options)
@@ -102,7 +102,13 @@ public class IncomingInvitationSubscriptions(
 
         foreach (var source in options.HostStores)
         {
-            if (!_handlers.TryGetValue(source, out var handler) || !(await handler.GetState()).IsSubscribed)
+            if (!_handlers.TryGetValue(source, out var handler))
+            {
+                return false;
+            }
+
+            var state = await handler.GetState();
+            if (!state.IsSubscribed || state.RunningState is not (ObserverRunningState.Active or ObserverRunningState.Replaying))
             {
                 return false;
             }

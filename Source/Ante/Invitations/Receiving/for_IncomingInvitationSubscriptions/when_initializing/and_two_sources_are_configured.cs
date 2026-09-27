@@ -12,6 +12,7 @@ namespace Ante.Invitations.Receiving.for_IncomingInvitationSubscriptions.when_in
 public class and_two_sources_are_configured : Specification
 {
     readonly List<(ReactorId Id, Action<IReactorDefinitionBuilder> Configure)> _reactors = [];
+    readonly List<IReactorHandler> _handlers = [];
     readonly List<(EventStoreSubscriptionId Id, string Source, Action<IEventStoreSubscriptionBuilder> Configure)> _subscriptions = [];
     IncomingInvitationSubscriptions _routing = null!;
     AnteOptions _options = null!;
@@ -32,8 +33,18 @@ public class and_two_sources_are_configured : Specification
         reactors.Register(Arg.Any<ReactorId>(), Arg.Any<Action<IReactorDefinitionBuilder>>(), Arg.Any<Func<ReactorEvent, CancellationToken, Task>>())
             .Returns(call =>
             {
-                _reactors.Add(((ReactorId)call[0], (Action<IReactorDefinitionBuilder>)call[1]));
-                return Task.FromResult(Substitute.For<IReactorHandler>());
+                var id = (ReactorId)call[0];
+                _reactors.Add((id, (Action<IReactorDefinitionBuilder>)call[1]));
+                var handler = Substitute.For<IReactorHandler>();
+                handler.GetState().Returns(Task.FromResult(new ReactorState(
+                    id,
+                    ObserverRunningState.Active,
+                    true,
+                    EventSequenceNumber.Unavailable,
+                    EventSequenceNumber.Unavailable,
+                    EventSequenceNumber.Unavailable)));
+                _handlers.Add(handler);
+                return Task.FromResult(handler);
             });
         var subscriptions = Substitute.For<IEventStoreSubscriptions>();
         _store.Subscriptions.Returns(subscriptions);
@@ -83,5 +94,17 @@ public class and_two_sources_are_configured : Specification
             _reactors.Select(entry => entry.Id.Value));
     [Fact] void should_not_reregister_on_a_second_initialization() => Assert.Equal(2, _reactors.Count);
     [Fact] void should_not_replace_subscriptions_on_a_second_initialization() => Assert.Equal(2, _subscriptions.Count);
+    [Fact] async Task should_be_ready_when_both_reactors_are_active() => Assert.True(await _routing.IsReady(_options));
+    [Fact] async Task should_be_unready_when_one_reactor_is_quarantined()
+    {
+        _handlers[0].GetState().Returns(Task.FromResult(new ReactorState(
+            _reactors[0].Id,
+            ObserverRunningState.Quarantined,
+            true,
+            EventSequenceNumber.Unavailable,
+            EventSequenceNumber.Unavailable,
+            EventSequenceNumber.Unavailable)));
+        Assert.False(await _routing.IsReady(_options));
+    }
 }
 #endif

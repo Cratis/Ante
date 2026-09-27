@@ -79,7 +79,7 @@ public static class AnteHealthChecks
     }
 }
 
-/// <summary>Reports whether every configured host inbox reactor is currently subscribed.</summary>
+/// <summary>Reports whether every configured host inbox reactor is currently subscribed and active.</summary>
 /// <param name="routing">The initialized runtime routing service.</param>
 /// <param name="options">The frozen startup routing options.</param>
 public class IncomingRoutingHealthCheck(IncomingInvitationSubscriptions routing, IOptions<AnteOptions> options) : IHealthCheck
@@ -89,7 +89,7 @@ public class IncomingRoutingHealthCheck(IncomingInvitationSubscriptions routing,
     {
         try
         {
-            return await routing.IsReady(options.Value) ? HealthCheckResult.Healthy() : HealthCheckResult.Unhealthy();
+            return await routing.IsReady(options.Value).WaitAsync(cancellationToken) ? HealthCheckResult.Healthy() : HealthCheckResult.Unhealthy();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
