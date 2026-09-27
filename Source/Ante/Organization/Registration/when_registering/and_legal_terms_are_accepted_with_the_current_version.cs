@@ -40,6 +40,7 @@ public class and_legal_terms_are_accepted_with_the_current_version : Specificati
             User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "sub-1")], "proxy")),
         });
         var resolver = Substitute.For<IIdentityProviderResolver>();
+        resolver.ResolveFrom(Arg.Any<IEnumerable<string?>>()).Returns("github");
         _scenario.Services.AddSingleton(accessor);
         _scenario.Services.AddSingleton(resolver);
         _scenario.Services.AddSingleton<ILegalDocumentSource>(new configured_legal_source(_currentDocuments));
