@@ -111,6 +111,6 @@ app.MapAnteHealthChecks();
 // above, instead of falling through to the SPA shell below - see ApiRouteGuard.
 ApiRouteGuard.MapReservedPrefixGuards(app);
 
-app.MapFallbackToFile("index.html");
+SpaFallback.Map(app);
 
 await app.RunAsync();
