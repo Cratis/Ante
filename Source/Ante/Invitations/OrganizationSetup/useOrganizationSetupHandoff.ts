@@ -73,8 +73,8 @@ export type OrganizationSetupHandoffState = {
  */
 export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMessage, supportsHostOutcome = false, isRegistration = false }: OrganizationSetupHandoffOptions): OrganizationSetupHandoffState => {
     const statusIds = organizationStatusIds(invitationId, isRegistration);
-    const [invitationStatus] = StatusForInvitation.use({ invitationId: statusIds.invitationId });
-    const [registrationStatus, refreshRegistration] = StatusForRegistration.use({ registrationId: statusIds.registrationId });
+    const [invitationStatus] = StatusForInvitation.when(!isRegistration).use({ invitationId: statusIds.invitationId });
+    const [registrationStatus, refreshRegistration] = StatusForRegistration.when(isRegistration).use({ registrationId: statusIds.registrationId });
     const statusResult = isRegistration ? registrationStatus : invitationStatus;
 
     // Before a registration is submitted there is no durably recorded owner, so the first snapshot

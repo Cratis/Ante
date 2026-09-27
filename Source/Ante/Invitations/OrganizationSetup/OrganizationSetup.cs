@@ -5,6 +5,7 @@ using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.Receiving;
+using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Organization;
 using Ante.Organization.Registration;
@@ -212,6 +213,8 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// </summary>
     /// <param name="httpContextAccessor">Accessor for the current request, used to clear the stale identity cookie.</param>
     /// <param name="pendingInvitation">Read model for validating the command.</param>
+    /// <param name="existingSetup">Durable evidence that this stream was already used before the shared claim event existed.</param>
+    /// <param name="existingJoin">Durable join acceptance on a reused id predating the shared claim event.</param>
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
     /// <param name="signedInIdentity">The identity the user is signed in with for this request.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
@@ -228,6 +231,8 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, IEnumerable<object>)>> Handle(
         IHttpContextAccessor httpContextAccessor,
         PendingInvitationToCreateOrganization? pendingInvitation,
+        OrganizationSetupProgress? existingSetup,
+        UserSetupProgress? existingJoin,
         IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
         ISignedInIdentity signedInIdentity,
         ILegalDocumentSource legalDocumentSource)
@@ -242,7 +247,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
             return ValidationResult.Error("Organization name is already in use.", ["organizationName"]);
         }
 
-        if (pendingInvitation is null)
+        if (pendingInvitation is null || existingSetup is not null || existingJoin is not null)
         {
             return ValidationResult.Error("Invitation is no longer pending and cannot be used for organization setup.");
         }
@@ -266,6 +271,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
 
         var events = new List<object>
         {
+            new OnboardingAttemptClaimed(),
             new InvitationToCreateTenantAccepted(
                 OrganizationName,
                 identityProviderValue,

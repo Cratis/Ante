@@ -1,15 +1,15 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Security.Claims;
 using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
 using Ante.IdentityProviders;
 using Ante.Invitations;
 using Ante.Invitations.OrganizationSetup;
+using Ante.Invitations.Receiving;
+using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Outbox;
-using Cratis.Arc.Identity;
 using Cratis.Arc.Validation;
 using Cratis.Types;
 using Microsoft.AspNetCore.Http;
@@ -29,11 +29,13 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
     /// <param name="httpContextAccessor">Accessor for the current sign-in.</param>
     /// <param name="identityProviderResolver">Resolver of the current sign-in provider.</param>
+    /// <param name="eventStore">The current namespace's read models for checking prior use of the registration id.</param>
     public RegisterOrganizationValidator(
         ILegalDocumentSource legalDocumentSource,
         IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
         IHttpContextAccessor httpContextAccessor,
-        IIdentityProviderResolver identityProviderResolver)
+        IIdentityProviderResolver identityProviderResolver,
+        IEventStore eventStore)
     {
         RuleFor(c => (string)c.OrganizationName)
             .MustBeAValidOrganizationName();
@@ -63,6 +65,10 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
         RuleFor(c => c)
             .Must(_ => RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver) is not null)
             .WithMessage("A signed-in subject is required to register an organization.");
+
+        RuleFor(c => c.RegistrationId)
+            .MustAsync(async (id, _) => await RegistrationSourceAvailability.IsAvailable(id, eventStore))
+            .WithMessage("This onboarding attempt has already been submitted.");
     }
 }
 
@@ -93,6 +99,7 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
     /// <param name="identityProviderResolver">Resolver used to attribute the sign-in to a configured provider.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
+    /// <param name="eventStore">The event store used to check whether the registration id belongs to an invitation.</param>
     /// <returns>
     /// A <see cref="Result{T0, T1}"/> containing either a failed <see cref="ValidationResult"/> or the
     /// events to append.
@@ -107,13 +114,12 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
         IHttpContextAccessor httpContextAccessor,
         IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
         IIdentityProviderResolver identityProviderResolver,
-        ILegalDocumentSource legalDocumentSource)
+        ILegalDocumentSource legalDocumentSource,
+        IEventStore eventStore)
     {
         var httpContext = httpContextAccessor.HttpContext;
         var user = httpContext?.User;
         var owner = RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver);
-        var subject = owner?.Subject.Value ?? string.Empty;
-        var identityProviderValue = owner?.Provider ?? identityProviderResolver.Resolve(user?.FindFirstValue("iss"));
         var email = SignedInEmail.Resolve(user, httpContext?.Request.Headers);
 
         // Re-read rather than trust the validator: the name can be claimed between the two, and this is
@@ -126,6 +132,18 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             return ValidationResult.Error("Organization name is already in use.", ["organizationName"]);
         }
 
+        if (owner is null)
+        {
+            return ValidationResult.Error("A signed-in subject is required to register an organization.");
+        }
+
+        if (!await RegistrationSourceAvailability.IsAvailable(RegistrationId, eventStore))
+        {
+            return ValidationResult.Error("This onboarding attempt has already been submitted.");
+        }
+
+        var subject = owner.Subject.Value;
+        var identityProviderValue = owner.Provider;
         var legalResolution = await LegalAcceptanceEvidence.Resolve(
             legalDocumentSource,
             AcceptedLegalTerms,
@@ -139,15 +157,11 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             return legalError;
         }
 
-        if (owner is null)
-        {
-            return ValidationResult.Error("A signed-in subject is required to register an organization.");
-        }
-
         httpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
 
         var events = new List<object>
         {
+            new OnboardingAttemptClaimed(),
             new OrganizationRegistrationCompleted(OrganizationName, subject, identityProviderValue, FirstName, MiddleName ?? Contracts.Invitations.MiddleName.NotSet, LastName, email),
             new RegistrationOwnerRecorded(owner.Subject, owner.Provider),
         };
@@ -155,6 +169,51 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
 
         return events;
     }
+}
+
+/// <summary>
+/// Rejects ids already associated with an invitation or an older registration that predates the
+/// shared one-use marker. The append-time marker enforces the same rule for concurrent new writes.
+/// </summary>
+public static class RegistrationSourceAvailability
+{
+    /// <summary>
+    /// Checks whether the event source can start a self-service registration.
+    /// </summary>
+    /// <param name="registrationId">The proposed registration id.</param>
+    /// <param name="eventStore">The scoped event store providing the current read models.</param>
+    /// <returns>True if no prior invitation or registration read model claims this id.</returns>
+    public static async Task<bool> IsAvailable(InvitationId registrationId, IEventStore eventStore)
+    {
+        var key = registrationId.Value;
+        return await eventStore.ReadModels.GetInstanceById<PendingInvitationToJoin>(key) is null &&
+            await eventStore.ReadModels.GetInstanceById<PendingInvitationToCreateOrganization>(key) is null &&
+            await eventStore.ReadModels.GetInstanceById<UserSetupProgress>(key) is null &&
+            await eventStore.ReadModels.GetInstanceById<OrganizationSetupProgress>(key) is null;
+    }
+}
+
+/// <summary>
+/// Stable name of the per-registration append-time constraint.
+/// </summary>
+public static class RegistrationConstraintNames
+{
+    /// <summary>
+    /// Enforces one completed registration per event source.
+    /// </summary>
+    public const string OneUseRegistration = "OneUseRegistration";
+}
+
+/// <summary>
+/// Prevents a registration from reusing an event source already used for registration.
+/// </summary>
+public class OneUseRegistrationConstraint : IConstraint
+{
+    /// <inheritdoc/>
+    public void Define(IConstraintBuilder builder) => builder
+        .Unique<OrganizationRegistrationCompleted>(
+            "This registration has already been submitted.",
+            RegistrationConstraintNames.OneUseRegistration);
 }
 
 /// <summary>

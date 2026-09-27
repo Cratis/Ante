@@ -48,6 +48,10 @@ public class and_values_are_valid : Specification
             e => e.TenantName == "Acme" && e.FirstName == "Jane" && e.LastName == "Doe");
 
     [Fact]
+    async Task should_claim_the_onboarding_attempt() =>
+        await _scenario.ShouldHaveAppendedEvent<AcceptInvitation, OnboardingAttemptClaimed>(_invitationId);
+
+    [Fact]
     void should_not_have_appended_a_legal_terms_accepted_event() =>
         Assert.DoesNotContain(_scenario.AppendedEvents, e => e.Event.Content is LegalTermsAccepted);
 }

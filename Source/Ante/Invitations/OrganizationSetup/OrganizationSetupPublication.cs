@@ -34,7 +34,7 @@ public record OrganizationSetupProgress(
     [SetFrom<OrganizationRegistrationCompleted>(nameof(OrganizationRegistrationCompleted.TenantName))]
     TenantName OrganizationName,
     [SetValue<LegalTermsAccepted>(true)] bool LegalRecorded = false,
-    RegistrationOwnerSubject? OwnerSubject = null,
+    [property: Subject] RegistrationOwnerSubject? OwnerSubject = null,
     IdentityProviderName? OwnerProvider = null);
 
 /// <summary>

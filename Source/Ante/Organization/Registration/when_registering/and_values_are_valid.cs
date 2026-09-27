@@ -34,7 +34,7 @@ public class and_values_are_valid : Specification
             User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "sub-1"), new Claim("iss", "github")], "proxy")),
         });
         var resolver = Substitute.For<IIdentityProviderResolver>();
-        resolver.Resolve("github").Returns("github");
+        resolver.ResolveFrom(Arg.Any<IEnumerable<string?>>()).Returns("github");
         _scenario.Services.AddSingleton(accessor);
         _scenario.Services.AddSingleton(resolver);
         _scenario.Services.AddSingleton<ILegalDocumentSource>(new NoLegalDocumentSource());
@@ -51,6 +51,10 @@ public class and_values_are_valid : Specification
         await _scenario.ShouldHaveAppendedEvent<RegisterOrganization, OrganizationRegistrationCompleted>(
             _registrationId,
             e => e.TenantName == "Acme" && e.FirstName == "Jane" && e.LastName == "Doe");
+
+    [Fact]
+    async Task should_claim_the_organization_attempt() =>
+        await _scenario.ShouldHaveAppendedEvent<RegisterOrganization, OnboardingAttemptClaimed>(_registrationId);
 
     [Fact]
     async Task should_record_the_owner_only_locally() =>

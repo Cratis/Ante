@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using Ante.Contracts.Legal;
 using Ante.Invitations.Accepting;
+using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
 using Ante.Outbox;
@@ -164,6 +165,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// </summary>
     /// <param name="identity">The identity resolved for the accepting user.</param>
     /// <param name="pendingInvitation">The current state of the pending invitation, resolved from the Chronicle projection.</param>
+    /// <param name="existingSetup">Durable organization setup evidence from a reused id predating the one-use marker.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
     /// <returns>The compliance subject the events are appended under, and the events to append.</returns>
     /// <remarks>
@@ -175,9 +177,10 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, IEnumerable<object>)>> Handle(
         AcceptingUserIdentity identity,
         PendingInvitationToJoin? pendingInvitation,
+        OrganizationSetupProgress? existingSetup,
         ILegalDocumentSource legalDocumentSource)
     {
-        if (pendingInvitation is null)
+        if (pendingInvitation is null || existingSetup is not null)
         {
             return ValidationResult.Error("Invitation is no longer pending and cannot be used to accept the invitation.");
         }
@@ -200,6 +203,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
 
         var events = new List<object>
         {
+            new OnboardingAttemptClaimed(),
             new InvitationToJoinTenantAccepted(
                 pendingInvitation.TenantName,
                 identity.Provider,
