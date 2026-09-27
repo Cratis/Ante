@@ -9,7 +9,7 @@ export const TRUSTED_CSS_LINK_ID = 'ante-trusted-branding-css';
 
 /**
  * The one lifecycle-managed loader for `Ante:CustomCssUrl` (`Cratis/Ante#21`) - the frontend consumer
- * `Documentation/configuration.md` and `Documentation/boundaries.md#branding-presets` promised but the
+ * `Documentation/configuration.md` and `Documentation/customization.md#set-branding-assets` promised but the
  * lobby never actually had.
  *
  * Loads through a real `<link rel="stylesheet">` - never `dangerouslySetInnerHTML` of fetched CSS text
