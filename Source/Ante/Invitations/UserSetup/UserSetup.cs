@@ -260,14 +260,13 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
 /// Forwards <see cref="InvitationToJoinTenantAccepted"/> to the outbox so the host can subscribe.
 /// </summary>
 /// <remarks>
-/// Pinned to <see cref="EventLogAttribute"/> deliberately - see the remarks on <c language="csharp">LegalTermsAcceptanceOutbox</c>
+/// Pinned to the event log deliberately - see the remarks on <c language="csharp">LegalTermsAcceptanceOutbox</c>
 /// for why an unattributed reactor handling a <c language="csharp">Cratis.Ante.Contracts</c> event is unsafe to route once a
 /// deployment renames its store away from the compiled "Ante" literal.
 /// </remarks>
 /// <param name="eventStore">The event store.</param>
 /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>, given a chance to accelerate a live status subscription once this fact is durably published.</param>
-[Reactor]
-[EventLog]
+[Reactor(eventSequence: EventSequenceId.LogId)]
 public class JoinTenantAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers) : IReactor
 {
     /// <summary>
