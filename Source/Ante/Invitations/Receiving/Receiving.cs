@@ -131,7 +131,7 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
         }
 
         var token = tokenIssuer.IssueJoinTenantInvitation(invitationId);
-        await eventStore.PublishToOutbox(context, new InvitationTokenIssued(InvitationFlowType.JoinTenant, token), []);
+        await eventStore.PublishToOutbox(context, new InvitationTokenIssued(InvitationFlowType.JoinTenant, token.Token, token.ExpiresAt), []);
     }
 
     /// <summary>
@@ -148,7 +148,7 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
         }
 
         var token = tokenIssuer.IssueCreateTenantInvitation(invitationId);
-        await eventStore.PublishToOutbox(context, new InvitationTokenIssued(InvitationFlowType.CreateTenant, token), []);
+        await eventStore.PublishToOutbox(context, new InvitationTokenIssued(InvitationFlowType.CreateTenant, token.Token, token.ExpiresAt), []);
     }
 
     async Task Reject(EventContext context)

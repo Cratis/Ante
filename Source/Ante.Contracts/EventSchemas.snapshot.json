@@ -155,6 +155,35 @@
     ],
     "title": "InvitationToJoinTenantAccepted"
   },
+  "InvitationTokenIssued:2": {
+    "type": "object",
+    "properties": {
+      "FlowType": {
+        "type": "integer",
+        "enum": [
+          0,
+          1
+        ],
+        "x-enumNames": [
+          "JoinTenant",
+          "CreateTenant"
+        ]
+      },
+      "Token": {
+        "type": "string"
+      },
+      "ExpiresAt": {
+        "type": "string",
+        "format": "date-time-offset"
+      }
+    },
+    "required": [
+      "FlowType",
+      "Token",
+      "ExpiresAt"
+    ],
+    "title": "InvitationTokenIssued"
+  },
   "InvitationTokenIssued:1": {
     "type": "object",
     "properties": {

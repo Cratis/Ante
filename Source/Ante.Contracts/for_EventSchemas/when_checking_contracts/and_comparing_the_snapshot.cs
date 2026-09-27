@@ -52,7 +52,7 @@ public class and_comparing_the_snapshot : Specification
             .OrderBy(type => type.FullName, StringComparer.Ordinal)
             .ToDictionary(
                 type => $"{type.GetEventType().Id.Value}:{type.GetEventType().Generation.Value}",
-                type => JsonNode.Parse(generator.Generate(type).ToJson())!,
+                type => SchemaFor(type, generator),
                 StringComparer.Ordinal);
 
         Assert.NotEmpty(schemas);
@@ -77,6 +77,22 @@ public class and_comparing_the_snapshot : Specification
 
         Assert.True(added.Length == 0 && File.Exists(path),
             $"Event schema snapshot needs updating for: {string.Join(", ", added)}. Run {UpdateVariable}=1 dotnet test Source/Ante.Contracts/Ante.Contracts.csproj --filter FullyQualifiedName~and_comparing_the_snapshot, then commit the snapshot.");
+    }
+
+    static JsonNode SchemaFor(Type type, JsonSchemaGenerator generator)
+    {
+        var schema = JsonNode.Parse(generator.Generate(type).ToJson())!;
+        var previousGeneration = type.GetCustomAttributes(false).FirstOrDefault(attribute =>
+            attribute.GetType().IsGenericType &&
+            attribute.GetType().GetGenericTypeDefinition() == typeof(EventTypeGenerationForAttribute<>));
+        if (previousGeneration is not null)
+        {
+            // Chronicle ignores CLR titles when comparing stored schemas. Retain the original
+            // event type's title when its prior generation is represented by a V1 record.
+            schema["title"] = previousGeneration.GetType().GetGenericArguments()[0].Name;
+        }
+
+        return schema;
     }
 }
 #endif

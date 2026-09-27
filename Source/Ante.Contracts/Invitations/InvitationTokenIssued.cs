@@ -10,5 +10,14 @@ namespace Ante.Contracts.Invitations;
 /// </summary>
 /// <param name="FlowType">Whether the token is for joining an existing tenant or creating a new one.</param>
 /// <param name="Token">The signed JWT invitees present when they open their invitation link.</param>
-[EventType]
-public record InvitationTokenIssued(InvitationFlowType FlowType, string Token);
+/// <param name="ExpiresAt">The token's JWT exp instant in UTC. On migrated generation-1 events,
+/// <see cref="DateTimeOffset.UnixEpoch"/> means the historical expiration is unknown; hosts must not
+/// treat that sentinel as a usable expiry or extend an old token's validity.</param>
+[EventType(generation: 2)]
+public record InvitationTokenIssued(InvitationFlowType FlowType, string Token, DateTimeOffset ExpiresAt);
+
+/// <summary>The original token publication shape retained for replay and older consumers.</summary>
+/// <param name="FlowType">The invitation flow.</param>
+/// <param name="Token">The signed JWT.</param>
+[EventTypeGenerationFor<InvitationTokenIssued>(1)]
+public record InvitationTokenIssuedV1(InvitationFlowType FlowType, string Token);
