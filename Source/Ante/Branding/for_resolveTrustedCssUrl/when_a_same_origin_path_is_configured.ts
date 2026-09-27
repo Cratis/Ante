@@ -10,8 +10,8 @@ describe('when a same-origin root-relative path is configured', () => {
         resolveTrustedCssUrl('/custom/theme.css', DOCUMENT_URL)!.should.equal('https://lobby.example.com/custom/theme.css'));
 });
 
-// A file mounted directly into Ante's own wwwroot (Documentation/configuration.md: "Overridable by
-// mounting a file into the container") is served over whatever scheme the document itself uses - even
+// A file mounted directly into Ante's own wwwroot (see Documentation/customization.md#set-branding-assets,
+// which covers same-origin paths) is served over whatever scheme the document itself uses - even
 // plain http: in a local/dev deployment - because it carries exactly the same trust as the app itself.
 describe('when a same-origin path is configured on a plain-http deployment', () => {
     it('should still resolve, since same-origin is as trusted as the document', () =>

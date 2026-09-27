@@ -1,16 +1,36 @@
-- name: Overview
-  href: index.md
-- name: Getting Started
-  href: getting-started.md
-- name: Configuration
-  href: configuration.md
-- name: Invitation Lifecycle
-  href: invitation-lifecycle.md
-- name: Host Integration
-  href: host-integration.md
-- name: Wizards
-  href: wizards.md
-- name: Deployment
-  href: deployment.md
-- name: Boundaries
-  href: boundaries.md
+- name: Start
+  items:
+    - name: Overview
+      href: index.md
+    - name: Local development
+      href: local-development.md
+- name: Integrate
+  items:
+    - name: Host integration
+      href: host-integration.md
+    - name: Customize the lobby
+      href: customization.md
+- name: Operate
+  items:
+    - name: Deployment
+      href: deployment.md
+    - name: Diagnose onboarding
+      href: operations.md
+- name: Understand
+  items:
+    - name: Architecture
+      href: architecture.md
+    - name: Invitation lifecycle
+      href: invitation-lifecycle.md
+    - name: Security and trust
+      href: security.md
+    - name: Lobby journeys
+      href: wizards.md
+    - name: Ownership and limits
+      href: boundaries.md
+- name: Reference
+  items:
+    - name: Contracts
+      href: contracts.md
+    - name: Configuration
+      href: configuration.md
