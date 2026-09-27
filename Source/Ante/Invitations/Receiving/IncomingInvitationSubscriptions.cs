@@ -24,6 +24,8 @@ public class IncomingInvitationSubscriptions(
 {
     const string LegacyReactorId = "Ante.Invitations.Receiving.IncomingInvitationReactor";
     readonly Dictionary<string, IReactorHandler> _handlers = new(StringComparer.Ordinal);
+    readonly Lock _readinessLock = new();
+    Task<bool>? _readinessProbe;
 
     /// <summary>Gets the stable cursor identity for a configured source store.</summary>
     /// <param name="source">The source store.</param>
@@ -93,7 +95,22 @@ public class IncomingInvitationSubscriptions(
     /// <summary>Whether all configured reactor streams are subscribed and active (or replaying).</summary>
     /// <param name="options">Validated startup routing options.</param>
     /// <returns>Whether all inboxes have a subscribed reactor.</returns>
-    public async Task<bool> IsReady(AnteOptions options)
+    public Task<bool> IsReady(AnteOptions options)
+    {
+        // A cancelled health request must not start another kernel state RPC while a prior one
+        // remains blocked: the Chronicle handler's GetState API has no cancellation argument.
+        lock (_readinessLock)
+        {
+            if (_readinessProbe?.IsCompleted != false)
+            {
+                _readinessProbe = CheckReadiness(options);
+            }
+
+            return _readinessProbe;
+        }
+    }
+
+    async Task<bool> CheckReadiness(AnteOptions options)
     {
         if (_handlers.Count != options.HostStores?.Count)
         {

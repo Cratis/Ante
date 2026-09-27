@@ -94,6 +94,24 @@ public class and_two_sources_are_configured : Specification
             _reactors.Select(entry => entry.Id.Value));
     [Fact] void should_not_reregister_on_a_second_initialization() => Assert.Equal(2, _reactors.Count);
     [Fact] void should_not_replace_subscriptions_on_a_second_initialization() => Assert.Equal(2, _subscriptions.Count);
+    [Fact] async Task should_share_an_unfinished_readiness_probe_instead_of_stacking_calls()
+    {
+        var pending = new TaskCompletionSource<ReactorState>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _handlers[0].GetState().Returns(pending.Task);
+        _handlers[0].ClearReceivedCalls();
+        var first = _routing.IsReady(_options);
+        var second = _routing.IsReady(_options);
+        Assert.Same(first, second);
+        pending.SetResult(new ReactorState(
+            _reactors[0].Id,
+            ObserverRunningState.Active,
+            false,
+            EventSequenceNumber.Unavailable,
+            EventSequenceNumber.Unavailable,
+            EventSequenceNumber.Unavailable));
+        Assert.False(await first);
+        await _handlers[0].Received(1).GetState();
+    }
     [Fact] async Task should_be_ready_when_both_reactors_are_active() => Assert.True(await _routing.IsReady(_options));
     [Fact] async Task should_be_unready_when_one_reactor_is_quarantined()
     {
