@@ -20,10 +20,24 @@ public static class ForwardedIdentitySubject
     public static string? Resolve(IHttpContextAccessor httpContextAccessor)
     {
         var context = httpContextAccessor.HttpContext;
-        var subject = context?.User?.FindFirstValue("urn:cratis:identity:subject")
-            ?? context?.Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].FirstOrDefault()
-            ?? context?.User?.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? context?.User?.FindFirstValue("sub");
+        return Resolve(
+            context?.User?.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value)) ?? [],
+            context?.Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].FirstOrDefault());
+    }
+
+    /// <summary>
+    /// Resolves Arc's forwarded identity context with the same claim precedence as an HTTP request.
+    /// </summary>
+    /// <param name="claims">The forwarded principal's claims.</param>
+    /// <param name="identityId">The proxy-controlled identity id, when present.</param>
+    /// <returns>The sign-in subject, or null when none is present.</returns>
+    public static string? Resolve(IEnumerable<KeyValuePair<string, string>> claims, string? identityId)
+    {
+        var values = claims.ToArray();
+        var subject = values.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:subject").Value
+            ?? identityId
+            ?? values.FirstOrDefault(claim => claim.Key == ClaimTypes.NameIdentifier).Value
+            ?? values.FirstOrDefault(claim => claim.Key == "sub").Value;
         return string.IsNullOrWhiteSpace(subject) ? null : subject;
     }
 }

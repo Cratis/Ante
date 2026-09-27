@@ -152,6 +152,8 @@ public class SignedInIdentity(
     public bool IsVerifiedRegistrationOwner(RegistrationOwner owner) =>
         CurrentRegistrationOwner() is { } current &&
         !string.IsNullOrWhiteSpace(current.Subject.Value) &&
+        !string.IsNullOrWhiteSpace(current.Provider.Value) &&
+        !string.IsNullOrWhiteSpace(owner.Provider.Value) &&
         current.Subject == owner.Subject && current.Provider == owner.Provider;
 
     /// <summary>

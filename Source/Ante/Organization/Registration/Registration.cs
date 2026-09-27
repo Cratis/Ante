@@ -63,8 +63,9 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
         LegalTermsRules.Apply(this, legalDocumentSource, c => c.AcceptedLegalTerms, c => c.AcceptedLegalVersion);
 
         RuleFor(c => c)
-            .Must(_ => RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver) is not null)
-            .WithMessage("A signed-in subject is required to register an organization.");
+            .Must(_ => RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver) is { } owner &&
+                !string.IsNullOrWhiteSpace(owner.Provider.Value))
+            .WithMessage("A signed-in subject and provider are required to register an organization.");
 
         RuleFor(c => c.RegistrationId)
             .MustAsync(async (id, _) => await RegistrationSourceAvailability.IsAvailable(id, eventStore))
@@ -132,9 +133,9 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             return ValidationResult.Error("Organization name is already in use.", ["organizationName"]);
         }
 
-        if (owner is null)
+        if (owner is null || string.IsNullOrWhiteSpace(owner.Provider.Value))
         {
-            return ValidationResult.Error("A signed-in subject is required to register an organization.");
+            return ValidationResult.Error("A signed-in subject and provider are required to register an organization.");
         }
 
         if (!await RegistrationSourceAvailability.IsAvailable(RegistrationId, eventStore))

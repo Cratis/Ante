@@ -85,7 +85,7 @@ public static class InviteExchangeProcessor
 
         // Resolved on the way in, so the session records the provider the user actually authenticated
         // with rather than a placeholder that has to be un-guessed everywhere it is later read.
-        var normalizedIdentityProvider = identityProviderResolver.ResolveFrom([request.ProviderKey, request.Issuer, request.IdentityProvider]);
+        var normalizedIdentityProvider = ForwardedIdentityProvider.ResolveReported([request.ProviderKey, request.Issuer, request.IdentityProvider], identityProviderResolver);
         if (string.IsNullOrWhiteSpace(normalizedIdentityProvider) ||
             normalizedIdentityProvider.Equals(IdentityProviderResolver.Unidentified, StringComparison.OrdinalIgnoreCase))
         {
@@ -256,8 +256,10 @@ public record InvitationIdentityDetails(InvitationId InvitationId, InvitationFlo
 /// claims enricher.
 /// </summary>
 /// <param name="acceptedInvitations">Collection used to resolve accepted invitation sessions for fallback identity resolution.</param>
+/// <param name="identityProviderResolver">Resolver for the forwarded request's identity provider.</param>
 public class InvitationIdentityProvider(
-    IMongoCollection<AcceptedInvitation> acceptedInvitations) : IProvideIdentityDetails<InvitationIdentityDetails>
+    IMongoCollection<AcceptedInvitation> acceptedInvitations,
+    IIdentityProviderResolver identityProviderResolver) : IProvideIdentityDetails<InvitationIdentityDetails>
 {
     /// <inheritdoc/>
     public async Task<IdentityDetails> Provide(IdentityProviderContext context)
@@ -277,24 +279,18 @@ public class InvitationIdentityProvider(
             return new IdentityDetails(true, new InvitationIdentityDetails(invitationGuid, flowType));
         }
 
-        var subject = context.Claims
-            .FirstOrDefault(c => c.Key == ClaimTypes.NameIdentifier).Value
-            ?? context.Claims.FirstOrDefault(c => c.Key == "sub").Value;
-
-        if (string.IsNullOrWhiteSpace(subject))
+        var subject = ForwardedIdentitySubject.Resolve(context.Claims, context.Id.Value);
+        var provider = ForwardedIdentityProvider.Resolve(context.Claims, identityProviderResolver);
+        if (subject is null || string.IsNullOrWhiteSpace(provider))
         {
             return new IdentityDetails(true, new InvitationIdentityDetails(InvitationId.NotSet, InvitationFlowType.JoinTenant));
         }
 
-        // The subject alone identifies the login, so the most recent session it authenticated is the
-        // one this request belongs to. Narrowing by provider as well only ever risked missing the
-        // session when the two sides had attributed the same sign-in differently. Also filtered by
-        // expiry here rather than only in the exchange or a cleanup sweep - authorization must stop the
-        // instant a session expires, not whenever a TTL index next gets around to removing it.
-        var acceptedInvitation = await acceptedInvitations
-            .Find(a => a.Subject == subject && a.ExpiresAtUtc > DateTimeOffset.UtcNow)
-            .SortByDescending(a => a.AcceptedAtUtc)
-            .FirstOrDefaultAsync();
+        // A subject can occur at more than one provider. Select only this request's live exchange
+        // session, using the same rule as invitation queries and commands. The forwarded-jti path above
+        // still relies on the proxy to have verified that claim independently.
+        var sessions = await acceptedInvitations.Find(Builders<AcceptedInvitation>.Filter.Empty).ToListAsync();
+        var acceptedInvitation = SignedInIdentity.SelectSession(sessions, InvitationId.NotSet, subject, (IdentityProviderName)provider, DateTimeOffset.UtcNow);
 
         return acceptedInvitation is null
             ? new IdentityDetails(true, new InvitationIdentityDetails(InvitationId.NotSet, InvitationFlowType.JoinTenant))
