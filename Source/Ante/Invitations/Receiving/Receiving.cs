@@ -31,44 +31,76 @@ public record CreateTenantInvitationReceived(Email Email, IReadOnlyList<RoleName
 public record InvitationRevocationReceived;
 
 /// <summary>
-/// Reacts to invitation events a host product appends to its own outbox and records them locally.
+/// Reacts to invitation events a host product appends to its own outbox and records valid invitations locally.
 /// </summary>
 /// <remarks>
 /// Subscribes to <see cref="InboxSourceStore.Name"/> - see that type for why this is a compile-time
 /// literal rather than a configuration value.
 /// </remarks>
+/// <param name="eventStore">Ante's event store for publishing rejections to the outbox.</param>
+/// <param name="logger">The warning logger for invalid invitation ids.</param>
 [Reactor]
 [EventStore(InboxSourceStore.Name)]
-public class IncomingInvitationReactor : IReactor
+public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger) : IReactor
 {
     /// <summary>
     /// Handles join-tenant invitation events by recording them in the local event log.
     /// </summary>
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
-    public EventForEventSourceId On(UserInvitedToJoinTenant @event, EventContext context) =>
-        new(context.EventSourceId, new JoinTenantInvitationReceived(@event.Email, @event.TenantName, @event.Roles))
+    public async Task<IEnumerable<EventForEventSourceId>> On(UserInvitedToJoinTenant @event, EventContext context)
+    {
+        if (!Guid.TryParse(context.EventSourceId.Value, out _))
         {
-            Subject = context.Subject,
-        };
+            await Reject(context);
+            return [];
+        }
+
+        return
+        [
+            new(context.EventSourceId, new JoinTenantInvitationReceived(@event.Email, @event.TenantName, @event.Roles))
+            {
+                Subject = context.Subject,
+            },
+        ];
+    }
 
     /// <summary>
     /// Handles create-tenant invitation events by recording them in the local event log.
     /// </summary>
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
-    public EventForEventSourceId On(UserInvitedToCreateTenant @event, EventContext context) =>
-        new(context.EventSourceId, new CreateTenantInvitationReceived(@event.Email, @event.Roles))
+    public async Task<IEnumerable<EventForEventSourceId>> On(UserInvitedToCreateTenant @event, EventContext context)
+    {
+        if (!Guid.TryParse(context.EventSourceId.Value, out _))
         {
-            Subject = context.Subject,
-        };
+            await Reject(context);
+            return [];
+        }
+
+        return
+        [
+            new(context.EventSourceId, new CreateTenantInvitationReceived(@event.Email, @event.Roles))
+            {
+                Subject = context.Subject,
+            },
+        ];
+    }
 
     /// <summary>
     /// Handles invitation revocation events by recording the revocation locally, which causes the
     /// pending invitation to be removed from the read model.
     /// </summary>
     /// <param name="event">The event.</param>
-    public InvitationRevocationReceived On(InvitationRevoked @event) => new();
+    /// <param name="context">The event context.</param>
+    public IEnumerable<object> On(InvitationRevoked @event, EventContext context) =>
+        Guid.TryParse(context.EventSourceId.Value, out _) ? [new InvitationRevocationReceived()] : [];
+
+    async Task Reject(EventContext context)
+    {
+        logger.LogInvalidInvitationId();
+        await eventStore.PublishToOutbox(context, new InvitationRejected(InvitationRejectionReason.InvalidInvitationId), []);
+    }
 }
 
 /// <summary>
@@ -81,8 +113,9 @@ public class IncomingInvitationReactor : IReactor
 /// </remarks>
 /// <param name="tokenIssuer">The canonical invitation token issuer.</param>
 /// <param name="eventStore">The event store.</param>
+/// <param name="logger">The warning logger for invalid invitation ids.</param>
 [Reactor]
-public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, IEventStore eventStore) : IReactor
+public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, IEventStore eventStore, ILogger<InvitationTokenIssuingReactor> logger) : IReactor
 {
     /// <summary>
     /// Issues a join-tenant token and forwards it to the outbox.
@@ -91,7 +124,13 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
     /// <param name="context">The event context.</param>
     public async Task On(JoinTenantInvitationReceived @event, EventContext context)
     {
-        var token = tokenIssuer.IssueJoinTenantInvitation(Guid.Parse(context.EventSourceId.Value));
+        if (!Guid.TryParse(context.EventSourceId.Value, out var invitationId))
+        {
+            await Reject(context);
+            return;
+        }
+
+        var token = tokenIssuer.IssueJoinTenantInvitation(invitationId);
         await eventStore.PublishToOutbox(context, new InvitationTokenIssued(InvitationFlowType.JoinTenant, token), []);
     }
 
@@ -102,8 +141,20 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
     /// <param name="context">The event context.</param>
     public async Task On(CreateTenantInvitationReceived @event, EventContext context)
     {
-        var token = tokenIssuer.IssueCreateTenantInvitation(Guid.Parse(context.EventSourceId.Value));
+        if (!Guid.TryParse(context.EventSourceId.Value, out var invitationId))
+        {
+            await Reject(context);
+            return;
+        }
+
+        var token = tokenIssuer.IssueCreateTenantInvitation(invitationId);
         await eventStore.PublishToOutbox(context, new InvitationTokenIssued(InvitationFlowType.CreateTenant, token), []);
+    }
+
+    async Task Reject(EventContext context)
+    {
+        logger.LogInvalidInvitationId();
+        await eventStore.PublishToOutbox(context, new InvitationRejected(InvitationRejectionReason.InvalidInvitationId), []);
     }
 }
 
