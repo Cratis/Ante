@@ -23,10 +23,10 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 | Suffix | Type | Code default | Base / Development setting | When needed |
 | --- | --- | --- | --- | --- |
 | `PrivateKeyPem` | string (PEM) | empty | empty / committed throwaway RSA key | Required to issue tokens; never reuse Development key outside local development. |
-| `PublicKeyPem` | string (PEM) | empty | empty / committed throwaway public key | Needed by **external verifiers** as distributed key material, not used by Ante to issue or exchange tokens. |
-| `Issuer` | string | empty | empty / empty | Optional `iss` claim written at issuance; does not enable Ante exchange validation. Coordinate verifier policy. |
-| `Audience` | string | empty | empty / empty | Optional `aud` claim written at issuance; does not enable Ante exchange validation. Coordinate verifier policy. |
-| `Expiry` | `TimeSpan` | 7 days | `7.00:00:00` / `7.00:00:00` | Token validity duration; coordinate verifier policy. |
+| `PublicKeyPem` | string (PEM) | empty | empty / committed throwaway public key | **Additional** trusted exchange-verification key, for overlap during rotation. The public key derived from `PrivateKeyPem` is always trusted; this value does not change which key signs tokens. Distribute the current signing public key separately to external verifiers. |
+| `Issuer` | string | empty | empty / empty | When nonempty, written as `iss` at issuance and required at exchange; empty skips issuer validation. Coordinate external verifier policy. |
+| `Audience` | string | empty | empty / empty | When nonempty, written as `aud` at issuance and required at exchange; empty skips audience validation. Coordinate external verifier policy. |
+| `Expiry` | `TimeSpan` | 7 days | `7.00:00:00` / `7.00:00:00` | Issued token lifetime; exchange requires `exp` and validates it with up to 30 seconds of clock skew, but the accepted session expires at the signed `exp`. |
 
 ## Identity and infrastructure
 

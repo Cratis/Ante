@@ -33,7 +33,7 @@ For an invited journey, the host mints a **GUID** invitation id and uses its str
 
 | Caller → receiver | Route | Request / response and limits |
 | --- | --- | --- |
-| Trusted proxy → Ante | `POST /_invite/exchange` | `Authorization: Bearer <invitation JWT>` plus camelCase JSON `subject: string`, `identityProvider: string`, `providerKey?: string`, `issuer?: string`. Returns 200 on stored session, 400 for missing/malformed/expired token or invalid body; a MongoDB failure can return 500. **No signature/issuer/audience verification inside Ante.** |
+| Trusted proxy → Ante | `POST /_invite/exchange` | `Authorization: Bearer <invitation JWT>` plus camelCase JSON `subject: string`, `identityProvider: string`, `providerKey?: string`, `issuer?: string`. Returns 200 on stored session, 400 for missing/malformed/expired/untrusted token or invalid body; a MongoDB failure can return 500. Ante verifies RS256 against its signing public key plus the optional additional public key, and checks configured issuer/audience. |
 | Browser → Ante | `/invite/{token}` or `?token=...` | SPA URL used to select the invitation flow; not an authenticated API result. |
 | Browser → Ante | `/register` or `/register/*` | Self-service SPA route. |
 | Probe → Ante | `GET /healthz`, `GET /healthz/ready` | Liveness without dependency checks; readiness checks MongoDB only (200 healthy, 503 unhealthy). |
@@ -45,7 +45,7 @@ The two host GETs use URL-escaped parameters and no application credential in th
 
 ## Generated routes in this checkout
 
-The committed TypeScript proxies enumerate 13 generated routes, including the controller proxy for exchange. Command proxies submit commands, query proxies read state; query behavior and parameters come from their generated proxy types. The routes are not an authorization policy: see [Security and trust](./security.md#generated-api-exposure). Regenerate proxies after a Debug build and inspect Development OpenAPI for the paths in the version you deploy.
+The committed TypeScript proxies enumerate 14 generated routes, including the controller proxy for exchange. Command proxies submit commands, query proxies read state; query behavior and parameters come from their generated proxy types. The routes are not an authorization policy: see [Security and trust](./security.md#generated-api-exposure). Regenerate proxies after a Debug build and inspect Development OpenAPI for the paths in the version you deploy.
 
 | Proxy / operation | Route |
 | --- | --- |
@@ -55,12 +55,13 @@ The committed TypeScript proxies enumerate 13 generated routes, including the co
 | `Exchange` | `/_invite/exchange` |
 | `ForAttempt` | `/api/invitations/host-outcome/for-attempt` |
 | `SetupOrganization` | `/api/invitations/organization-setup` |
-| `StatusForInvitation` (organization) | `/api/invitations/organization-setup/status-for-invitation` |
-| `AllPendingInvitationsToCreateOrganization` | `/api/invitations/receiving/all-pending-invitations-to-create-organization` |
-| `AllPendingInvitationsToJoin` | `/api/invitations/receiving/all-pending-invitations-to-join` |
+| `StatusForInvitation` (organization; owner-checked) | `/api/invitations/organization-setup/status-for-invitation` |
+| `StatusForRegistration` (self-service; owner-checked snapshot) | `/api/invitations/organization-setup/status-for-registration` |
+| `PendingCreateOrganizationForCurrentInvitee` | `/api/invitations/receiving/pending-create-organization-for-current-invitee` |
+| `PendingJoinForCurrentInvitee` | `/api/invitations/receiving/pending-join-for-current-invitee` |
 | `AcceptInvitation` | `/api/invitations/user-setup` |
-| `StatusForInvitation` (join) | `/api/invitations/user-setup/status-for-invitation` |
+| `StatusForInvitation` (join; owner-checked) | `/api/invitations/user-setup/status-for-invitation` |
 | `Current` (legal documents) | `/api/legal/current` |
 | `RegisterOrganization` | `/api/organization/registration` |
 
-`Program.cs` sets `RoutePrefix = "api"`, omits command names, and skips one segment. Unmatched paths under `/api`, `/openapi`, `/_invite`, and `/healthz` return 404, not the SPA shell.
+`RegistrationOwnerRecorded` is local to Ante, carries the self-service owner's subject and provider for status authorization, and is **not** part of `Ante.Contracts` or forwarded to the host. Pre-existing registrations without this event return the same Pending/empty-name response as unknown ids. `Program.cs` sets `RoutePrefix = "api"`, omits command names, and skips one segment. Unmatched paths under `/api`, `/openapi`, `/_invite`, and `/healthz` return 404, not the SPA shell.
