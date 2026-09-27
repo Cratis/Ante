@@ -1,0 +1,103 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Ante.Legal;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
+namespace Ante.Integration.given;
+
+/// <summary>
+/// Ante's real <c>Program</c>, hosted in-process against the shared Chronicle kernel and MongoDB, configured only
+/// through its public configuration keys - the same ones a deployment sets.
+/// </summary>
+/// <param name="infrastructure">The shared Chronicle kernel.</param>
+/// <param name="eventStore">Ante's event store name (<c>Ante:EventStore</c>).</param>
+/// <param name="hostStores">The trusted host stores (<c>Ante:HostStores</c>).</param>
+/// <param name="legalDocuments">Optional legal document source, standing in for a host-provided one.</param>
+public sealed class AnteApplication(
+    ChronicleInfrastructure infrastructure,
+    string eventStore,
+    IReadOnlyList<string> hostStores,
+    ILegalDocumentSource? legalDocuments = default) : WebApplicationFactory<Program>
+{
+    public const string IdentityProvider = "integration-idp";
+
+    static readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
+
+    public string EventStore { get; } = eventStore;
+
+    public async Task<JsonDocument> Execute(string route, object command, string? subject = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, route) { Content = JsonContent.Create(command, options: _json) };
+        if (subject is not null)
+        {
+            AddForwardedIdentity(request, subject);
+        }
+
+        using var response = await CreateClient().SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+        return JsonDocument.Parse(body.Length == 0 ? "{}" : body);
+    }
+
+    /// <summary>
+    /// What the authentication proxy does after the invitee's OIDC login: exchange the invitation token for a session.
+    /// </summary>
+    public async Task<HttpResponseMessage> ExchangeInvitation(string token, string subject)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/_invite/exchange")
+        {
+            Content = JsonContent.Create(new { subject, identityProvider = IdentityProvider }, options: _json),
+        };
+        request.Headers.Authorization = new("Bearer", token);
+        return await CreateClient().SendAsync(request);
+    }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        // Not Development: that environment turns on DI scope validation, and Program.cs resolves a scoped
+        // IMongoCollection from the root provider at startup - fine in a deployment, fatal under Development.
+        builder.UseEnvironment("Integration");
+        using var signingKey = RSA.Create(2048);
+        builder.UseSetting("Ante:Invitations:Token:PrivateKeyPem", signingKey.ExportPkcs8PrivateKeyPem());
+        builder.UseSetting("Ante:Invitations:Token:PublicKeyPem", signingKey.ExportSubjectPublicKeyInfoPem());
+        builder.UseSetting("Cratis:Chronicle:ConnectionString", infrastructure.ChronicleConnectionString);
+        builder.UseSetting("Cratis:MongoDB:Server", infrastructure.MongoDBServer);
+        builder.UseSetting("Cratis:MongoDB:Database", EventStore);
+        builder.UseSetting("Ante:EventStore", EventStore);
+        for (var index = 0; index < hostStores.Count; index++)
+        {
+            builder.UseSetting($"Ante:HostStores:{index}", hostStores[index]);
+        }
+
+        builder.UseSetting("IdentityProviders:Providers:0:Name", IdentityProvider);
+
+        if (legalDocuments is not null)
+        {
+            builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Singleton(legalDocuments)));
+        }
+    }
+
+    // The Microsoft identity platform header contract the authentication proxy forwards.
+    static void AddForwardedIdentity(HttpRequestMessage request, string subject)
+    {
+        var principal = new
+        {
+            identityProvider = IdentityProvider,
+            userId = subject,
+            userDetails = subject,
+            userRoles = new[] { "authenticated" },
+            claims = Array.Empty<object>(),
+        };
+        request.Headers.Add("x-ms-client-principal-id", subject);
+        request.Headers.Add("x-ms-client-principal-name", subject);
+        request.Headers.Add("x-ms-client-principal", Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(principal, _json))));
+    }
+}
