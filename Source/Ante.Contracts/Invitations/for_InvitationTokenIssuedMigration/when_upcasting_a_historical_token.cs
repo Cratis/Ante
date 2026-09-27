@@ -3,6 +3,7 @@
 
 #if DEBUG
 using Cratis.Chronicle.Events.Migrations;
+using Cratis.Serialization;
 using Cratis.Specifications;
 using Xunit;
 
@@ -16,7 +17,7 @@ public class when_upcasting_a_historical_token : Specification
     void Establish()
     {
         _migration = new InvitationTokenIssuedMigration();
-        _builder = new EventMigrationBuilder();
+        _builder = new EventMigrationBuilder(new CamelCaseNamingPolicy());
     }
 
     void Because() => ((IEventTypeMigration)_migration).Upcast(_builder);
@@ -25,7 +26,7 @@ public class when_upcasting_a_historical_token : Specification
     void should_map_the_unknown_expiration_to_the_expired_sentinel() =>
         Assert.Equal(
             DateTimeOffset.UnixEpoch,
-            _builder.ToJson()["ExpiresAt"]?["$defaultValue"]?.GetValue<DateTimeOffset>());
+            _builder.ToJson()["expiresAt"]?["$defaultValue"]?.GetValue<DateTimeOffset>());
 
     [Fact]
     void should_migrate_the_same_event_type_between_consecutive_generations()
@@ -38,7 +39,7 @@ public class when_upcasting_a_historical_token : Specification
     [Fact]
     void should_allow_old_consumers_to_read_the_original_fields()
     {
-        var downcast = new EventMigrationBuilder();
+        var downcast = new EventMigrationBuilder(new CamelCaseNamingPolicy());
         ((IEventTypeMigration)_migration).Downcast(downcast);
         Assert.Empty(downcast.ToJson());
     }

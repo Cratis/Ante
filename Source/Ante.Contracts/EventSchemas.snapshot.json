@@ -2,7 +2,7 @@
   "InvitationRejected:1": {
     "type": "object",
     "properties": {
-      "Reason": {
+      "reason": {
         "type": "integer",
         "enum": [
           0
@@ -13,7 +13,7 @@
       }
     },
     "required": [
-      "Reason"
+      "reason"
     ],
     "title": "InvitationRejected"
   },
@@ -24,16 +24,16 @@
   "InvitationToCreateTenantAccepted:1": {
     "type": "object",
     "properties": {
-      "TenantName": {
+      "tenantName": {
         "type": "string"
       },
-      "IdentityProvider": {
+      "identityProvider": {
         "type": "string"
       },
-      "IdentityProviderSubject": {
+      "identityProviderSubject": {
         "type": "string"
       },
-      "FirstName": {
+      "firstName": {
         "type": "string",
         "compliance": [
           {
@@ -42,7 +42,7 @@
           }
         ]
       },
-      "MiddleName": {
+      "middleName": {
         "type": "string",
         "compliance": [
           {
@@ -51,7 +51,7 @@
           }
         ]
       },
-      "LastName": {
+      "lastName": {
         "type": "string",
         "compliance": [
           {
@@ -60,7 +60,7 @@
           }
         ]
       },
-      "Email": {
+      "email": {
         "type": "string",
         "compliance": [
           {
@@ -69,7 +69,7 @@
           }
         ]
       },
-      "Roles": {
+      "roles": {
         "type": "array",
         "items": {
           "type": "string"
@@ -77,30 +77,30 @@
       }
     },
     "required": [
-      "TenantName",
-      "IdentityProvider",
-      "IdentityProviderSubject",
-      "FirstName",
-      "MiddleName",
-      "LastName",
-      "Email",
-      "Roles"
+      "tenantName",
+      "identityProvider",
+      "identityProviderSubject",
+      "firstName",
+      "middleName",
+      "lastName",
+      "email",
+      "roles"
     ],
     "title": "InvitationToCreateTenantAccepted"
   },
   "InvitationToJoinTenantAccepted:1": {
     "type": "object",
     "properties": {
-      "TenantName": {
+      "tenantName": {
         "type": "string"
       },
-      "IdentityProvider": {
+      "identityProvider": {
         "type": "string"
       },
-      "IdentityProviderSubject": {
+      "identityProviderSubject": {
         "type": "string"
       },
-      "FirstName": {
+      "firstName": {
         "type": "string",
         "compliance": [
           {
@@ -109,7 +109,7 @@
           }
         ]
       },
-      "MiddleName": {
+      "middleName": {
         "type": "string",
         "compliance": [
           {
@@ -118,7 +118,7 @@
           }
         ]
       },
-      "LastName": {
+      "lastName": {
         "type": "string",
         "compliance": [
           {
@@ -127,7 +127,7 @@
           }
         ]
       },
-      "Email": {
+      "email": {
         "type": "string",
         "compliance": [
           {
@@ -136,7 +136,7 @@
           }
         ]
       },
-      "Roles": {
+      "roles": {
         "type": "array",
         "items": {
           "type": "string"
@@ -144,21 +144,21 @@
       }
     },
     "required": [
-      "TenantName",
-      "IdentityProvider",
-      "IdentityProviderSubject",
-      "FirstName",
-      "MiddleName",
-      "LastName",
-      "Email",
-      "Roles"
+      "tenantName",
+      "identityProvider",
+      "identityProviderSubject",
+      "firstName",
+      "middleName",
+      "lastName",
+      "email",
+      "roles"
     ],
     "title": "InvitationToJoinTenantAccepted"
   },
   "InvitationTokenIssued:2": {
     "type": "object",
     "properties": {
-      "FlowType": {
+      "flowType": {
         "type": "integer",
         "enum": [
           0,
@@ -169,25 +169,25 @@
           "CreateTenant"
         ]
       },
-      "Token": {
+      "token": {
         "type": "string"
       },
-      "ExpiresAt": {
+      "expiresAt": {
         "type": "string",
         "format": "date-time-offset"
       }
     },
     "required": [
-      "FlowType",
-      "Token",
-      "ExpiresAt"
+      "flowType",
+      "token",
+      "expiresAt"
     ],
     "title": "InvitationTokenIssued"
   },
   "InvitationTokenIssued:1": {
     "type": "object",
     "properties": {
-      "FlowType": {
+      "flowType": {
         "type": "integer",
         "enum": [
           0,
@@ -198,20 +198,20 @@
           "CreateTenant"
         ]
       },
-      "Token": {
+      "token": {
         "type": "string"
       }
     },
     "required": [
-      "FlowType",
-      "Token"
+      "flowType",
+      "token"
     ],
     "title": "InvitationTokenIssued"
   },
   "UserInvitedToCreateTenant:1": {
     "type": "object",
     "properties": {
-      "Email": {
+      "email": {
         "type": "string",
         "compliance": [
           {
@@ -220,7 +220,7 @@
           }
         ]
       },
-      "Roles": {
+      "roles": {
         "type": "array",
         "items": {
           "type": "string"
@@ -228,15 +228,15 @@
       }
     },
     "required": [
-      "Email",
-      "Roles"
+      "email",
+      "roles"
     ],
     "title": "UserInvitedToCreateTenant"
   },
   "UserInvitedToJoinTenant:1": {
     "type": "object",
     "properties": {
-      "Email": {
+      "email": {
         "type": "string",
         "compliance": [
           {
@@ -245,10 +245,10 @@
           }
         ]
       },
-      "TenantName": {
+      "tenantName": {
         "type": "string"
       },
-      "Roles": {
+      "roles": {
         "type": "array",
         "items": {
           "type": "string"
@@ -256,49 +256,49 @@
       }
     },
     "required": [
-      "Email",
-      "TenantName",
-      "Roles"
+      "email",
+      "tenantName",
+      "roles"
     ],
     "title": "UserInvitedToJoinTenant"
   },
   "LegalTermsAccepted:1": {
     "type": "object",
     "properties": {
-      "TenantName": {
+      "tenantName": {
         "type": "string"
       },
-      "IdentityProvider": {
+      "identityProvider": {
         "type": "string"
       },
-      "IdentityProviderSubject": {
+      "identityProviderSubject": {
         "type": "string"
       },
-      "Version": {
+      "version": {
         "type": "string"
       }
     },
     "required": [
-      "TenantName",
-      "IdentityProvider",
-      "IdentityProviderSubject",
-      "Version"
+      "tenantName",
+      "identityProvider",
+      "identityProviderSubject",
+      "version"
     ],
     "title": "LegalTermsAccepted"
   },
   "OrganizationRegistrationCompleted:1": {
     "type": "object",
     "properties": {
-      "TenantName": {
+      "tenantName": {
         "type": "string"
       },
-      "Subject": {
+      "subject": {
         "type": "string"
       },
-      "IdentityProvider": {
+      "identityProvider": {
         "type": "string"
       },
-      "FirstName": {
+      "firstName": {
         "type": "string",
         "compliance": [
           {
@@ -307,7 +307,7 @@
           }
         ]
       },
-      "MiddleName": {
+      "middleName": {
         "type": "string",
         "compliance": [
           {
@@ -316,7 +316,7 @@
           }
         ]
       },
-      "LastName": {
+      "lastName": {
         "type": "string",
         "compliance": [
           {
@@ -325,7 +325,7 @@
           }
         ]
       },
-      "Email": {
+      "email": {
         "type": "string",
         "compliance": [
           {
@@ -336,13 +336,13 @@
       }
     },
     "required": [
-      "TenantName",
-      "Subject",
-      "IdentityProvider",
-      "FirstName",
-      "MiddleName",
-      "LastName",
-      "Email"
+      "tenantName",
+      "subject",
+      "identityProvider",
+      "firstName",
+      "middleName",
+      "lastName",
+      "email"
     ],
     "title": "OrganizationRegistrationCompleted"
   }

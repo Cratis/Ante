@@ -17,7 +17,7 @@ using Xunit;
 namespace Ante.Contracts.for_EventSchemas.when_checking_contracts;
 
 /// <summary>
-/// Guards the Chronicle wire schemas of all published contract events, including historical generations.
+/// Guards Ante's camelCase Chronicle wire schemas of all published contract events, including historical generations.
 /// </summary>
 public class and_comparing_the_snapshot : Specification
 {
@@ -41,7 +41,7 @@ public class and_comparing_the_snapshot : Specification
             new ComplianceMetadataResolver(
                 new KnownInstancesOf<ICanProvideComplianceMetadataForType>(pii),
                 new KnownInstancesOf<ICanProvideComplianceMetadataForProperty>(pii)),
-            new DefaultNamingPolicy(),
+            new CamelCaseNamingPolicy(),
             Substitute.For<IDerivedTypes>());
 
         var schemas = typeof(InvitationTokenIssued).Assembly.GetTypes()
