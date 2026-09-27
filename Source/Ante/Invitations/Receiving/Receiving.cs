@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Ante.Invitations.Issuing;
+using Ante.Outbox;
 using MongoDB.Driver;
 
 namespace Ante.Invitations.Receiving;
@@ -91,8 +92,7 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
     public async Task On(JoinTenantInvitationReceived @event, EventContext context)
     {
         var token = tokenIssuer.IssueJoinTenantInvitation(Guid.Parse(context.EventSourceId.Value));
-        await eventStore.GetEventSequence(EventSequenceId.Outbox)
-            .Append(context.EventSourceId, new InvitationTokenIssued(InvitationFlowType.JoinTenant, token));
+        await eventStore.PublishToOutbox(context, new InvitationTokenIssued(InvitationFlowType.JoinTenant, token), []);
     }
 
     /// <summary>
@@ -103,8 +103,7 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
     public async Task On(CreateTenantInvitationReceived @event, EventContext context)
     {
         var token = tokenIssuer.IssueCreateTenantInvitation(Guid.Parse(context.EventSourceId.Value));
-        await eventStore.GetEventSequence(EventSequenceId.Outbox)
-            .Append(context.EventSourceId, new InvitationTokenIssued(InvitationFlowType.CreateTenant, token));
+        await eventStore.PublishToOutbox(context, new InvitationTokenIssued(InvitationFlowType.CreateTenant, token), []);
     }
 }
 

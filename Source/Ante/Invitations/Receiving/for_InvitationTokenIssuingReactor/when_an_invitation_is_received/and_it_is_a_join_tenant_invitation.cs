@@ -4,7 +4,9 @@
 #if DEBUG
 using Ante.Invitations.Issuing;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Chronicle.Testing.Reactors;
+using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Ante.Invitations.Receiving.for_InvitationTokenIssuingReactor.when_an_invitation_is_received;
@@ -24,6 +26,18 @@ public class and_it_is_a_join_tenant_invitation : Specification
         var eventStore = Substitute.For<IEventStore>();
         _outbox = Substitute.For<IEventSequence>();
         eventStore.GetEventSequence(EventSequenceId.Outbox).Returns(_outbox);
+        _outbox.Append(
+            Arg.Any<EventSourceId>(),
+            Arg.Any<object>(),
+            Arg.Any<EventStreamType>(),
+            Arg.Any<EventStreamId>(),
+            Arg.Any<EventSourceType>(),
+            Arg.Any<CorrelationId>(),
+            Arg.Any<IEnumerable<string>>(),
+            Arg.Any<ConcurrencyScope>(),
+            Arg.Any<DateTimeOffset?>(),
+            Arg.Any<Cratis.Chronicle.Subject>())
+            .Returns(AppendResult.Success(CorrelationId.New(), 1));
 
         _tokenIssuer = Substitute.For<IInvitationTokenIssuer>();
         _tokenIssuer.IssueJoinTenantInvitation(_invitationGuid).Returns(_token);
@@ -44,6 +58,14 @@ public class and_it_is_a_join_tenant_invitation : Specification
     void should_forward_the_token_to_the_outbox() =>
         _outbox.Received(1).Append(
             Arg.Is<EventSourceId>(id => id.Value == _invitationId.Value),
-            Arg.Is<InvitationTokenIssued>(e => e.FlowType == InvitationFlowType.JoinTenant && e.Token == _token));
+            Arg.Is<InvitationTokenIssued>(e => e.FlowType == InvitationFlowType.JoinTenant && e.Token == _token),
+            Arg.Any<EventStreamType>(),
+            Arg.Any<EventStreamId>(),
+            Arg.Any<EventSourceType>(),
+            Arg.Any<CorrelationId>(),
+            Arg.Any<IEnumerable<string>>(),
+            Arg.Any<ConcurrencyScope>(),
+            Arg.Any<DateTimeOffset?>(),
+            Arg.Any<Cratis.Chronicle.Subject>());
 }
 #endif
