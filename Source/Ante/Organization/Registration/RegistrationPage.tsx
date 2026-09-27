@@ -28,6 +28,7 @@ export const RegistrationPage = () => {
     const handoff = useOrganizationSetupHandoff({
         invitationId: registrationId,
         hostAppUnavailableMessage: strings.registration.hostAppUrlUnavailable,
+        isRegistration: true,
     });
 
     // Memoized so an unrelated re-render - opening the terms dialog, a status poll tick - does not

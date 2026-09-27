@@ -7,6 +7,7 @@ using Ante.Invitations.Accepting;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
 using Ante.Organization;
+using Ante.Organization.Registration;
 using Ante.Outbox;
 using Cratis.Chronicle.Keys;
 using Cratis.Types;
@@ -302,17 +303,24 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
     /// recorded anything and may safely (re)submit; one that sees Recorded has already submitted and must
     /// keep waiting rather than resubmitting, even if the local browser tab restarted in between.
     /// </remarks>
-    /// <param name="invitationId">The invitation or registration identifier.</param>
+    /// <param name="invitationId">The invitation identifier.</param>
+    /// <param name="signedInIdentity">Verifier of invitation ownership.</param>
     /// <param name="subscriptions">The subscription tracker.</param>
     /// <param name="recordedCollection">The durable setup-record collection.</param>
     /// <param name="publishedCollection">The durable outbox-publication collection.</param>
     /// <returns>An observable status stream for the invitation.</returns>
     public static ISubject<OrganizationSetupAcceptanceStatusView> StatusForInvitation(
         InvitationId invitationId,
+        ISignedInIdentity signedInIdentity,
         OrganizationSetupStatusSubscriptions subscriptions,
         IMongoCollection<OrganizationSetupProgress> recordedCollection,
         IMongoCollection<OrganizationSetupPublished> publishedCollection)
     {
+        if (!signedInIdentity.IsVerifiedOwnerOf(invitationId))
+        {
+            return new BehaviorSubject<OrganizationSetupAcceptanceStatusView>(new(invitationId, OrganizationSetupAcceptanceStatus.Pending, TenantName.NotSet));
+        }
+
         var recorded = recordedCollection.Find(Builders<OrganizationSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
         var published = publishedCollection.Find(Builders<OrganizationSetupPublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
         return subscriptions.GetStatus(
@@ -320,6 +328,39 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
             recorded?.OrganizationName,
             isRecorded: recorded is not null,
             isFullyPublished: OrganizationSetupPublication.IsFullyPublished(recorded, published));
+    }
+
+    /// <summary>
+    /// Returns a snapshot of a self-service registration only to the owner recorded with it.
+    /// A missing owner (including registrations created before ownership was recorded) is unknown.
+    /// </summary>
+    /// <param name="registrationId">The registration identifier.</param>
+    /// <param name="signedInIdentity">Verifier of the current login.</param>
+    /// <param name="subscriptions">The subscription tracker.</param>
+    /// <param name="eventStore">The scoped event store that releases protected registration owner data.</param>
+    /// <param name="publishedCollection">The durable outbox-publication collection.</param>
+    /// <returns>Current status or the same pending response as an unknown registration.</returns>
+    public static async Task<OrganizationSetupAcceptanceStatusView> StatusForRegistration(
+        InvitationId registrationId,
+        ISignedInIdentity signedInIdentity,
+        OrganizationSetupStatusSubscriptions subscriptions,
+        IEventStore eventStore,
+        IMongoCollection<OrganizationSetupPublished> publishedCollection)
+    {
+        var unknown = new OrganizationSetupAcceptanceStatusView(registrationId, OrganizationSetupAcceptanceStatus.Pending, TenantName.NotSet);
+        var recorded = await eventStore.ReadModels.GetInstanceById<OrganizationSetupProgress>(registrationId.Value);
+        if (recorded?.OwnerSubject is not { } ownerSubject || recorded.OwnerProvider is not { } ownerProvider ||
+            !signedInIdentity.IsVerifiedRegistrationOwner(new RegistrationOwner(ownerSubject, ownerProvider)))
+        {
+            return unknown;
+        }
+
+        var published = await publishedCollection.Find(Builders<OrganizationSetupPublished>.Filter.Eq(progress => progress.Id, registrationId)).FirstOrDefaultAsync();
+        return ((BehaviorSubject<OrganizationSetupAcceptanceStatusView>)subscriptions.GetStatus(
+            registrationId,
+            recorded.OrganizationName,
+            isRecorded: true,
+            isFullyPublished: OrganizationSetupPublication.IsFullyPublished(recorded, published))).Value;
     }
 }
 

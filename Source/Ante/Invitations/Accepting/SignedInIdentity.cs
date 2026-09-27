@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Ante.IdentityProviders;
+using Ante.Organization.Registration;
 using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.JsonWebTokens;
 using MongoDB.Driver;
@@ -44,6 +45,25 @@ public interface ISignedInIdentity
     /// <param name="invitationId">The invitation to verify ownership of.</param>
     /// <returns>True when the current request verifiably owns the invitation; otherwise false.</returns>
     bool IsVerifiedOwnerOf(InvitationId invitationId);
+
+    /// <summary>
+    /// Resolves the current registration owner only from the forwarded sign-in identity, never from an invitation session.
+    /// </summary>
+    /// <returns>The owner, or null when the request has no subject.</returns>
+    RegistrationOwner? CurrentRegistrationOwner();
+
+    /// <summary>
+    /// Checks whether the current login matches a durably recorded registration owner.
+    /// </summary>
+    /// <param name="owner">The owner recorded with the registration.</param>
+    /// <returns>True only for the same subject and provider.</returns>
+    bool IsVerifiedRegistrationOwner(RegistrationOwner owner);
+
+    /// <summary>
+    /// Resolves the invitation belonging to this request's forwarded claim or most recent live exchange session.
+    /// </summary>
+    /// <returns>The invitation id, or <see cref="InvitationId.NotSet"/> when there is no verified session.</returns>
+    InvitationId CurrentInvitationId();
 }
 
 /// <summary>
@@ -114,6 +134,28 @@ public class SignedInIdentity(
         // names this request, matched to a live session recorded for this exact invitation.
         return subject is not null && SessionFor(invitationId, subject) is not null;
     }
+
+    /// <inheritdoc/>
+    public InvitationId CurrentInvitationId()
+    {
+        var jti = httpContextAccessor.HttpContext?.User?.FindFirstValue(JwtRegisteredClaimNames.Jti);
+        if (Guid.TryParse(jti, out var invitationGuid))
+        {
+            return invitationGuid;
+        }
+
+        var subject = SubjectOfCurrentRequest();
+        return subject is null ? InvitationId.NotSet : SessionFor(InvitationId.NotSet, subject)?.InvitationId ?? InvitationId.NotSet;
+    }
+
+    /// <inheritdoc/>
+    public RegistrationOwner? CurrentRegistrationOwner() => RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver);
+
+    /// <inheritdoc/>
+    public bool IsVerifiedRegistrationOwner(RegistrationOwner owner) =>
+        CurrentRegistrationOwner() is { } current &&
+        !string.IsNullOrWhiteSpace(current.Subject.Value) &&
+        current.Subject == owner.Subject && current.Provider == owner.Provider;
 
     /// <summary>
     /// Selects the session a request belongs to out of every recorded accepted-invitation session - the

@@ -27,7 +27,13 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
     /// </summary>
     /// <param name="legalDocumentSource">The legal document source the registering user has to accept, when the host has configured one.</param>
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
-    public RegisterOrganizationValidator(ILegalDocumentSource legalDocumentSource, IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames)
+    /// <param name="httpContextAccessor">Accessor for the current sign-in.</param>
+    /// <param name="identityProviderResolver">Resolver of the current sign-in provider.</param>
+    public RegisterOrganizationValidator(
+        ILegalDocumentSource legalDocumentSource,
+        IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
+        IHttpContextAccessor httpContextAccessor,
+        IIdentityProviderResolver identityProviderResolver)
     {
         RuleFor(c => (string)c.OrganizationName)
             .MustBeAValidOrganizationName();
@@ -53,6 +59,10 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
             .OverridePropertyName(nameof(RegisterOrganization.MiddleName));
 
         LegalTermsRules.Apply(this, legalDocumentSource, c => c.AcceptedLegalTerms, c => c.AcceptedLegalVersion);
+
+        RuleFor(c => c)
+            .Must(_ => RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver) is not null)
+            .WithMessage("A signed-in subject is required to register an organization.");
     }
 }
 
@@ -101,11 +111,9 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
     {
         var httpContext = httpContextAccessor.HttpContext;
         var user = httpContext?.User;
-        var subject = user?.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? user?.FindFirstValue("sub")
-            ?? httpContext?.Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].FirstOrDefault()
-            ?? string.Empty;
-        var identityProviderValue = identityProviderResolver.Resolve(user?.FindFirstValue("iss"));
+        var owner = RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver);
+        var subject = owner?.Subject.Value ?? string.Empty;
+        var identityProviderValue = owner?.Provider ?? identityProviderResolver.Resolve(user?.FindFirstValue("iss"));
         var email = SignedInEmail.Resolve(user, httpContext?.Request.Headers);
 
         // Re-read rather than trust the validator: the name can be claimed between the two, and this is
@@ -131,11 +139,17 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             return legalError;
         }
 
+        if (owner is null)
+        {
+            return ValidationResult.Error("A signed-in subject is required to register an organization.");
+        }
+
         httpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
 
         var events = new List<object>
         {
             new OrganizationRegistrationCompleted(OrganizationName, subject, identityProviderValue, FirstName, MiddleName ?? Contracts.Invitations.MiddleName.NotSet, LastName, email),
+            new RegistrationOwnerRecorded(owner.Subject, owner.Provider),
         };
         events.AddRange(legalEvents);
 

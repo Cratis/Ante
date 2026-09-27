@@ -237,16 +237,23 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
     /// local browser tab restarted in between.
     /// </remarks>
     /// <param name="invitationId">The invitation identifier.</param>
+    /// <param name="signedInIdentity">Verifier of invitation ownership.</param>
     /// <param name="subscriptions">The subscription tracker.</param>
     /// <param name="recordedCollection">The durable acceptance-record collection.</param>
     /// <param name="publishedCollection">The durable outbox-publication collection.</param>
     /// <returns>An observable status stream for the invitation.</returns>
     public static ISubject<UserSetupAcceptanceStatusView> StatusForInvitation(
         InvitationId invitationId,
+        ISignedInIdentity signedInIdentity,
         UserSetupStatusSubscriptions subscriptions,
         IMongoCollection<UserSetupProgress> recordedCollection,
         IMongoCollection<JoinTenantAcceptancePublished> publishedCollection)
     {
+        if (!signedInIdentity.IsVerifiedOwnerOf(invitationId))
+        {
+            return new BehaviorSubject<UserSetupAcceptanceStatusView>(new(invitationId, UserSetupAcceptanceStatus.Pending));
+        }
+
         var recorded = recordedCollection.Find(Builders<UserSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
         var published = publishedCollection.Find(Builders<JoinTenantAcceptancePublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
         return subscriptions.GetStatus(

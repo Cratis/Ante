@@ -3,8 +3,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Guid } from '@cratis/fundamentals';
-import { StatusForInvitation } from './OrganizationSetup';
+import { StatusForInvitation, StatusForRegistration } from './OrganizationSetup';
 import { OrganizationSetupAcceptanceStatus } from './OrganizationSetupAcceptanceStatus';
+import { organizationStatusIds, shouldRecheckRegistrationStatus } from './organizationStatusAccess';
 import { HostUrl } from '../../Configuration/Configuration';
 import { resolveHostAppRedirectUrl } from '../../Configuration/hostAppRedirect';
 import { useOnboardingRecovery } from '../useOnboardingRecovery';
@@ -18,6 +19,8 @@ export type OrganizationSetupHandoffOptions = {
     invitationId: Guid;
     /** Message shown when setup published but the host destination could not be resolved. */
     hostAppUnavailableMessage: string;
+    /** Uses the separately owner-verified registration status instead of invitation status. */
+    isRegistration?: boolean;
     /**
      * Opts into the optional host-outcome completion screen once accepted, in place of today's
      * unconditional automatic redirect - only when this deployment also has a host outcome backchannel
@@ -61,15 +64,27 @@ export type OrganizationSetupHandoffState = {
 
 /**
  * Shared status/hand-off coordination for the two wizards that create an organization -
- * `OrganizationSetupPage` (invited) and `RegistrationPage` (self-service) - which poll the exact same
- * durable status query and redirect the exact same way once it publishes. Extracted here because the two
+ * `OrganizationSetupPage` (invited) and `RegistrationPage` (self-service) - which use distinct
+ * owner-verified status queries and redirect the same way once setup publishes. Extracted here because the two
  * pages already needed byte-identical logic for this, not as a general-purpose abstraction over the
  * three onboarding journeys.
  * @param options The invitation/registration id to track, the message to show on a destination failure, and whether this wizard supports the optional host-outcome screen.
  * @returns The current phase and the actions the page's `CommandStepper` and completion screen drive it with.
  */
-export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMessage, supportsHostOutcome = false }: OrganizationSetupHandoffOptions): OrganizationSetupHandoffState => {
-    const [statusResult] = StatusForInvitation.use({ invitationId });
+export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMessage, supportsHostOutcome = false, isRegistration = false }: OrganizationSetupHandoffOptions): OrganizationSetupHandoffState => {
+    const statusIds = organizationStatusIds(invitationId, isRegistration);
+    const [invitationStatus] = StatusForInvitation.use({ invitationId: statusIds.invitationId });
+    const [registrationStatus, refreshRegistration] = StatusForRegistration.use({ registrationId: statusIds.registrationId });
+    const statusResult = isRegistration ? registrationStatus : invitationStatus;
+
+    // Before a registration is submitted there is no durably recorded owner, so the first snapshot
+    // cannot subscribe to a shared status stream safely. Recheck the owner-bound snapshot until the
+    // projection and outbox have caught up, including after a page reload.
+    useEffect(() => {
+        if (!shouldRecheckRegistrationStatus(isRegistration, registrationStatus.hasData, registrationStatus.data?.status)) return;
+        const interval = window.setInterval(() => refreshRegistration({ registrationId: invitationId }), 1500);
+        return () => window.clearInterval(interval);
+    }, [isRegistration, registrationStatus.hasData, registrationStatus.data?.status, refreshRegistration, invitationId]);
     const [hostUrlResult] = HostUrl.use();
     const [errorMessages, setErrorMessages] = useState<string[]>([]);
     const organizationNameRef = useRef('');

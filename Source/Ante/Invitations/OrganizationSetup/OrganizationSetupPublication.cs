@@ -3,6 +3,7 @@
 
 using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
+using Ante.Organization.Registration;
 using Ante.Outbox;
 using MongoDB.Driver;
 
@@ -20,16 +21,21 @@ namespace Ante.Invitations.OrganizationSetup;
 /// <param name="Id">The invitation or registration identifier.</param>
 /// <param name="OrganizationName">The name of the organization that was set up.</param>
 /// <param name="LegalRecorded">Whether a <see cref="LegalTermsAccepted"/> fact was recorded alongside the acceptance.</param>
+/// <param name="OwnerSubject">The self-service owner's subject, when recorded.</param>
+/// <param name="OwnerProvider">The self-service owner's identity provider, when recorded.</param>
 [ReadModel]
 [FromEvent<InvitationToCreateTenantAccepted>]
 [FromEvent<OrganizationRegistrationCompleted>]
+[FromEvent<RegistrationOwnerRecorded>]
 [FromEvent<LegalTermsAccepted>]
 public record OrganizationSetupProgress(
     InvitationId Id,
     [SetFrom<InvitationToCreateTenantAccepted>(nameof(InvitationToCreateTenantAccepted.TenantName))]
     [SetFrom<OrganizationRegistrationCompleted>(nameof(OrganizationRegistrationCompleted.TenantName))]
     TenantName OrganizationName,
-    [SetValue<LegalTermsAccepted>(true)] bool LegalRecorded = false);
+    [SetValue<LegalTermsAccepted>(true)] bool LegalRecorded = false,
+    RegistrationOwnerSubject? OwnerSubject = null,
+    IdentityProviderName? OwnerProvider = null);
 
 /// <summary>
 /// Durable evidence that organization setup's public facts - from an invitation or from self-service
