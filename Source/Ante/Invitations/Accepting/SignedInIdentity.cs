@@ -32,8 +32,8 @@ public interface ISignedInIdentity
 
     /// <summary>
     /// Determines whether the current request is a verified owner of an invitation - either the invite
-    /// token's own <c language="csharp">jti</c> claim names it directly, or the request's subject has exchanged this exact
-    /// invitation for a session that has not yet expired.
+    /// token's own <c language="csharp">jti</c> claim names it directly, or the request's subject and resolved provider
+    /// match a live exchange session for this exact invitation.
     /// </summary>
     /// <remarks>
     /// This is the authorization gate every invitation-bound onboarding command must pass before acting:
@@ -84,19 +84,11 @@ public class SignedInIdentity(
     IMongoCollection<AcceptedInvitation> acceptedInvitations,
     IIdentityProviderResolver identityProviderResolver) : ISignedInIdentity
 {
-    // The authentication proxy stamps these onto the forwarded principal once it is configured to
-    // resolve a canonical federated identity, and they are the only request-time signals that name the
-    // provider behind a federated sign-in: the OpenID Connect handler deletes the `iss` claim by
-    // default, and every federated identity is otherwise named after the same authentication type.
-    const string CanonicalProviderKeyClaim = "urn:cratis:identity:provider-key";
-    const string CanonicalIssuerClaim = "urn:cratis:identity:issuer";
-    const string CanonicalSubjectClaim = "urn:cratis:identity:subject";
-
     /// <inheritdoc/>
     public (IdentityProviderName Provider, Cratis.Chronicle.Subject Subject) Resolve(InvitationId invitationId, Cratis.Chronicle.Subject fallbackSubject)
     {
         var subject = SubjectOfCurrentRequest();
-        var session = SessionFor(invitationId, subject);
+        var session = SessionFor(invitationId, subject, ProviderOf(null));
 
         return (ProviderOf(session), SubjectOf(subject, session, fallbackSubject));
     }
@@ -106,7 +98,7 @@ public class SignedInIdentity(
     {
         var subject = SubjectOfCurrentRequest();
 
-        return ProviderOf(SessionFor(InvitationId.NotSet, subject));
+        return ProviderOf(SessionFor(InvitationId.NotSet, subject, ProviderOf(null)));
     }
 
     /// <inheritdoc/>
@@ -132,7 +124,9 @@ public class SignedInIdentity(
         // pick which login a request belongs to when nothing else disambiguates it, never to decide
         // whether it is authorized to act on someone else's invitation. Ownership requires a subject that
         // names this request, matched to a live session recorded for this exact invitation.
-        return subject is not null && SessionFor(invitationId, subject) is not null;
+        var provider = ProviderOf(null);
+        return subject is not null && !string.IsNullOrWhiteSpace(provider.Value) &&
+            SessionFor(invitationId, subject, provider) is not null;
     }
 
     /// <inheritdoc/>
@@ -145,7 +139,10 @@ public class SignedInIdentity(
         }
 
         var subject = SubjectOfCurrentRequest();
-        return subject is null ? InvitationId.NotSet : SessionFor(InvitationId.NotSet, subject)?.InvitationId ?? InvitationId.NotSet;
+        var provider = ProviderOf(null);
+        return subject is null || string.IsNullOrWhiteSpace(provider.Value)
+            ? InvitationId.NotSet
+            : SessionFor(InvitationId.NotSet, subject, provider)?.InvitationId ?? InvitationId.NotSet;
     }
 
     /// <inheritdoc/>
@@ -165,12 +162,14 @@ public class SignedInIdentity(
     /// <param name="allSessions">Every recorded accepted-invitation session.</param>
     /// <param name="invitationId">The invitation to select a session for, or <see cref="InvitationId.NotSet"/> for any invitation.</param>
     /// <param name="subject">The subject of the current request, or null when the request carries none.</param>
+    /// <param name="provider">The provider resolved from the current request.</param>
     /// <param name="now">The current time, used to exclude expired sessions.</param>
     /// <returns>The selected session, or null when none qualifies.</returns>
-    internal static AcceptedInvitation? SelectSession(IEnumerable<AcceptedInvitation> allSessions, InvitationId invitationId, string? subject, DateTimeOffset now)
+    internal static AcceptedInvitation? SelectSession(IEnumerable<AcceptedInvitation> allSessions, InvitationId invitationId, string? subject, IdentityProviderName provider, DateTimeOffset now)
     {
         var sessions = allSessions
             .Where(session => session.ExpiresAtUtc > now
+                && session.IdentityProvider == provider.Value
                 && (invitationId == InvitationId.NotSet || session.InvitationId.Value == invitationId.Value))
             .OrderByDescending(session => session.AcceptedAtUtc)
             .ToArray();
@@ -194,39 +193,18 @@ public class SignedInIdentity(
         return resolved is null ? fallbackSubject : new Cratis.Chronicle.Subject(resolved);
     }
 
-    string? SubjectOfCurrentRequest()
-    {
-        var httpContext = httpContextAccessor.HttpContext;
-        var user = httpContext?.User;
+    string? SubjectOfCurrentRequest() => ForwardedIdentitySubject.Resolve(httpContextAccessor);
 
-        var subject = user?.FindFirstValue(CanonicalSubjectClaim)
-            ?? httpContext?.Request.Headers[Cratis.Arc.Identity.MicrosoftIdentityPlatformHeaders.IdentityIdHeader].FirstOrDefault()
-            ?? user?.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? user?.FindFirstValue("sub");
+    IdentityProviderName ProviderOf(AcceptedInvitation? session) =>
+        (IdentityProviderName)ForwardedIdentityProvider.Resolve(httpContextAccessor, identityProviderResolver, session?.IdentityProvider);
 
-        return string.IsNullOrWhiteSpace(subject) ? null : subject;
-    }
-
-    IdentityProviderName ProviderOf(AcceptedInvitation? session)
-    {
-        var user = httpContextAccessor.HttpContext?.User;
-
-        return (IdentityProviderName)identityProviderResolver.ResolveFrom(
-        [
-            user?.FindFirstValue(CanonicalProviderKeyClaim),
-            user?.FindFirstValue(CanonicalIssuerClaim),
-            user?.FindFirstValue("iss"),
-            session?.IdentityProvider
-        ]);
-    }
-
-    AcceptedInvitation? SessionFor(InvitationId invitationId, string? subject)
+    AcceptedInvitation? SessionFor(InvitationId invitationId, string? subject, IdentityProviderName provider)
     {
         // The invitation id is persisted as a BSON UUID, and both LINQ translation and driver-side value
         // serialization of an EventSourceId-typed filter are unreliable against it - they silently match
         // nothing. Read the (small) accepted-invitation set and compare the deserialized values instead.
         var allSessions = acceptedInvitations.Find(Builders<AcceptedInvitation>.Filter.Empty).ToList();
 
-        return SelectSession(allSessions, invitationId, subject, DateTimeOffset.UtcNow);
+        return SelectSession(allSessions, invitationId, subject, provider, DateTimeOffset.UtcNow);
     }
 }

@@ -19,7 +19,7 @@ public class and_the_only_session_for_the_subject_is_for_a_different_invitation 
     AcceptedInvitation? _result;
 
     void Because() =>
-        _result = SignedInIdentity.SelectSession([_session], _targetInvitationId, "requesting-subject", DateTimeOffset.UtcNow);
+        _result = SignedInIdentity.SelectSession([_session], _targetInvitationId, "requesting-subject", "github", DateTimeOffset.UtcNow);
 
     [Fact] void should_select_no_session() => Assert.Null(_result);
 }

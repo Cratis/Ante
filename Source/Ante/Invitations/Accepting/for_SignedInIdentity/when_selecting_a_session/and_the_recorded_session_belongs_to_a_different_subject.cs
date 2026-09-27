@@ -21,7 +21,7 @@ public class and_the_recorded_session_belongs_to_a_different_subject : Specifica
     // the only session there is for it. This is contradictory evidence, not missing evidence, and
     // must be rejected outright rather than "best guess" borrowing that other login's session.
     void Because() =>
-        _result = SignedInIdentity.SelectSession([_session], _invitationId, "requesting-subject", DateTimeOffset.UtcNow);
+        _result = SignedInIdentity.SelectSession([_session], _invitationId, "requesting-subject", "github", DateTimeOffset.UtcNow);
 
     [Fact] void should_select_no_session() => Assert.Null(_result);
 }

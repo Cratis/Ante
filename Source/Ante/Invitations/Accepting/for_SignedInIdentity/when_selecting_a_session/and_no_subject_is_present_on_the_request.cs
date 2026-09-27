@@ -21,7 +21,7 @@ public class and_no_subject_is_present_on_the_request : Specification
     // available. This fallback exists only for resolving which login a request belongs to, never for
     // deciding ownership - IsVerifiedOwnerOf never reaches it (see for_SignedInIdentity/when_verifying_ownership).
     void Because() =>
-        _result = SignedInIdentity.SelectSession([_session], _invitationId, null, DateTimeOffset.UtcNow);
+        _result = SignedInIdentity.SelectSession([_session], _invitationId, null, "github", DateTimeOffset.UtcNow);
 
     [Fact] void should_select_the_only_session() => Assert.Same(_session, _result);
 }

@@ -22,7 +22,7 @@ public class and_the_subject_and_provider_match : Specification
             User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "sub-1"), new Claim("iss", "github")], "proxy")),
         });
         var resolver = Substitute.For<IIdentityProviderResolver>();
-        resolver.Resolve("github").Returns("github");
+        resolver.ResolveFrom(Arg.Any<IEnumerable<string?>>()).Returns("github");
         var identity = new SignedInIdentity(accessor, Substitute.For<IMongoCollection<AcceptedInvitation>>(), resolver);
         _result = identity.IsVerifiedRegistrationOwner(new((RegistrationOwnerSubject)"sub-1", "github"));
     }

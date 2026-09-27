@@ -18,7 +18,7 @@ public class and_the_matching_session_has_expired : Specification
     AcceptedInvitation? _result;
 
     void Because() =>
-        _result = SignedInIdentity.SelectSession([_session], _invitationId, "requesting-subject", DateTimeOffset.UtcNow);
+        _result = SignedInIdentity.SelectSession([_session], _invitationId, "requesting-subject", "github", DateTimeOffset.UtcNow);
 
     [Fact] void should_select_no_session() => Assert.Null(_result);
 }

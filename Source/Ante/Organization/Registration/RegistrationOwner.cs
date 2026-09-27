@@ -1,9 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Security.Claims;
 using Ante.IdentityProviders;
-using Cratis.Arc.Identity;
 using Cratis.Chronicle.Compliance;
 using Cratis.Chronicle.Compliance.GDPR;
 using Microsoft.AspNetCore.Http;
@@ -40,14 +38,10 @@ public record RegistrationOwner(RegistrationOwnerSubject Subject, IdentityProvid
     /// <returns>The current login, or null when there is no subject.</returns>
     public static RegistrationOwner? Resolve(IHttpContextAccessor httpContextAccessor, IIdentityProviderResolver identityProviderResolver)
     {
-        var context = httpContextAccessor.HttpContext;
-        var user = context?.User;
-        var subject = user?.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? user?.FindFirstValue("sub")
-            ?? context?.Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].FirstOrDefault();
+        var subject = ForwardedIdentitySubject.Resolve(httpContextAccessor);
         return string.IsNullOrWhiteSpace(subject)
             ? null
-            : new((RegistrationOwnerSubject)subject, identityProviderResolver.Resolve(user?.FindFirstValue("iss")));
+            : new((RegistrationOwnerSubject)subject, ForwardedIdentityProvider.Resolve(httpContextAccessor, identityProviderResolver));
     }
 }
 

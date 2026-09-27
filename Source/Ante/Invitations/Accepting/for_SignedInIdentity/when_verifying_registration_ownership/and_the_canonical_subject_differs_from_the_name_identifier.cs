@@ -10,7 +10,7 @@ using MongoDB.Driver;
 
 namespace Ante.Invitations.Accepting.for_SignedInIdentity.when_verifying_registration_ownership;
 
-public class and_the_provider_differs : Specification
+public class and_the_canonical_subject_differs_from_the_name_identifier : Specification
 {
     bool _result;
 
@@ -19,14 +19,17 @@ public class and_the_provider_differs : Specification
         var accessor = Substitute.For<IHttpContextAccessor>();
         accessor.HttpContext.Returns(new DefaultHttpContext
         {
-            User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "sub-1"), new Claim("iss", "other")], "proxy")),
+            User = new ClaimsPrincipal(new ClaimsIdentity([
+                new Claim("urn:cratis:identity:subject", "canonical-subject"),
+                new Claim(ClaimTypes.NameIdentifier, "different-subject")],
+                "proxy")),
         });
         var resolver = Substitute.For<IIdentityProviderResolver>();
-        resolver.ResolveFrom(Arg.Any<IEnumerable<string?>>()).Returns("other");
+        resolver.ResolveFrom(Arg.Any<IEnumerable<string?>>()).Returns("github");
         var identity = new SignedInIdentity(accessor, Substitute.For<IMongoCollection<AcceptedInvitation>>(), resolver);
-        _result = identity.IsVerifiedRegistrationOwner(new((RegistrationOwnerSubject)"sub-1", "github"));
+        _result = identity.IsVerifiedRegistrationOwner(new((RegistrationOwnerSubject)"canonical-subject", "github"));
     }
 
-    [Fact] void should_not_verify_the_owner() => Assert.False(_result);
+    [Fact] void should_prefer_the_canonical_subject() => Assert.True(_result);
 }
 #endif
