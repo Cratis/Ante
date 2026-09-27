@@ -69,7 +69,8 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
 
         RuleFor(c => c.RegistrationId)
             .MustAsync(async (id, _) => await RegistrationSourceAvailability.IsAvailable(id, eventStore))
-            .WithMessage("This onboarding attempt has already been submitted.");
+            .WithMessage("This onboarding attempt has already been submitted.")
+            .WithState(_ => OnboardingAttemptConstraintNames.OneUseAttempt);
     }
 }
 
@@ -140,7 +141,7 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
 
         if (!await RegistrationSourceAvailability.IsAvailable(RegistrationId, eventStore))
         {
-            return ValidationResult.Error("This onboarding attempt has already been submitted.");
+            return ValidationResult.Error("This onboarding attempt has already been submitted.", reasonDetail: OnboardingAttemptConstraintNames.OneUseAttempt);
         }
 
         var subject = owner.Subject.Value;

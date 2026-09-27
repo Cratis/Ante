@@ -155,7 +155,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
         phase: gate === 'showHostOutcome' ? 'hostOutcome' : recovery.phase,
         errorMessages,
         captureOrganizationName: (organizationName: string) => { organizationNameRef.current = organizationName; },
-        markSubmitted: () => { setSubmitted(true); recovery.markSubmitted(); },
+        markSubmitted: () => { setPollWindowExpired(false); setSubmitted(true); recovery.checkAgain(); recovery.markSubmitted(); },
         checkAgain: () => { setPollWindowExpired(false); recovery.checkAgain(); },
         hostOutcomeStatus: hostOutcome.status,
         hostOutcomeReasonCode: hostOutcome.reasonCode,

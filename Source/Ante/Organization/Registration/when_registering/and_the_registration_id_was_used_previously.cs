@@ -46,6 +46,7 @@ public class and_the_registration_id_was_used_previously : Specification
 
     [Fact] void should_reject_the_registration() => _result.ShouldNotBeSuccessful();
     [Fact] void should_have_validation_errors() => _result.ShouldHaveValidationErrors();
+    [Fact] void should_identify_the_one_use_failure_for_recovery() => Assert.Contains(_result.ValidationResults, result => result.State is string state && state == OnboardingAttemptConstraintNames.OneUseAttempt);
     [Fact] void should_not_append_a_new_owner() => Assert.DoesNotContain(_scenario.AppendedEvents, e => e.Event.Content is RegistrationOwnerRecorded);
 }
 #endif
