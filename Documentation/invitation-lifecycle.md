@@ -7,7 +7,7 @@ The invitation id ties together the host's event, Ante's receipt, the JWT `jti`,
 
 ## From host event to link
 
-The host appends `UserInvitedToJoinTenant` or `UserInvitedToCreateTenant` to its outbox with a GUID invitation id. Ante's cross-store inbox reactor records a local receipt event and creates a pending read model. A second reactor issues an RS256 token and writes `InvitationTokenIssued` directly to Ante's outbox. The host then builds `/?token={token}` on the lobby's public URL and distributes that link (`/invite/{token}` returns 404 from Ante itself until [Ante #68](https://github.com/Cratis/Ante/issues/68) ships). Ante does not send mail. The token reactor parses the event source id as a GUID; a non-GUID id fails issuance. See [Contracts](./contracts.md) for the exact events.
+The host appends `UserInvitedToJoinTenant` or `UserInvitedToCreateTenant` to its outbox with a GUID invitation id. Ante's cross-store inbox reactor records a local receipt event and creates a pending read model. A second reactor issues an RS256 token and writes `InvitationTokenIssued` directly to Ante's outbox. The host then builds `/invite/{token}` on the proxy's public origin and distributes that link. Cratis AuthProxy validates the token on that path, runs sign-in and the exchange, and redirects to the lobby frontend. Ante does not send mail. The token reactor parses the event source id as a GUID; a non-GUID id fails issuance. See [Contracts](./contracts.md) for the exact events.
 
 The browser reads `invite_type` only to choose a screen. Exchange records a subject/provider session in MongoDB after parsing the token; the boundary and its limitations are in [Security and trust](./security.md).
 
