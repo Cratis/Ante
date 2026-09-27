@@ -34,7 +34,7 @@ var builder = WebApplication.CreateBuilder(args);
 var anteOptions = builder.Configuration.GetSection("Ante").Get<AnteOptions>() ?? new AnteOptions();
 AnteRoutingValidator.Validate(anteOptions);
 var invitationTokenOptions = builder.Configuration.GetSection("Ante:Invitations:Token").Get<InvitationTokenConfig>() ?? new InvitationTokenConfig();
-InvitationTokenConfigurationValidator.Validate(invitationTokenOptions, builder.Environment.IsDevelopment());
+InvitationTokenConfigurationValidator.Validate(invitationTokenOptions);
 
 builder.AddCratis(
     options =>
@@ -87,6 +87,10 @@ builder.Services.AddAuthorization();
 builder.Services.AddAnteHealthChecks();
 
 var app = builder.Build();
+InvitationTokenConfigurationValidator.WarnForMissingClaims(
+    invitationTokenOptions,
+    app.Environment.IsDevelopment(),
+    app.Services.GetRequiredService<ILogger<InvitationTokenConfigurationValidator>>());
 
 // Installed before the pipeline (and therefore any traffic) is wired up, so the exchange endpoint and
 // InvitationIdentityProvider never run against a collection that is missing the indexes their

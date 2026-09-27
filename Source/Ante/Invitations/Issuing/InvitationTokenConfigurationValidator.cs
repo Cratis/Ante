@@ -6,32 +6,45 @@ using System.Security.Cryptography;
 namespace Ante.Invitations.Issuing;
 
 /// <summary>
-/// Ensures invitation token trust settings are usable before the application accepts traffic.
+/// Ensures invitation signing and verification keys are usable before the application accepts traffic.
 /// </summary>
-public static class InvitationTokenConfigurationValidator
+public sealed class InvitationTokenConfigurationValidator
 {
     /// <summary>
-    /// Checks the signing key and deployment-specific issuer and audience requirements.
+    /// Checks the signing and additional verification keys.
     /// </summary>
     /// <param name="config">The token configuration to validate.</param>
-    /// <param name="isDevelopment">Whether the application runs in Development.</param>
-    /// <exception cref="InvitationTokenConfigurationInvalid">Thrown for an unusable trust configuration.</exception>
-    public static void Validate(InvitationTokenConfig config, bool isDevelopment)
+    /// <exception cref="InvitationTokenConfigurationInvalid">Thrown for an unusable key configuration.</exception>
+    public static void Validate(InvitationTokenConfig config)
     {
         ValidateKey(config.PrivateKeyPem, nameof(config.PrivateKeyPem), requiresPrivateKey: true);
         if (!string.IsNullOrWhiteSpace(config.PublicKeyPem))
         {
             ValidateKey(config.PublicKeyPem, nameof(config.PublicKeyPem), requiresPrivateKey: false);
         }
+    }
 
-        if (!isDevelopment && string.IsNullOrWhiteSpace(config.Issuer))
+    /// <summary>
+    /// Warns operators about optional issuer or audience checks absent outside Development.
+    /// </summary>
+    /// <param name="config">The token configuration.</param>
+    /// <param name="isDevelopment">Whether the application runs in Development.</param>
+    /// <param name="logger">The startup logger.</param>
+    public static void WarnForMissingClaims(InvitationTokenConfig config, bool isDevelopment, ILogger<InvitationTokenConfigurationValidator> logger)
+    {
+        if (isDevelopment)
         {
-            throw new InvitationTokenConfigurationInvalid(nameof(config.Issuer), "must be set outside Development");
+            return;
         }
 
-        if (!isDevelopment && string.IsNullOrWhiteSpace(config.Audience))
+        if (string.IsNullOrWhiteSpace(config.Issuer))
         {
-            throw new InvitationTokenConfigurationInvalid(nameof(config.Audience), "must be set outside Development");
+            logger.LogIssuerNotConfigured();
+        }
+
+        if (string.IsNullOrWhiteSpace(config.Audience))
+        {
+            logger.LogAudienceNotConfigured();
         }
     }
 
