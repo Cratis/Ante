@@ -24,11 +24,13 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 | --- | --- | --- | --- | --- |
 | `PrivateKeyPem` | string (PEM) | empty | empty / committed throwaway RSA key | **Required in every environment at startup**; must parse as an RSA private key. Never reuse the Development key elsewhere. |
 | `PublicKeyPem` | string (PEM) | empty | empty / committed throwaway public key | **Additional** trusted exchange-verification key, for overlap during rotation. The public key derived from `PrivateKeyPem` is always trusted; this value does not change which key signs tokens. Distribute the current signing public key separately to external verifiers. |
-| `Issuer` | string | empty | empty / empty | **Required outside Development at startup**; written as `iss` at issuance and checked at exchange. Empty skips validation only in Development. |
-| `Audience` | string | empty | empty / empty | **Required outside Development at startup**; written as `aud` at issuance and checked at exchange. Empty skips validation only in Development. |
+| `Issuer` | string | empty | empty / empty | Recommended per deployment; written as `iss` at issuance and checked at exchange when set. Empty skips the issuer check and logs a startup warning outside Development. |
+| `Audience` | string | empty | empty / empty | Recommended per deployment; written as `aud` at issuance and checked at exchange when set. Empty skips the audience check and logs a startup warning outside Development. |
 | `Expiry` | `TimeSpan` | 7 days | `7.00:00:00` / `7.00:00:00` | Issued token lifetime; exchange requires `exp` and validates it with up to 30 seconds of clock skew, but the accepted session expires at the signed `exp`. |
 
 **Upgrade warning:** `PublicKeyPem` was previously ignored by Ante at exchange and is now trusted to verify invitation signatures. Remove any non-Ante key from this setting before upgrading. Supply a second key only when tokens signed with that key should be accepted (for example the outgoing Ante signing key during a rotation). An invalid configured public key prevents startup.
+
+Setting `Issuer` or `Audience` on an existing deployment makes links minted before the switch without those claims fail exchange. Tokens live seven days by default; plan the transition around outstanding links. Empty values remain permitted (with production warnings) for this release; requiring them is tracked in [Ante #69](https://github.com/Cratis/Ante/issues/69) for the next major release.
 
 ## Identity and infrastructure
 
