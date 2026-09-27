@@ -7,7 +7,7 @@
  * reviewed `Locales/<code>/translation.json`, its {@link LOCALE_TAGS}/{@link LOCALE_DIRECTIONS}
  * entries, and - because `Program.cs` pins the backend to `CultureInfo.InvariantCulture` deliberately
  * - localizing the backend's own validation messages to match. A locale is not "supported" until all
- * of those move together; see `Documentation/boundaries.md#localization`.
+ * of those move together; see `Documentation/customization.md#add-a-language-in-source`.
  */
 export const SUPPORTED_LOCALES = ['en'] as const;
 

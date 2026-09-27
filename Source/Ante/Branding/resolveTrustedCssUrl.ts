@@ -9,7 +9,7 @@
  * `Ante:HostAppUrl` - not end-user input, so this is not a sanitizer against a hostile value; Ante
  * does not (and cannot) sanitize the CSS a deployment points at, and arbitrary trusted CSS can still
  * affect accessibility - that trust boundary is documented, not hidden, in
- * `Documentation/boundaries.md#branding-presets`. What this **does** guarantee, regardless of how the
+ * `Documentation/customization.md#set-branding-assets`. What this **does** guarantee, regardless of how the
  * value was typed or misconfigured:
  * - Empty/whitespace-only resolves to `null` - the default styling applies, never a broken load.
  * - Any scheme other than `http:`/`https:` (`javascript:`, `data:`, `file:`, ...) resolves to `null`
