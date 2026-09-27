@@ -7,9 +7,9 @@ Use the invitation's GUID event source id to trace it across host outbox, Ante i
 
 ## No invitation or token
 
-1. Check that the host wrote `UserInvitedToJoinTenant` or `UserInvitedToCreateTenant` to its **outbox**, not just its event log, under a GUID id. `IncomingInvitationReactor` observes the inbox for host store `Direct`; a different store name requires rebuilding `InboxSourceStore.Name`, not just changing `Ante:InboxSourceStore`.
+1. Check that the host wrote `UserInvitedToJoinTenant` or `UserInvitedToCreateTenant` to its **outbox**, not just its event log, under a GUID id. If the id is not a GUID, Ante writes `InvitationRejected(InvalidInvitationId)` to its outbox under the original id and logs a warning; there will be no local receipt or token. An invalid-id revocation is ignored. `IncomingInvitationReactor` observes the inbox for host store `Direct`; a different store name requires rebuilding `InboxSourceStore.Name`, not just changing `Ante:InboxSourceStore`.
 2. Look for Ante's local `JoinTenantInvitationReceived` or `CreateTenantInvitationReceived` under the same id. If absent, inspect cross-store observer registration/connectivity and inbox processing in Chronicle. `/healthz/ready` does not cover this path.
-3. If receipt exists but `InvitationTokenIssued` does not appear in Ante's outbox, check `InvitationTokenIssuingReactor`'s partition errors and `PrivateKeyPem`. It calls `Guid.Parse` on the event source id; a non-GUID id fails. The direct token outbox append currently does **not** inspect its returned `AppendResult`, so absence of a thrown error alone is not proof of publication. Do not claim a token was sent until you can see the outbox fact.
+3. If a receipt exists but `InvitationTokenIssued` does not appear in Ante's outbox, check `InvitationTokenIssuingReactor`'s partition errors and `PrivateKeyPem`. Rejected outbox appends throw `OutboxPublicationFailed` with constraint, concurrency or error details; the partition pauses and may be quarantined after repeated failures. Check the same failure on `IncomingInvitationReactor` when publishing an invalid-id rejection. Fix the underlying append failure and recover the partition through Chronicle's operator controls; do not claim a token was sent until you can see the outbox fact.
 
 ## Recorded but not published
 
