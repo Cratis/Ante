@@ -1,11 +1,13 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Ante.Invitations.Receiving;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -74,6 +76,25 @@ public static class AnteHealthChecks
         {
             Predicate = registration => registration.Tags.Contains(ReadyTag),
         });
+    }
+}
+
+/// <summary>Reports whether every configured host inbox reactor is currently subscribed.</summary>
+/// <param name="routing">The initialized runtime routing service.</param>
+/// <param name="options">The frozen startup routing options.</param>
+public class IncomingRoutingHealthCheck(IncomingInvitationSubscriptions routing, IOptions<AnteOptions> options) : IHealthCheck
+{
+    /// <inheritdoc/>
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await routing.IsReady(options.Value) ? HealthCheckResult.Healthy() : HealthCheckResult.Unhealthy();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return HealthCheckResult.Unhealthy();
+        }
     }
 }
 

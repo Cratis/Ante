@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 #if DEBUG
+using Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_an_invitation_arrives.given;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Testing.Reactors;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,7 +13,7 @@ public class and_a_revocation_arrives : Specification
 {
     static readonly EventSourceId _invitationId = (EventSourceId)Guid.NewGuid().ToString();
 
-    readonly ReactorScenario<IncomingInvitationReactor> _scenario = new(new ServiceCollection()
+    readonly ReactorScenario<IncomingInvitationScenarioReactor<object>> _scenario = new(new ServiceCollection()
         .AddSingleton(Substitute.For<IEventStore>())
         .AddLogging()
         .BuildServiceProvider());
