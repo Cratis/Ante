@@ -16,8 +16,6 @@ public class and_a_legacy_receipt_precedes_a_new_marker : a_local_invitation_his
         AlreadyRecorded(new JoinTenantInvitationReceived("other@example.com", "Acme", ["Member"]));
         AlreadyRecorded(new InvitationInboxEventRecorded(2));
         AlreadyRecorded(new InvitationRevocationReceived());
-        InboxHistory.Add(new(EventContext.Empty with { SequenceNumber = 1 }, new UserInvitedToJoinTenant("jane@example.com", "Acme", ["Member"])));
-        InboxHistory.Add(new(EventContext.Empty with { SequenceNumber = 2 }, new UserInvitedToJoinTenant("other@example.com", "Acme", ["Member"])));
     }
 
     async Task Because() => _produced = await Reactor.On(

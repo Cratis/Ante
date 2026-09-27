@@ -19,25 +19,25 @@ public record InvitationTokenIssued
     /// Creates a token publication, including the token's actual expiry. JSON deserialization of
     /// generation-1 inbox/outbox payloads supplies the Unix epoch for the missing expiry.
     /// </summary>
-    /// <param name="flowType">The invitation flow.</param>
-    /// <param name="token">The signed JWT.</param>
-    /// <param name="expiresAt">The JWT expiration, or the Unix epoch when unknown.</param>
+    /// <param name="FlowType">The invitation flow.</param>
+    /// <param name="Token">The signed JWT.</param>
+    /// <param name="ExpiresAt">The JWT expiration, or the Unix epoch when unknown.</param>
     [JsonConstructor]
-    public InvitationTokenIssued(InvitationFlowType flowType, string token, DateTimeOffset expiresAt)
+    public InvitationTokenIssued(InvitationFlowType FlowType, string Token, DateTimeOffset ExpiresAt)
     {
-        FlowType = flowType;
-        Token = token;
-        ExpiresAt = expiresAt == default ? DateTimeOffset.UnixEpoch : expiresAt;
+        this.FlowType = FlowType;
+        this.Token = Token;
+        this.ExpiresAt = ExpiresAt == default ? DateTimeOffset.UnixEpoch : ExpiresAt;
     }
 
     /// <summary>
     /// Preserves the generation-1 constructor for compiled hosts. Upgrade to the three-argument
     /// constructor and supply the token's JWT expiration.
     /// </summary>
-    /// <param name="flowType">The invitation flow.</param>
-    /// <param name="token">The signed JWT.</param>
-    [Obsolete("Supply the token's JWT expiry with InvitationTokenIssued(flowType, token, expiresAt); UnixEpoch means unknown expiry.")]
-    public InvitationTokenIssued(InvitationFlowType flowType, string token) : this(flowType, token, DateTimeOffset.UnixEpoch)
+    /// <param name="FlowType">The invitation flow.</param>
+    /// <param name="Token">The signed JWT.</param>
+    [Obsolete("Supply the token's JWT expiry with InvitationTokenIssued(FlowType, Token, ExpiresAt); UnixEpoch means unknown expiry.")]
+    public InvitationTokenIssued(InvitationFlowType FlowType, string Token) : this(FlowType, Token, DateTimeOffset.UnixEpoch)
     {
     }
 
@@ -59,21 +59,21 @@ public record InvitationTokenIssued
     /// <summary>
     /// Deconstructs the current generation of the publication.
     /// </summary>
-    /// <param name="flowType">The invitation flow.</param>
-    /// <param name="token">The signed JWT.</param>
-    /// <param name="expiresAt">The JWT expiration.</param>
-    public void Deconstruct(out InvitationFlowType flowType, out string token, out DateTimeOffset expiresAt) =>
-        (flowType, token, expiresAt) = (FlowType, Token, ExpiresAt);
+    /// <param name="FlowType">The invitation flow.</param>
+    /// <param name="Token">The signed JWT.</param>
+    /// <param name="ExpiresAt">The JWT expiration.</param>
+    public void Deconstruct(out InvitationFlowType FlowType, out string Token, out DateTimeOffset ExpiresAt) =>
+        (FlowType, Token, ExpiresAt) = (this.FlowType, this.Token, this.ExpiresAt);
 
     /// <summary>
     /// Preserves generation-1 deconstruction for compiled hosts. Upgrade to the three-value
     /// deconstruction to inspect the JWT expiration.
     /// </summary>
-    /// <param name="flowType">The invitation flow.</param>
-    /// <param name="token">The signed JWT.</param>
+    /// <param name="FlowType">The invitation flow.</param>
+    /// <param name="Token">The signed JWT.</param>
     [Obsolete("Deconstruct the expiry too; UnixEpoch means the historical expiry is unknown.")]
-    public void Deconstruct(out InvitationFlowType flowType, out string token) =>
-        (flowType, token) = (FlowType, Token);
+    public void Deconstruct(out InvitationFlowType FlowType, out string Token) =>
+        (FlowType, Token) = (this.FlowType, this.Token);
 }
 
 /// <summary>The original token publication shape retained for replay and older consumers.</summary>

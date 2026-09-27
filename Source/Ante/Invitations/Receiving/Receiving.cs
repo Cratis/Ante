@@ -171,6 +171,8 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             logger.LogInvalidInvitationId();
         }
 
+        // Deliberately not [OnceOnly]: a rejection lost before the outbox append must be retried on
+        // replay. Replay/redelivery can therefore republish it, and hosts deduplicate (host-integration.md).
         await eventStore.PublishToOutbox(context, new InvitationRejected(reason), []);
     }
 }
@@ -226,6 +228,9 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
     async Task Reject(EventContext context)
     {
         logger.LogInvalidInvitationId();
+
+        // Deliberately not [OnceOnly], like token issuance: replay must be able to recover a lost
+        // publication, so hosts deduplicate republished rejections (host-integration.md).
         await eventStore.PublishToOutbox(context, new InvitationRejected(InvitationRejectionReason.InvalidInvitationId), []);
     }
 }

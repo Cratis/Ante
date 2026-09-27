@@ -15,7 +15,6 @@ public class a_local_invitation_history : Specification
 {
     protected readonly EventSourceId Id = (EventSourceId)Guid.NewGuid().ToString("D");
     protected readonly List<AppendedEvent> History = [];
-    protected readonly List<AppendedEvent> InboxHistory = [];
     protected IEventSequence Outbox = null!;
     protected IEventStore Store = null!;
     protected IEventLog LocalLog = null!;
@@ -28,10 +27,6 @@ public class a_local_invitation_history : Specification
         Store.EventLog.Returns(LocalLog);
         LocalLog.GetForEventSourceIdAndEventTypes(Id, Arg.Any<IEnumerable<EventType>>(), Arg.Any<EventStreamType>(), Arg.Any<EventStreamId>(), Arg.Any<EventSourceType>())
             .Returns(call => Task.FromResult<IImmutableList<AppendedEvent>>(Filter(History, (IEnumerable<EventType>)call[1])));
-        var inbox = Substitute.For<IEventSequence>();
-        Store.GetEventSequence((EventSequenceId)$"{EventSequenceId.InboxPrefix}{InboxSourceStore.Name}").Returns(inbox);
-        inbox.GetForEventSourceIdAndEventTypes(Id, Arg.Any<IEnumerable<EventType>>(), Arg.Any<EventStreamType>(), Arg.Any<EventStreamId>(), Arg.Any<EventSourceType>())
-            .Returns(call => Task.FromResult<IImmutableList<AppendedEvent>>(Filter(InboxHistory, (IEnumerable<EventType>)call[1])));
         Outbox = Substitute.For<IEventSequence>();
         Store.GetEventSequence(EventSequenceId.Outbox).Returns(Outbox);
         Outbox.Append(
