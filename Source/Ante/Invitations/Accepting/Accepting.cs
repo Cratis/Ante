@@ -223,8 +223,13 @@ public class InviteExchangeController(
     /// <param name="request">The exchange request.</param>
     /// <returns>200 when the exchange succeeded; otherwise 400.</returns>
     [HttpPost]
-    public async Task<IActionResult> Exchange([FromBody] ExchangeInviteRequest request)
+    public async Task<IActionResult> Exchange([FromBody] ExchangeInviteRequest? request)
     {
+        if (request is null)
+        {
+            return BadRequest();
+        }
+
         var success = await InviteExchangeProcessor.TryStoreAcceptedInvitation(
             Request.Headers.Authorization.ToString(),
             request,
