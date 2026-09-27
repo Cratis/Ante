@@ -14,6 +14,7 @@ using Cratis.Arc;
 using Cratis.Arc.MongoDB;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
 // Force invariant culture for the backend.
@@ -91,6 +92,9 @@ InvitationTokenConfigurationValidator.WarnForMissingClaims(
     invitationTokenOptions,
     app.Environment.IsDevelopment(),
     app.Services.GetRequiredService<ILogger<InvitationTokenConfigurationValidator>>());
+IdentityProviderConfigurationWarnings.WarnForUnattributableSignIns(
+    app.Services.GetRequiredService<IOptions<IdentityProviderOptions>>().Value,
+    app.Services.GetRequiredService<ILogger<IdentityProviderOptions>>());
 
 // Installed before the pipeline (and therefore any traffic) is wired up, so the exchange endpoint and
 // InvitationIdentityProvider never run against a collection that is missing the indexes their

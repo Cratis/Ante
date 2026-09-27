@@ -34,6 +34,8 @@ Setting `Issuer` or `Audience` on an existing deployment makes links minted befo
 
 ## Identity and infrastructure
 
+**Upgrade note:** invitation exchange and registration now reject a sign-in whose identity provider cannot be resolved, instead of recording it with an empty provider. A sign-in the proxy forwards without canonical identity claims (`urn:cratis:identity:provider-key` / `urn:cratis:identity:issuer`) or an `iss` claim can only be attributed when `IdentityProviders:Providers` allows it by elimination: one configured provider when nothing was reported, or one issuer-bearing provider when only a federation marker was reported. Ante logs a startup warning when the list is empty, or holds a single provider without an `Issuer`. Before upgrading a deployment whose proxy does not forward canonical identity, mirror the proxy's providers here, including each OIDC provider's `Issuer`.
+
 | Key | Type | Code default | Base / Development setting | When needed |
 | --- | --- | --- | --- | --- |
 | `IdentityProviders:Providers` | list of `{Name: string, Issuer: string}` | empty list (fields empty) | unset / unset | Mirror proxy providers for correct attribution, especially issuerless OAuth. Bind indexed entries such as `IdentityProviders__Providers__0__Name` and `IdentityProviders__Providers__0__Issuer`. No match may preserve an unknown reported name; ambiguous absence can resolve to empty. |
