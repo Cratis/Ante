@@ -9,8 +9,10 @@
     "pi"
   ],
   "profiles": [
+    "cratis/application/csharp",
+    "cratis/application/react",
     "cratis/documentation",
-    "cratis/engineering/csharp"
+    "cratis/review"
   ],
   "languages": [
     "csharp",
