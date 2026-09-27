@@ -17,16 +17,21 @@ public interface IInvitationTokenIssuer
     /// Issues a JWT token for a join-tenant invitation.
     /// </summary>
     /// <param name="invitationId">The invitation identifier embedded as the <c language="csharp">jti</c> claim.</param>
-    /// <returns>A signed JWT token string.</returns>
-    string IssueJoinTenantInvitation(Guid invitationId);
+    /// <returns>The signed JWT and its expiration instant.</returns>
+    IssuedInvitationToken IssueJoinTenantInvitation(Guid invitationId);
 
     /// <summary>
     /// Issues a JWT token for a create-tenant invitation.
     /// </summary>
     /// <param name="invitationId">The invitation identifier embedded as the <c language="csharp">jti</c> claim.</param>
-    /// <returns>A signed JWT token string.</returns>
-    string IssueCreateTenantInvitation(Guid invitationId);
+    /// <returns>The signed JWT and its expiration instant.</returns>
+    IssuedInvitationToken IssueCreateTenantInvitation(Guid invitationId);
 }
+
+/// <summary>A signed invitation token together with its JWT expiration instant.</summary>
+/// <param name="Token">The signed JWT.</param>
+/// <param name="ExpiresAt">The exact second recorded in the JWT exp claim.</param>
+public record IssuedInvitationToken(string Token, DateTimeOffset ExpiresAt);
 
 /// <summary>
 /// Well-known claim names used in invitation JWT tokens.
@@ -83,14 +88,14 @@ public class InvitationTokenConfig
 public class InvitationTokenIssuer(IOptions<InvitationTokenConfig> config) : IInvitationTokenIssuer
 {
     /// <inheritdoc/>
-    public string IssueJoinTenantInvitation(Guid invitationId) =>
+    public IssuedInvitationToken IssueJoinTenantInvitation(Guid invitationId) =>
         CreateToken(invitationId, InvitationFlowType.JoinTenant);
 
     /// <inheritdoc/>
-    public string IssueCreateTenantInvitation(Guid invitationId) =>
+    public IssuedInvitationToken IssueCreateTenantInvitation(Guid invitationId) =>
         CreateToken(invitationId, InvitationFlowType.CreateTenant);
 
-    string CreateToken(Guid invitationId, InvitationFlowType flowType)
+    IssuedInvitationToken CreateToken(Guid invitationId, InvitationFlowType flowType)
     {
         var options = config.Value;
 
@@ -113,6 +118,8 @@ public class InvitationTokenIssuer(IOptions<InvitationTokenConfig> config) : IIn
         };
 
         var handler = new JsonWebTokenHandler();
+        var now = DateTimeOffset.UtcNow;
+        var expiresAt = DateTimeOffset.FromUnixTimeSeconds((now + options.Expiry).ToUnixTimeSeconds());
 
         // Issuer and Audience are intentionally nullable: when left empty, a verifier configured to
         // skip those claims can accept the token, which is useful in development scenarios.
@@ -121,11 +128,11 @@ public class InvitationTokenIssuer(IOptions<InvitationTokenConfig> config) : IIn
             Subject = new ClaimsIdentity(claims),
             Issuer = string.IsNullOrWhiteSpace(options.Issuer) ? null : options.Issuer,
             Audience = string.IsNullOrWhiteSpace(options.Audience) ? null : options.Audience,
-            IssuedAt = DateTime.UtcNow,
-            Expires = DateTime.UtcNow.Add(options.Expiry),
+            IssuedAt = now.UtcDateTime,
+            Expires = expiresAt.UtcDateTime,
             SigningCredentials = signingCredentials,
         };
 
-        return handler.CreateToken(descriptor);
+        return new IssuedInvitationToken(handler.CreateToken(descriptor), expiresAt);
     }
 }

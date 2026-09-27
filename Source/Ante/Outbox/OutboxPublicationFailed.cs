@@ -21,4 +21,9 @@ public class OutboxPublicationFailed(EventSourceId eventSourceId, Type eventType
     : Exception(
         $"Forwarding {eventType.Name} for '{eventSourceId}' to the outbox did not succeed: " +
         string.Join("; ", result.Errors.Select(error => error.ToString())
-            .Concat(result.ConstraintViolations.Select(violation => violation.ToString()))));
+            .Concat(result.ConstraintViolations.Select(violation => violation.ToString()))
+            .Concat(result.ConcurrencyViolation is null ? [] : [result.ConcurrencyViolation.ToString()])))
+{
+    /// <summary>Gets the failed append result, including constraint, concurrency, and storage errors.</summary>
+    public AppendResult Result { get; } = result;
+}
