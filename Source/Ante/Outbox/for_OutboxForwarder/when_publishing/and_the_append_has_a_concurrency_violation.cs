@@ -13,12 +13,13 @@ public class and_the_append_has_a_concurrency_violation : Specification
     static readonly EventSourceId _id = (EventSourceId)Guid.NewGuid().ToString();
     OutboxPublicationFailed? _failure;
     ConcurrencyViolation _violation = null!;
+    IEventStore _store = null!;
 
-    async Task Because()
+    void Establish()
     {
-        var store = Substitute.For<IEventStore>();
+        _store = Substitute.For<IEventStore>();
         var outbox = Substitute.For<IEventSequence>();
-        store.GetEventSequence(EventSequenceId.Outbox).Returns(outbox);
+        _store.GetEventSequence(EventSequenceId.Outbox).Returns(outbox);
         _violation = new ConcurrencyViolation(_id, 1, 2);
         outbox.Append(
             Arg.Any<EventSourceId>(),
@@ -32,9 +33,13 @@ public class and_the_append_has_a_concurrency_violation : Specification
             Arg.Any<DateTimeOffset?>(),
             Arg.Any<Cratis.Chronicle.Subject>())
             .Returns(AppendResult.Failed(CorrelationId.New(), _violation));
+    }
+
+    async Task Because()
+    {
         try
         {
-            await store.PublishToOutbox(EventContext.Empty with { EventSourceId = _id }, new InvitationTokenIssued(InvitationFlowType.JoinTenant, "token", DateTimeOffset.UnixEpoch), []);
+            await _store.PublishToOutbox(EventContext.Empty with { EventSourceId = _id }, new InvitationTokenIssued(InvitationFlowType.JoinTenant, "token", DateTimeOffset.UnixEpoch), []);
         }
         catch (OutboxPublicationFailed failure)
         {
