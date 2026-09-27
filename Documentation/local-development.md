@@ -15,7 +15,7 @@ dotnet build Ante.slnx --configuration Release -p:CratisProxiesOutputPath=
 dotnet test Ante.slnx --configuration Debug --no-build --logger "console;verbosity=minimal"
 ```
 
-The Debug build regenerates TypeScript proxies and compiles colocated backend specifications. When intentionally adding a public `[EventType]` or generation, update the committed schema snapshot from the repository root:
+The Debug build regenerates TypeScript proxies and compiles colocated backend specifications. When intentionally adding a public `[EventType]` or generation, update the committed snapshot of Ante's camelCase Chronicle wire schemas from the repository root:
 
 ```bash
 ANTE_UPDATE_EVENT_SCHEMA_SNAPSHOT=1 dotnet test Source/Ante.Contracts/Ante.Contracts.csproj --filter FullyQualifiedName~and_comparing_the_snapshot
