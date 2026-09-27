@@ -17,7 +17,7 @@ public class and_the_signing_key_is_missing : Specification
         InvitationTokenConfigurationValidator.Validate(config);
         var signingConfig = new InvitationTokenConfig { PrivateKeyPem = rsa.ExportPkcs8PrivateKeyPem() };
         var issuer = new InvitationTokenIssuer(Options.Create(signingConfig));
-        var token = issuer.IssueJoinTenantInvitation(Guid.NewGuid());
+        var token = issuer.IssueJoinTenantInvitation(Guid.NewGuid()).Token;
         var signingValidator = new InvitationTokenValidator(Options.Create(signingConfig), Microsoft.Extensions.Logging.Abstractions.NullLogger<InvitationTokenValidator>.Instance);
         Assert.NotNull(await signingValidator.Validate($"Bearer {token}"));
         var validator = new InvitationTokenValidator(Options.Create(config), Microsoft.Extensions.Logging.Abstractions.NullLogger<InvitationTokenValidator>.Instance);
