@@ -4,6 +4,7 @@
 #if DEBUG
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Testing.Reactors;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_an_invitation_arrives;
 
@@ -11,7 +12,10 @@ public class and_a_revocation_arrives : Specification
 {
     static readonly EventSourceId _invitationId = (EventSourceId)Guid.NewGuid().ToString();
 
-    readonly ReactorScenario<IncomingInvitationReactor> _scenario = new();
+    readonly ReactorScenario<IncomingInvitationReactor> _scenario = new(new ServiceCollection()
+        .AddSingleton(Substitute.For<IEventStore>())
+        .AddLogging()
+        .BuildServiceProvider());
 
     async Task Because() => await _scenario.Given.ForEventSource(_invitationId).Events(new InvitationRevoked());
 

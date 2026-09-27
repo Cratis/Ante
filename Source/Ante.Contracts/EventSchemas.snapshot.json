@@ -1,0 +1,351 @@
+{
+  "InvitationRejected:1": {
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "integer",
+        "enum": [
+          0,
+          1
+        ],
+        "x-enumNames": [
+          "InvalidInvitationId",
+          "InvitationIdReused"
+        ]
+      }
+    },
+    "required": [
+      "reason"
+    ],
+    "title": "InvitationRejected"
+  },
+  "InvitationRevoked:1": {
+    "type": "object",
+    "title": "InvitationRevoked"
+  },
+  "InvitationToCreateTenantAccepted:1": {
+    "type": "object",
+    "properties": {
+      "tenantName": {
+        "type": "string"
+      },
+      "identityProvider": {
+        "type": "string"
+      },
+      "identityProviderSubject": {
+        "type": "string"
+      },
+      "firstName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "middleName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "lastName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "email": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "roles": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "tenantName",
+      "identityProvider",
+      "identityProviderSubject",
+      "firstName",
+      "middleName",
+      "lastName",
+      "email",
+      "roles"
+    ],
+    "title": "InvitationToCreateTenantAccepted"
+  },
+  "InvitationToJoinTenantAccepted:1": {
+    "type": "object",
+    "properties": {
+      "tenantName": {
+        "type": "string"
+      },
+      "identityProvider": {
+        "type": "string"
+      },
+      "identityProviderSubject": {
+        "type": "string"
+      },
+      "firstName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "middleName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "lastName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "email": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "roles": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "tenantName",
+      "identityProvider",
+      "identityProviderSubject",
+      "firstName",
+      "middleName",
+      "lastName",
+      "email",
+      "roles"
+    ],
+    "title": "InvitationToJoinTenantAccepted"
+  },
+  "InvitationTokenIssued:2": {
+    "type": "object",
+    "properties": {
+      "flowType": {
+        "type": "integer",
+        "enum": [
+          0,
+          1
+        ],
+        "x-enumNames": [
+          "JoinTenant",
+          "CreateTenant"
+        ]
+      },
+      "token": {
+        "type": "string"
+      },
+      "expiresAt": {
+        "type": "string",
+        "format": "date-time-offset"
+      }
+    },
+    "required": [
+      "flowType",
+      "token",
+      "expiresAt"
+    ],
+    "title": "InvitationTokenIssued"
+  },
+  "InvitationTokenIssued:1": {
+    "type": "object",
+    "properties": {
+      "flowType": {
+        "type": "integer",
+        "enum": [
+          0,
+          1
+        ],
+        "x-enumNames": [
+          "JoinTenant",
+          "CreateTenant"
+        ]
+      },
+      "token": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "flowType",
+      "token"
+    ],
+    "title": "InvitationTokenIssued"
+  },
+  "UserInvitedToCreateTenant:1": {
+    "type": "object",
+    "properties": {
+      "email": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "roles": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "email",
+      "roles"
+    ],
+    "title": "UserInvitedToCreateTenant"
+  },
+  "UserInvitedToJoinTenant:1": {
+    "type": "object",
+    "properties": {
+      "email": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "tenantName": {
+        "type": "string"
+      },
+      "roles": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "email",
+      "tenantName",
+      "roles"
+    ],
+    "title": "UserInvitedToJoinTenant"
+  },
+  "LegalTermsAccepted:1": {
+    "type": "object",
+    "properties": {
+      "tenantName": {
+        "type": "string"
+      },
+      "identityProvider": {
+        "type": "string"
+      },
+      "identityProviderSubject": {
+        "type": "string"
+      },
+      "version": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "tenantName",
+      "identityProvider",
+      "identityProviderSubject",
+      "version"
+    ],
+    "title": "LegalTermsAccepted"
+  },
+  "OrganizationRegistrationCompleted:1": {
+    "type": "object",
+    "properties": {
+      "tenantName": {
+        "type": "string"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "identityProvider": {
+        "type": "string"
+      },
+      "firstName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "middleName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "lastName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "email": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      }
+    },
+    "required": [
+      "tenantName",
+      "subject",
+      "identityProvider",
+      "firstName",
+      "middleName",
+      "lastName",
+      "email"
+    ],
+    "title": "OrganizationRegistrationCompleted"
+  }
+}

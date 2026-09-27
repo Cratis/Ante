@@ -15,7 +15,13 @@ dotnet build Ante.slnx --configuration Release -p:CratisProxiesOutputPath=
 dotnet test Ante.slnx --configuration Debug --no-build --logger "console;verbosity=minimal"
 ```
 
-The Debug build regenerates TypeScript proxies and compiles colocated backend specifications. The Release build deliberately disables a second proxy generation. To match CI's frontend job, from the repository root run:
+The Debug build regenerates TypeScript proxies and compiles colocated backend specifications. When intentionally adding a public `[EventType]` or generation, update the committed snapshot of Ante's camelCase Chronicle wire schemas from the repository root:
+
+```bash
+ANTE_UPDATE_EVENT_SCHEMA_SNAPSHOT=1 dotnet test Source/Ante.Contracts/Ante.Contracts.csproj --filter FullyQualifiedName~and_comparing_the_snapshot
+```
+
+Review and commit `Source/Ante.Contracts/EventSchemas.snapshot.json`, then rerun tests without the variable. The guard refuses to overwrite schemas for released generations listed in `Source/Ante.Contracts/ReleasedEventSchemas.json`, even in update mode; bump a released generation and add an `EventTypeMigration` instead. Unreleased generations can still change. Merging to `main` publishes a release (`.github/workflows/publish.yml`), so any pull request that adds an event type or generation must also add it to `ReleasedEventSchemas.json` before merge. The Release build deliberately disables a second proxy generation. To match CI's frontend job, from the repository root run:
 
 ```bash
 dotnet build Ante.slnx --configuration Debug
