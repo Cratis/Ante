@@ -39,18 +39,33 @@ public class InvitationTokenValidator(IOptions<InvitationTokenConfig> config, IL
     {
         if (!authorizationHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {
-            logger.LogInvitationTokenRejected();
+            logger.LogInvitationTokenRejected("MissingBearer");
             return null;
         }
 
         var token = authorizationHeader["Bearer ".Length..].Trim();
         var result = await _handler.ValidateTokenAsync(token, _parameters);
-        if (!result.IsValid || result.SecurityToken is not JsonWebToken jwt ||
-            jwt.Alg != SecurityAlgorithms.RsaSha256 ||
-            !Guid.TryParse(jwt.Id, out var invitationGuid) ||
-            jwt.ValidTo == DateTime.MinValue || jwt.ValidTo <= DateTime.UtcNow)
+        if (!result.IsValid || result.SecurityToken is not JsonWebToken jwt)
         {
-            logger.LogInvitationTokenRejected();
+            logger.LogInvitationTokenRejected(ReasonFor(result.Exception));
+            return null;
+        }
+
+        if (jwt.Alg != SecurityAlgorithms.RsaSha256)
+        {
+            logger.LogInvitationTokenRejected("UnsupportedAlgorithm");
+            return null;
+        }
+
+        if (!Guid.TryParse(jwt.Id, out var invitationGuid))
+        {
+            logger.LogInvitationTokenRejected("InvalidInvitationId");
+            return null;
+        }
+
+        if (jwt.ValidTo == DateTime.MinValue || jwt.ValidTo <= DateTime.UtcNow)
+        {
+            logger.LogInvitationTokenRejected("Expired");
             return null;
         }
 
@@ -61,6 +76,18 @@ public class InvitationTokenValidator(IOptions<InvitationTokenConfig> config, IL
 
         return new(invitationGuid, flowType, new DateTimeOffset(DateTime.SpecifyKind(jwt.ValidTo, DateTimeKind.Utc)));
     }
+
+    static string ReasonFor(Exception? error) => error switch
+    {
+        SecurityTokenExpiredException => "Expired",
+        SecurityTokenNotYetValidException => "NotYetValid",
+        SecurityTokenNoExpirationException => "MissingExpiration",
+        SecurityTokenInvalidIssuerException => "InvalidIssuer",
+        SecurityTokenInvalidAudienceException => "InvalidAudience",
+        SecurityTokenInvalidSignatureException => "InvalidSignature",
+        SecurityTokenInvalidAlgorithmException => "UnsupportedAlgorithm",
+        _ => "InvalidToken"
+    };
 
     static TokenValidationParameters CreateParameters(InvitationTokenConfig config)
     {

@@ -32,7 +32,7 @@ internal sealed class InvitationTokenFixture
     public Guid InvitationId { get; } = Guid.NewGuid();
     public DateTime ExpiresAt { get; } = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.AddDays(1).ToUnixTimeSeconds()).UtcDateTime;
 
-    public string Token(string? signingKey = null, string? issuer = "ante", string? audience = "lobby", DateTime? expires = null, bool omitExpiration = false, bool unsigned = false, string algorithm = SecurityAlgorithms.RsaSha256)
+    public string Token(string? signingKey = null, string? issuer = "ante", string? audience = "lobby", DateTime? expires = null, bool omitExpiration = false, bool unsigned = false, string algorithm = SecurityAlgorithms.RsaSha256, DateTime? notBefore = null)
     {
         using var rsa = RSA.Create();
         rsa.ImportFromPem(signingKey ?? _privateKey);
@@ -47,6 +47,7 @@ internal sealed class InvitationTokenFixture
             Issuer = issuer,
             Audience = audience,
             Expires = omitExpiration ? null : expires ?? ExpiresAt,
+            NotBefore = notBefore,
             SigningCredentials = unsigned ? null : new SigningCredentials(new RsaSecurityKey(rsa.ExportParameters(true)), algorithm),
         });
     }

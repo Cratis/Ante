@@ -5,6 +5,6 @@ namespace Ante.Invitations.Issuing;
 
 internal static partial class InvitationTokenValidatorLogging
 {
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Invitation exchange rejected an invalid bearer token")]
-    internal static partial void LogInvitationTokenRejected(this ILogger<InvitationTokenValidator> logger);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Invitation exchange rejected a bearer token: {Reason}")]
+    internal static partial void LogInvitationTokenRejected(this ILogger<InvitationTokenValidator> logger, string reason);
 }

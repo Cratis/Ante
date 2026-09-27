@@ -33,6 +33,8 @@ var builder = WebApplication.CreateBuilder(args);
 // see Documentation/configuration.md.
 var anteOptions = builder.Configuration.GetSection("Ante").Get<AnteOptions>() ?? new AnteOptions();
 AnteRoutingValidator.Validate(anteOptions);
+var invitationTokenOptions = builder.Configuration.GetSection("Ante:Invitations:Token").Get<InvitationTokenConfig>() ?? new InvitationTokenConfig();
+InvitationTokenConfigurationValidator.Validate(invitationTokenOptions, builder.Environment.IsDevelopment());
 
 builder.AddCratis(
     options =>

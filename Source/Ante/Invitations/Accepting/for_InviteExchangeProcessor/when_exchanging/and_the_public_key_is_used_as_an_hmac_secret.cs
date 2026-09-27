@@ -10,20 +10,22 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging;
 
-public class and_signed_with_a_different_algorithm : Specification
+public class and_the_public_key_is_used_as_an_hmac_secret : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
     bool _result;
 
     async Task Because()
     {
+        using var rsa = RSA.Create();
+        rsa.ImportFromPem(_fixture.Config.PrivateKeyPem);
         var token = new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity([new Claim(JwtRegisteredClaimNames.Jti, _fixture.InvitationId.ToString()), new Claim(InvitationClaims.InvitationType, nameof(InvitationFlowType.JoinTenant))]),
             Issuer = "ante",
             Audience = "lobby",
             Expires = DateTime.UtcNow.AddDays(1),
-            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(RandomNumberGenerator.GetBytes(32)), SecurityAlgorithms.HmacSha256),
+            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(rsa.ExportSubjectPublicKeyInfo()), SecurityAlgorithms.HmacSha256),
         });
         _result = await _fixture.Exchange(token);
     }

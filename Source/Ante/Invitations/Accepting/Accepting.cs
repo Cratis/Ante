@@ -72,6 +72,11 @@ public static class InviteExchangeProcessor
         IIdentityProviderResolver identityProviderResolver,
         IInvitationTokenValidator tokenValidator)
     {
+        if (string.IsNullOrWhiteSpace(request.Subject))
+        {
+            return false;
+        }
+
         var verifiedToken = await tokenValidator.Validate(authorizationHeader);
         if (verifiedToken is null)
         {
@@ -81,6 +86,12 @@ public static class InviteExchangeProcessor
         // Resolved on the way in, so the session records the provider the user actually authenticated
         // with rather than a placeholder that has to be un-guessed everywhere it is later read.
         var normalizedIdentityProvider = identityProviderResolver.ResolveFrom([request.ProviderKey, request.Issuer, request.IdentityProvider]);
+        if (string.IsNullOrWhiteSpace(normalizedIdentityProvider) ||
+            normalizedIdentityProvider.Equals(IdentityProviderResolver.Unidentified, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         var acceptedInvitation = new AcceptedInvitation(
             request.Subject,
             normalizedIdentityProvider,
