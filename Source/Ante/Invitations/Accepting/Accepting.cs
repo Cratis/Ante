@@ -63,52 +63,17 @@ public static class InviteExchangeProcessor
     /// <param name="request">The exchange request body.</param>
     /// <param name="acceptedInvitations">The collection accepted invitation sessions are recorded in.</param>
     /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
+    /// <param name="tokenValidator">Verifier of invitation signatures and claims.</param>
     /// <returns>True when the token was valid and the session was recorded.</returns>
     public static async Task<bool> TryStoreAcceptedInvitation(
         string authorizationHeader,
         ExchangeInviteRequest request,
         IMongoCollection<AcceptedInvitation> acceptedInvitations,
-        IIdentityProviderResolver identityProviderResolver)
+        IIdentityProviderResolver identityProviderResolver,
+        IInvitationTokenValidator tokenValidator)
     {
-        if (!authorizationHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        var token = authorizationHeader["Bearer ".Length..].Trim();
-
-        InvitationId invitationId;
-        InvitationFlowType flowType;
-        DateTimeOffset expiresAtUtc;
-
-        try
-        {
-            var handler = new JsonWebTokenHandler();
-            var jwt = handler.ReadJsonWebToken(token);
-            if (!Guid.TryParse(jwt.Id, out var guid))
-            {
-                return false;
-            }
-
-            // A token with no exp claim reads back as DateTime.MinValue here, so it is rejected the same
-            // way an already-expired one is - every invitation token this endpoint accepts is bounded in
-            // time by InvitationTokenIssuer, and a stale or malformed link fails cleanly here rather than
-            // minting a session that would authorize forever.
-            if (jwt.ValidTo == DateTime.MinValue || jwt.ValidTo <= DateTime.UtcNow)
-            {
-                return false;
-            }
-
-            invitationId = guid;
-            expiresAtUtc = new DateTimeOffset(DateTime.SpecifyKind(jwt.ValidTo, DateTimeKind.Utc));
-            var inviteTypeClaimValue = jwt.Claims
-                .FirstOrDefault(claim => claim.Type == InvitationClaims.InvitationType)
-                ?.Value;
-            flowType = Enum.TryParse<InvitationFlowType>(inviteTypeClaimValue, out var parsedInviteType)
-                ? parsedInviteType
-                : InvitationFlowType.JoinTenant;
-        }
-        catch (Exception)
+        var verifiedToken = await tokenValidator.Validate(authorizationHeader);
+        if (verifiedToken is null)
         {
             return false;
         }
@@ -119,10 +84,10 @@ public static class InviteExchangeProcessor
         var acceptedInvitation = new AcceptedInvitation(
             request.Subject,
             normalizedIdentityProvider,
-            invitationId,
-            flowType,
+            verifiedToken.InvitationId,
+            verifiedToken.FlowType,
             DateTimeOffset.UtcNow,
-            expiresAtUtc);
+            verifiedToken.ExpiresAtUtc);
 
         // A single upsert is the whole idempotency story here: at-least-once delivery from the
         // authentication proxy, a user double-submitting, or a lost response all replay the very same
@@ -183,10 +148,12 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
     /// <param name="context">The HTTP context.</param>
     /// <param name="acceptedInvitations">The collection accepted invitation sessions are recorded in.</param>
     /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
+    /// <param name="tokenValidator">The invitation token verifier.</param>
     public async Task InvokeAsync(
         HttpContext context,
         IMongoCollection<AcceptedInvitation> acceptedInvitations,
-        IIdentityProviderResolver identityProviderResolver)
+        IIdentityProviderResolver identityProviderResolver,
+        IInvitationTokenValidator tokenValidator)
     {
         if (HttpMethods.IsPost(context.Request.Method)
             && context.Request.Path.Equals("/_invite/exchange", StringComparison.OrdinalIgnoreCase))
@@ -212,7 +179,8 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
                 context.Request.Headers.Authorization.ToString(),
                 request,
                 acceptedInvitations,
-                identityProviderResolver);
+                identityProviderResolver,
+                tokenValidator);
 
             context.Response.StatusCode = success
                 ? StatusCodes.Status200OK
@@ -230,11 +198,13 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
 /// </summary>
 /// <param name="acceptedInvitations">The collection accepted invitation sessions are recorded in.</param>
 /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
+/// <param name="tokenValidator">The invitation token verifier.</param>
 [Route("_invite/exchange")]
 [ApiController]
 public class InviteExchangeController(
     IMongoCollection<AcceptedInvitation> acceptedInvitations,
-    IIdentityProviderResolver identityProviderResolver) : ControllerBase
+    IIdentityProviderResolver identityProviderResolver,
+    IInvitationTokenValidator tokenValidator) : ControllerBase
 {
     /// <summary>
     /// Exchanges an invitation token for a recorded acceptance session.
@@ -248,7 +218,8 @@ public class InviteExchangeController(
             Request.Headers.Authorization.ToString(),
             request,
             acceptedInvitations,
-            identityProviderResolver);
+            identityProviderResolver,
+            tokenValidator);
 
         return success ? Ok() : BadRequest();
     }

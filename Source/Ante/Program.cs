@@ -63,6 +63,7 @@ builder.Services.Configure<IdentityProviderOptions>(builder.Configuration.GetSec
 
 builder.Services.AddSingleton<IIdentityProviderResolver, IdentityProviderResolver>();
 builder.Services.AddSingleton<IInvitationTokenIssuer, InvitationTokenIssuer>();
+builder.Services.AddSingleton<IInvitationTokenValidator, InvitationTokenValidator>();
 builder.Services.AddScoped<ISignedInIdentity, SignedInIdentity>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient<IIdentityBackchannel, IdentityBackchannel>();

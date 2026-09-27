@@ -51,8 +51,9 @@ public class InvitationTokenConfig
     public string PrivateKeyPem { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the PEM-encoded RSA public key a host verifies tokens with. Ante itself only ever
-    /// signs; this is published for hosts and AuthProxy deployments that need to verify independently.
+    /// Gets or sets an additional trusted RSA public key for exchange verification (for example during
+    /// key rotation). The public key derived from <see cref="PrivateKeyPem"/> is always trusted too.
+    /// Hosts and authentication proxies may also use this public key to verify independently.
     /// </summary>
     public string PublicKeyPem { get; set; } = string.Empty;
 
