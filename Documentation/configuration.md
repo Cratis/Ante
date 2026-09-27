@@ -22,11 +22,13 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 
 | Suffix | Type | Code default | Base / Development setting | When needed |
 | --- | --- | --- | --- | --- |
-| `PrivateKeyPem` | string (PEM) | empty | empty / committed throwaway RSA key | Required to issue tokens; never reuse Development key outside local development. |
+| `PrivateKeyPem` | string (PEM) | empty | empty / committed throwaway RSA key | **Required in every environment at startup**; must parse as an RSA private key. Never reuse the Development key elsewhere. |
 | `PublicKeyPem` | string (PEM) | empty | empty / committed throwaway public key | **Additional** trusted exchange-verification key, for overlap during rotation. The public key derived from `PrivateKeyPem` is always trusted; this value does not change which key signs tokens. Distribute the current signing public key separately to external verifiers. |
-| `Issuer` | string | empty | empty / empty | When nonempty, written as `iss` at issuance and required at exchange; empty skips issuer validation. Coordinate external verifier policy. |
-| `Audience` | string | empty | empty / empty | When nonempty, written as `aud` at issuance and required at exchange; empty skips audience validation. Coordinate external verifier policy. |
+| `Issuer` | string | empty | empty / empty | **Required outside Development at startup**; written as `iss` at issuance and checked at exchange. Empty skips validation only in Development. |
+| `Audience` | string | empty | empty / empty | **Required outside Development at startup**; written as `aud` at issuance and checked at exchange. Empty skips validation only in Development. |
 | `Expiry` | `TimeSpan` | 7 days | `7.00:00:00` / `7.00:00:00` | Issued token lifetime; exchange requires `exp` and validates it with up to 30 seconds of clock skew, but the accepted session expires at the signed `exp`. |
+
+**Upgrade warning:** `PublicKeyPem` was previously ignored by Ante at exchange and is now trusted to verify invitation signatures. Remove any non-Ante key from this setting before upgrading. Supply a second key only when tokens signed with that key should be accepted (for example the outgoing Ante signing key during a rotation). An invalid configured public key prevents startup.
 
 ## Identity and infrastructure
 

@@ -11,7 +11,7 @@ description: Prepare a secure Ante instance, connect dependencies, and check the
 
 Run a Chronicle server compatible with the pinned `Cratis.Chronicle` client **19.4.7** (`Directory.Packages.props`) and MongoDB reachable from Ante. `Program.cs` passes `Ante:EventStore` and a fixed `Ante:Namespace` to the Arc/Chronicle builder but does not directly assign the connection string. Direct's real Ante deployment supplies `Cratis__Chronicle__ConnectionString` (`Direct/Deployment/AnteDeployment.cs`), which is the verified deployment key; this repository has no local Chronicle URL or server-version pin. Validate the connection string format and server compatibility in the environment you deploy.
 
-MongoDB is needed during startup: `Program.cs` awaits creation of accepted-invitation indexes before wiring the HTTP pipeline. Routing validation throws `AnteEventStoreNotConfigured`, `AnteNamespaceNotConfigured`, or `InboxSourceStoreCannotBeReconfigured` for empty local store/namespace or a configured host store different from the compiled `Direct`. It does **not** validate the RSA signing key at startup; an empty/malformed key may fail when a token is issued or the exchange validator is first resolved.
+MongoDB is needed during startup: `Program.cs` awaits creation of accepted-invitation indexes before wiring the HTTP pipeline. Routing validation throws `AnteEventStoreNotConfigured`, `AnteNamespaceNotConfigured`, or `InboxSourceStoreCannotBeReconfigured` for empty local store/namespace or a configured host store different from the compiled `Direct`. Invitation token startup validation requires a parseable RSA private key in every environment and nonempty `Ante:Invitations:Token:Issuer` and `Audience` outside Development; an invalid optional `PublicKeyPem` also fails startup with `InvitationTokenConfigurationInvalid`. The checked-in base settings are placeholders, not a deployable production configuration.
 
 Provide a host publishing invitations to outbox store `Direct` (or rebuild Ante for another name), a verifying proxy, host observers of Ante's outbox, and a real redirect URL. The checked-in base `HostAppUrl` is an unusable example, `https://{tenant}.example.com/`, especially for join invitations, which do not replace `{tenant}`. There is no bundled compose, Helm, or standalone host/proxy fixture.
 
@@ -26,7 +26,9 @@ openssl genrsa -out ante-private.pem 2048
 openssl rsa -in ante-private.pem -pubout -out ante-public.pem
 ```
 
-Inject the private PEM, including line breaks, as `Ante__Invitations__Token__PrivateKeyPem` from a protected secret source. Ante derives its current trusted verification key from this private key; distribute the matching public key to the external verifier. `Ante__Invitations__Token__PublicKeyPem` adds a second trusted exchange-verification key (for example, the outgoing key during rotation), not a signing key. Do not reuse the checked-in Development key. Coordinate an overlap with external verifiers and allow outstanding links to expire before removing the old key.
+Inject the private PEM, including line breaks, as `Ante__Invitations__Token__PrivateKeyPem` from a protected secret source. Set distinct, nonempty `Ante__Invitations__Token__Issuer` and `Ante__Invitations__Token__Audience` for this deployment; startup refuses to run without them outside Development. Ante derives its current trusted verification key from the private key; distribute the matching public key to the external verifier. `Ante__Invitations__Token__PublicKeyPem` adds a second trusted exchange-verification key (for example, the outgoing key during rotation), not a signing key. Do not reuse the checked-in Development key. Coordinate an overlap with external verifiers and allow outstanding links to expire before removing the old key.
+
+**Before upgrading:** `PublicKeyPem` was previously ignored by Ante at exchange and is now trusted to verify invitation signatures. Remove any non-Ante key from this setting before upgrading; a host or proxy key left there would grant that party invitation-signing authority.
 
 This **illustrative** `docker run` assumes Chronicle and MongoDB already exist on a private container network, the proxy alone can reach port 8080, and a secret manager has exported the full PEM as `Ante__Invitations__Token__PrivateKeyPem` without printing it. Replace the placeholders, including the Chronicle connection string, for your infrastructure; it is not a standalone first-invitation fixture:
 
@@ -40,6 +42,8 @@ docker run --name ante --network <private-network> \
   -e Ante__Namespace=Default \
   -e Ante__HostAppUrl='https://<real-host>/' \
   -e Ante__Invitations__Token__PrivateKeyPem \
+  -e Ante__Invitations__Token__Issuer='https://<ante-issuer>/' \
+  -e Ante__Invitations__Token__Audience='<ante-lobby-audience>' \
   ghcr.io/cratis/ante:<version>
 ```
 
