@@ -34,8 +34,8 @@ For an invited journey, the host mints a **nonempty GUID** invitation id and use
 
 | Caller → receiver | Route | Request / response and limits |
 | --- | --- | --- |
-| Trusted proxy → Ante | `POST /_invite/exchange` | `Authorization: Bearer <invitation JWT>` plus camelCase JSON `subject: string`, `identityProvider: string`, `providerKey?: string`, `issuer?: string`. Returns 200 on stored session, 400 for missing/malformed/expired token or invalid body; a MongoDB failure can return 500. **No signature/issuer/audience verification inside Ante.** |
-| Browser → Ante | `/invite/{token}` or `?token=...` | SPA URL used to select the invitation flow; not an authenticated API result. |
+| Trusted proxy → Ante | `POST /_invite/exchange` | `Authorization: Bearer <invitation JWT>` plus camelCase JSON `subject: string`, `identityProvider: string`, `providerKey?: string`, `issuer?: string`. Returns 200 on stored session, 400 for malformed JSON or a missing/malformed/expired token; body fields are not validated (a missing `subject` is stored as null and returns 200); a MongoDB failure can return 500. **No signature/issuer/audience verification inside Ante.** |
+| Browser → Ante | `/invite/{token}` or `?token=...` | SPA URL used to select the invitation flow; not an authenticated API result. Cratis AuthProxy serves `/invite/{token}` itself and redirects to the lobby. Until [Ante #68](https://github.com/Cratis/Ante/issues/68) ships, the same path requested from Ante *directly* returns 404 because the dots in the JWT make the SPA fallback treat it as a file; `/?token=...` works there. |
 | Browser → Ante | `/register` or `/register/*` | Self-service SPA route. |
 | Probe → Ante | `GET /healthz`, `GET /healthz/ready` | Liveness without dependency checks; readiness checks MongoDB only (200 healthy, 503 unhealthy). |
 | Developer → Ante | `/openapi/...` | Development-only generated OpenAPI endpoints; not served outside Development. |
