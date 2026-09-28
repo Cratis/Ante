@@ -196,29 +196,6 @@ public static class RegistrationSourceAvailability
 }
 
 /// <summary>
-/// Stable name of the per-registration append-time constraint.
-/// </summary>
-public static class RegistrationConstraintNames
-{
-    /// <summary>
-    /// Enforces one completed registration per event source.
-    /// </summary>
-    public const string OneUseRegistration = "OneUseRegistration";
-}
-
-/// <summary>
-/// Prevents a registration from reusing an event source already used for registration.
-/// </summary>
-public class OneUseRegistrationConstraint : IConstraint
-{
-    /// <inheritdoc/>
-    public void Define(IConstraintBuilder builder) => builder
-        .Unique<OrganizationRegistrationCompleted>(
-            "This registration has already been submitted.",
-            RegistrationConstraintNames.OneUseRegistration);
-}
-
-/// <summary>
 /// Forwards <see cref="OrganizationRegistrationCompleted"/> to the outbox so the host can subscribe.
 /// </summary>
 /// <remarks>
