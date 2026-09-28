@@ -34,8 +34,7 @@ namespace Ante.Legal;
 /// The pin goes through <see cref="ReactorAttribute"/>'s event sequence rather than <c language="csharp">[EventLog]</c>:
 /// Chronicle's client treats any type carrying an <c language="csharp">EventSequenceAttribute</c> as a model-bound
 /// projection too, registers a projection under this reactor's id with no event types, and that projection takes
-/// over the observer - the reactor then never receives an event. The end-to-end fixture in
-/// <c language="csharp">Integration/</c> caught this against a real kernel.
+/// over the observer - the reactor then never receives an event. See Cratis/Ante#72 and Cratis/Chronicle#4310.
 /// </para>
 /// </remarks>
 /// <param name="eventStore">The event store.</param>
