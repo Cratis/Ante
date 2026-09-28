@@ -118,7 +118,7 @@ public class LegalDocumentSetReceiver(IEventStore store, IOptions<AnteOptions> o
                 inboxNumber,
                 LegalDocumentRejectionReason.InvalidSet);
         }
-        if (reusedRevision is not null || (reusedVersion is not null && !Matches(reusedVersion, published)))
+        if (reusedRevision is not null || (reusedVersion is not null && !SameBodies(reusedVersion, published)))
         {
             return new LegalDocumentSetRejected(published.Revision, published.Version, inboxNumber, LegalDocumentRejectionReason.ConflictingRevisionOrVersion);
         }
@@ -128,7 +128,9 @@ public class LegalDocumentSetReceiver(IEventStore store, IOptions<AnteOptions> o
             : null; // A previously unseen older revision never rolls back the current set.
 
         static bool Matches(LegalDocumentSetReceived existing, LegalDocumentSetPublished incoming) =>
-            existing.Revision == incoming.Revision && existing.Version == incoming.Version &&
+            existing.Revision == incoming.Revision && existing.Version == incoming.Version && SameBodies(existing, incoming);
+
+        static bool SameBodies(LegalDocumentSetReceived existing, LegalDocumentSetPublished incoming) =>
             existing.TermsAndConditions == incoming.TermsAndConditions && existing.PrivacyPolicy == incoming.PrivacyPolicy;
     }
 

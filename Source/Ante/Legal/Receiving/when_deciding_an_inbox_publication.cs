@@ -30,6 +30,14 @@ public class when_deciding_an_inbox_publication : Specification
         Assert.Null(LegalDocumentSetReceiver.Decide([_active], [], _second, 4));
 
     [Fact]
+    public void should_accept_a_new_revision_for_an_unchanged_version_and_text() =>
+        Assert.IsType<LegalDocumentSetReceived>(LegalDocumentSetReceiver.Decide(
+            [_active],
+            [],
+            new(3, "terms-v2", "Terms two", "Privacy two"),
+            5)).Revision.Value.ShouldEqual(3);
+
+    [Fact]
     public void should_quarantine_a_reused_revision_with_different_text() =>
         Assert.IsType<LegalDocumentSetRejected>(LegalDocumentSetReceiver.Decide(
             [_active],
