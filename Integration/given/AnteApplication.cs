@@ -68,20 +68,21 @@ public sealed class AnteApplication(
     {
         // Not Development: that environment turns on DI scope validation, and Program.cs resolves a scoped
         // IMongoCollection from the root provider at startup - fine in a deployment, fatal under Development.
-        builder.UseEnvironment("Integration");
         using var signingKey = RSA.Create(2048);
-        builder.UseSetting("Ante:Invitations:Token:PrivateKeyPem", signingKey.ExportPkcs8PrivateKeyPem());
-        builder.UseSetting("Ante:Invitations:Token:PublicKeyPem", signingKey.ExportSubjectPublicKeyInfoPem());
-        builder.UseSetting("Cratis:Chronicle:ConnectionString", infrastructure.ChronicleConnectionString);
-        builder.UseSetting("Cratis:MongoDB:Server", infrastructure.MongoDBServer);
-        builder.UseSetting("Cratis:MongoDB:Database", EventStore);
-        builder.UseSetting("Ante:EventStore", EventStore);
+        builder
+            .UseEnvironment("Integration")
+            .UseSetting("Ante:Invitations:Token:PrivateKeyPem", signingKey.ExportPkcs8PrivateKeyPem())
+            .UseSetting("Ante:Invitations:Token:PublicKeyPem", signingKey.ExportSubjectPublicKeyInfoPem())
+            .UseSetting("Cratis:Chronicle:ConnectionString", infrastructure.ChronicleConnectionString)
+            .UseSetting("Cratis:MongoDB:Server", infrastructure.MongoDBServer)
+            .UseSetting("Cratis:MongoDB:Database", EventStore)
+            .UseSetting("Ante:EventStore", EventStore)
+            .UseSetting("IdentityProviders:Providers:0:Name", IdentityProvider);
         for (var index = 0; index < hostStores.Count; index++)
         {
             builder.UseSetting($"Ante:HostStores:{index}", hostStores[index]);
         }
 
-        builder.UseSetting("IdentityProviders:Providers:0:Name", IdentityProvider);
         // ANTE_INTEGRATION_DEBUG_LOG=Cratis (any logging category) turns on debug logging for that category.
         if (Environment.GetEnvironmentVariable("ANTE_INTEGRATION_DEBUG_LOG") is { Length: > 0 } diagnosticCategory)
         {

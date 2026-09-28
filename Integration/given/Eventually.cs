@@ -34,5 +34,4 @@ public static class Eventually
 
     public static async Task Until(Func<Task<bool>> condition, TimeSpan? timeout = default, string? what = default) =>
         await Get<object>(async () => await condition() ? true : null, timeout, what);
-
 }

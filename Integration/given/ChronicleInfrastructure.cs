@@ -28,7 +28,6 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
     const ushort HttpPort = 8080;
     const ushort MongoDBPort = 27017;
 
-    static ChronicleInfrastructure? _current;
     IContainer? _container;
 
     /// <summary>
@@ -36,7 +35,11 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
     /// constructor injection: Cratis.Specifications only runs Establish/Because once per class for classes with a
     /// parameterless constructor.
     /// </summary>
-    public static ChronicleInfrastructure Current => _current ?? throw new InvalidOperationException($"Specs using the kernel must be in [Collection({nameof(ChronicleCollection)}.{nameof(ChronicleCollection.Name)})].");
+    public static ChronicleInfrastructure Current
+    {
+        get => field ?? throw new InvalidOperationException($"Specs using the kernel must be in [Collection({nameof(ChronicleCollection)}.{nameof(ChronicleCollection.Name)})].");
+        private set;
+    }
 
     public static string Image => Environment.GetEnvironmentVariable("ANTE_CHRONICLE_IMAGE") is { Length: > 0 } image ? image : DefaultImage;
 
@@ -68,7 +71,7 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
             .Build();
 
         await _container.StartAsync();
-        _current = this;
+        Current = this;
     }
 
     public async Task DisposeAsync()
