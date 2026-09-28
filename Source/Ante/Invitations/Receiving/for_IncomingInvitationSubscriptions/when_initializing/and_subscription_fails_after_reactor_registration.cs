@@ -39,6 +39,7 @@ public class and_subscription_fails_after_reactor_registration : Specification
             EventSequenceNumber.Unavailable)));
         _reactors.Register(Arg.Any<ReactorId>(), Arg.Any<Action<IReactorDefinitionBuilder>>(), Arg.Any<Func<ReactorEvent, CancellationToken, Task>>())
             .Returns(Task.FromResult(handler));
+        _reactors.GetHandlerById(Arg.Any<ReactorId>()).Returns(handler);
         _subscriptions = Substitute.For<IEventStoreSubscriptions>();
         store.Subscriptions.Returns(_subscriptions);
         var attempts = 0;

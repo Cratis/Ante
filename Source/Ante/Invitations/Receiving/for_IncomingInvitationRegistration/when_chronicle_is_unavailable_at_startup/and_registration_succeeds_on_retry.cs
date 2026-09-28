@@ -42,6 +42,7 @@ public class and_registration_succeeds_on_retry : Specification
             EventSequenceNumber.Unavailable)));
         reactors.Register(Arg.Any<ReactorId>(), Arg.Any<Action<IReactorDefinitionBuilder>>(), Arg.Any<Func<ReactorEvent, CancellationToken, Task>>())
             .Returns(Task.FromResult(handler));
+        reactors.GetHandlerById(Arg.Any<ReactorId>()).Returns(handler);
         var subscriptions = Substitute.For<IEventStoreSubscriptions>();
         store.Subscriptions.Returns(subscriptions);
         subscriptions.Subscribe(Arg.Any<EventStoreSubscriptionId>(), Arg.Any<string>(), Arg.Any<Action<IEventStoreSubscriptionBuilder>>())

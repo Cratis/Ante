@@ -23,7 +23,7 @@ public class IncomingInvitationSubscriptions(
     ILogger<IncomingInvitationReactor> logger)
 {
     const string LegacyReactorId = "Ante.Invitations.Receiving.IncomingInvitationReactor";
-    readonly Dictionary<string, IReactorHandler> _handlers = new(StringComparer.Ordinal);
+    readonly HashSet<string> _registeredReactors = new(StringComparer.Ordinal);
     readonly HashSet<string> _subscribed = new(StringComparer.Ordinal);
     readonly Lock _readinessLock = new();
     IEventStore? _registeredStore;
@@ -72,17 +72,17 @@ public class IncomingInvitationSubscriptions(
             if (!ReferenceEquals(_registeredStore, store))
             {
                 _registeredStore = store;
-                _handlers.Clear();
+                _registeredReactors.Clear();
                 _subscribed.Clear();
             }
         }
 
         foreach (var source in options.HostStores!)
         {
-            if (!_handlers.ContainsKey(source))
+            if (!_registeredReactors.Contains(source))
             {
                 var handler = new IncomingInvitationReactor(store, logger, source);
-                var registered = await store.Reactors.Register(
+                await store.Reactors.Register(
                     ReactorIdFor(source),
                     definition => definition
                         .OnEventSequence(InboxFor(source))
@@ -96,7 +96,7 @@ public class IncomingInvitationSubscriptions(
                     }).WaitAsync(cancellationToken);
                 lock (_readinessLock)
                 {
-                    _handlers.TryAdd(source, registered);
+                    _registeredReactors.Add(source);
                 }
             }
 
@@ -152,34 +152,29 @@ public class IncomingInvitationSubscriptions(
 
     async Task<bool> CheckReadiness(AnteOptions options)
     {
-        (string Source, IReactorHandler Handler)[] handlers;
         IEventStore store;
         lock (_readinessLock)
         {
-            if (!_initialized || _handlers.Count != options.HostStores?.Count)
+            if (!_initialized || _registeredReactors.Count != options.HostStores?.Count)
             {
                 return false;
             }
 
             store = _registeredStore!;
-            handlers = [.. options.HostStores.Select(source => (source, _handlers[source]))];
         }
 
-        foreach (var (source, previous) in handlers)
+        foreach (var source in options.HostStores!)
         {
-            // Chronicle recreates its handler on reconnect without changing the client store instance.
-            var handler = previous.CancellationToken.IsCancellationRequested
-                ? store.Reactors.GetHandlerById(ReactorIdFor(source))
-                : previous;
-            if (!ReferenceEquals(handler, previous))
+            // Chronicle replaces registered handlers on reconnect while keeping the client store instance.
+            // Resolve the current handler instead of retaining a reference to one that may be disposed.
+            IReactorHandler handler;
+            try
             {
-                lock (_readinessLock)
-                {
-                    if (ReferenceEquals(_registeredStore, store))
-                    {
-                        _handlers[source] = handler;
-                    }
-                }
+                handler = store.Reactors.GetHandlerById(ReactorIdFor(source));
+            }
+            catch (UnknownReactorId)
+            {
+                return false;
             }
 
             var state = await handler.GetState();
