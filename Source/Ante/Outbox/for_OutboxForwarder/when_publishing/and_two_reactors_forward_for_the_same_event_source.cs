@@ -10,9 +10,15 @@ using Cratis.Types;
 namespace Ante.Outbox.for_OutboxForwarder.when_publishing;
 
 /// <summary>
-/// The acceptance and legal reactors publish independently for one invitation. Their outbox writes
-/// must both succeed even if they arrive together instead of racing on an expected sequence number.
+/// The acceptance and legal reactors publish independently for one invitation, and both facts land on
+/// the same outbox event source.
 /// </summary>
+/// <remarks>
+/// This does not guard the concurrency race from Cratis/Ante#73: EventScenario never applies an
+/// optimistic concurrency strategy, so appends here run unchecked with or without the fix. That
+/// regression is guarded by the explicit <c language="csharp">ConcurrencyScope.None</c> assertion in
+/// <c language="csharp">and_the_append_succeeds</c>.
+/// </remarks>
 public class and_two_reactors_forward_for_the_same_event_source : Specification
 {
     readonly EventSourceId _id = (EventSourceId)Guid.NewGuid().ToString();
