@@ -312,11 +312,15 @@ public class SignedInIdentity(
 
     static AttestedInvitationSession? SelectLatestAttestedSession(IEnumerable<AttestedInvitationSession> candidates, InvitationId invitationId)
     {
-        var ordered = candidates.OrderByDescending(row => row.CompletedAtUtc).Take(2).ToArray();
+        // Pre-upgrade sessions have only the original completion time. Never use capability expiry
+        // for routing: it is immutable, and a new staged transaction must not extend it.
+        static DateTime Latest(AttestedInvitationSession row) => row.LatestNewCompletionAtUtc == default
+            ? row.CompletedAtUtc : row.LatestNewCompletionAtUtc;
+        var ordered = candidates.OrderByDescending(Latest).Take(2).ToArray();
 
         // An exact id is already checked against the actor above. Without one, two sessions with
         // indistinguishable completion times (including pre-upgrade records) cannot be routed safely.
-        return invitationId == InvitationId.NotSet && ordered.Length > 1 && ordered[0].CompletedAtUtc == ordered[1].CompletedAtUtc
+        return invitationId == InvitationId.NotSet && ordered.Length > 1 && Latest(ordered[0]) == Latest(ordered[1])
             ? null : ordered.FirstOrDefault();
     }
 

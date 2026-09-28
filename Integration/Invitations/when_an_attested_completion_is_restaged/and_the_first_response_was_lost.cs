@@ -29,6 +29,7 @@ public class and_the_first_response_was_lost : Specification
     bool _replayRejected;
     bool _freshReplayRejected;
     AttestedInvitationSession _stored;
+    DateTime _latestAfterThird;
 
     async Task Establish()
     {
@@ -98,6 +99,7 @@ public class and_the_first_response_was_lost : Specification
         // AuthProxy restages twice after lost responses; neither restaging changes the original expiry.
         _recovered = await _sessions.Complete(_restaged, _secondAssertion);
         _recoveredAgain = await _sessions.Complete(_restagedAgain, _thirdAssertion);
+        _latestAfterThird = (await _collection.Find(Builders<AttestedInvitationSession>.Filter.Empty).SingleAsync()).LatestNewCompletionAtUtc;
         _originalRetried = await _sessions.Retry(_original, _firstAssertion) == AttestedSessionOutcome.Accepted;
         _restagedRetried = await _sessions.Retry(_restaged, _secondAssertion) == AttestedSessionOutcome.Accepted;
         _freshOriginalAccepted = await _sessions.Retry(_original, _firstAssertion with { AssertionId = "jti-fresh-original" }) == AttestedSessionOutcome.Accepted;
@@ -118,5 +120,7 @@ public class and_the_first_response_was_lost : Specification
     [Fact] void should_refuse_to_claim_a_replayed_assertion_for_another_transaction() => _replayRejected.ShouldBeTrue();
     [Fact] void should_refuse_a_fresh_retry_jti_for_another_transaction() => _freshReplayRejected.ShouldBeTrue();
     [Fact] void should_retain_the_original_expiry() => _stored.ExpiresAtUtc.ShouldEqual(DateTimeOffset.FromUnixTimeMilliseconds(_original.CapabilityExpiresAtUtc.ToUnixTimeMilliseconds()).UtcDateTime);
+    [Fact] void should_not_move_the_latest_new_completion_on_assertion_retries() => _stored.LatestNewCompletionAtUtc.ShouldEqual(_latestAfterThird);
+    [Fact] void should_identify_the_last_new_transaction() => _stored.LatestTransactionId.ShouldEqual(_restagedAgain.Id);
     [Fact] void should_keep_one_actor_session() => _stored.Id.ShouldEqual(_original.Id);
 }

@@ -82,6 +82,9 @@ public record AttestedInvitationSession(
     /// <summary>Gets the time this session first completed, independent of capability expiry.</summary>
     public DateTime CompletedAtUtc { get; init; }
 
+    /// <summary>Gets the time a new transaction most recently completed, independent of session expiry and assertion retries.</summary>
+    public DateTime LatestNewCompletionAtUtc { get; init; }
+
     /// <summary>Gets the most recent staged transaction reconciled with this actor's session.</summary>
     public string? LatestTransactionId { get; init; }
 
@@ -179,9 +182,7 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
             var updated = await sessions.UpdateOneAsync(
                 binding & filter.Not(filter.AnyEq(row => row.AssertionIds, assertion.AssertionId)),
                 Builders<AttestedInvitationSession>.Update.AddToSet(row => row.AssertionIds, assertion.AssertionId)
-                    .Push(row => row.AssertionClaims, new AttestedAssertionClaim(stage.Id, assertion.AssertionId))
-                    .Set(row => row.LatestTransactionId, stage.Id)
-                    .Set(row => row.LatestAssertionId, assertion.AssertionId));
+                    .Push(row => row.AssertionClaims, new AttestedAssertionClaim(stage.Id, assertion.AssertionId)));
             if (updated.MatchedCount == 1)
             {
                 return AttestedSessionOutcome.Accepted;
@@ -209,6 +210,7 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
         // index check cannot grant access. A crash before insertion grants nothing,
         // and a crash after insertion leaves a complete, retryable session. The stage document is
         // never consumed or marked complete independently, so MongoDB transactions are unnecessary.
+        var completedAt = DateTime.UtcNow;
         var session = new AttestedInvitationSession(
             stage.Id,
             stage.LobbyScope,
@@ -220,7 +222,8 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
             [assertion.AssertionId],
             AttestedSessionExpiry.For(stage))
         {
-            CompletedAtUtc = DateTime.UtcNow,
+            CompletedAtUtc = completedAt,
+            LatestNewCompletionAtUtc = completedAt,
             LatestTransactionId = stage.Id,
             LatestAssertionId = assertion.AssertionId,
             AssertionClaims = [new(stage.Id, assertion.AssertionId)],
@@ -271,7 +274,8 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
                         [assertion.AssertionId],
                         AttestedSessionExpiry.For(stage))
                     {
-                        CompletedAtUtc = DateTime.UtcNow,
+                        CompletedAtUtc = now,
+                        LatestNewCompletionAtUtc = now,
                         LatestTransactionId = stage.Id,
                         LatestAssertionId = assertion.AssertionId,
                         AssertionClaims = [new(stage.Id, assertion.AssertionId)],
@@ -291,12 +295,14 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
         {
             var claimed = await sessions.UpdateOneAsync(
                 actor & filter.Eq(row => row.Id, existing.Id) & filter.Gt(row => row.ExpiresAtUtc, now) &
-                    filter.Not(filter.AnyEq(row => row.AssertionIds, assertion.AssertionId)),
+                    filter.Not(filter.AnyEq(row => row.AssertionIds, assertion.AssertionId)) &
+                    filter.Not(filter.ElemMatch(row => row.AssertionClaims, claim => claim.TransactionId == stage.Id)),
                 Builders<AttestedInvitationSession>.Update.AddToSet(row => row.AssertionIds, assertion.AssertionId)
                     .Push(row => row.AssertionClaims, new AttestedAssertionClaim(stage.Id, assertion.AssertionId))
                     .Set(row => row.LatestTransactionId, stage.Id)
-                    .Set(row => row.LatestAssertionId, assertion.AssertionId));
-            return claimed.MatchedCount == 1;
+                    .Set(row => row.LatestAssertionId, assertion.AssertionId)
+                    .Set(row => row.LatestNewCompletionAtUtc, now));
+            return claimed.MatchedCount == 1 || await Retry(stage, assertion) == AttestedSessionOutcome.Accepted;
         }
         catch (MongoWriteException exception) when (exception.WriteError.Category == ServerErrorCategory.DuplicateKey)
         {
