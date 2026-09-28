@@ -12,18 +12,17 @@ const nameError = (results: ValidationResult[]): string | undefined =>
 
 /** Validate a copy: the wizard must never acquire temporary values for fields on later steps. */
 export const validateOrganizationName = async <TCommand extends OrganizationNameCommand>(
-    current: TCommand,
     createProbe: () => TCommand,
     organizationName: string
 ): Promise<ICommandResult<unknown>> => {
     const probe = createProbe();
     probe.organizationName = organizationName;
-    // Arc validates required fields on the client before calling /validate. Temporary values for
-    // later steps let the server's name rules run before those steps have been filled in.
-    probe.firstName = current.firstName || 'Validation';
-    probe.lastName = current.lastName || 'Only';
-    probe.acceptedLegalTerms = current.acceptedLegalTerms ?? false;
-    probe.acceptedLegalVersion = current.acceptedLegalVersion ?? '';
+    // Arc returns early on any client error before reaching /validate. Use name-independent values
+    // for every other field, even when a later wizard step already contains invalid data.
+    probe.firstName = 'Validation';
+    probe.lastName = 'Only';
+    probe.acceptedLegalTerms = false;
+    probe.acceptedLegalVersion = '';
     return probe.validate();
 };
 
@@ -58,7 +57,7 @@ export class OrganizationNameStepValidation<TCommand extends OrganizationNameCom
         const organizationName = command.organizationName;
         if (oldValue === newValue) {
             if (validationInfo?.isValid && organizationName && this._validatedName !== organizationName) {
-                this.schedule(command, organizationName, 0);
+                this.schedule(organizationName, 0);
             }
             return;
         }
@@ -70,19 +69,19 @@ export class OrganizationNameStepValidation<TCommand extends OrganizationNameCom
             this.update({ isValidating: false, error: clientError });
             return;
         }
-        this.schedule(command, organizationName, 300);
+        this.schedule(organizationName, 300);
     };
 
-    private schedule(command: TCommand, organizationName: string, delay: number): void {
+    private schedule(organizationName: string, delay: number): void {
         this.cancel();
         const revision = this._revision;
         this.update({ isValidating: true });
-        this._timer = setTimeout(() => { void this.validate(command, organizationName, revision); }, delay);
+        this._timer = setTimeout(() => { void this.validate(organizationName, revision); }, delay);
     }
 
-    private async validate(command: TCommand, organizationName: string, revision: number): Promise<void> {
+    private async validate(organizationName: string, revision: number): Promise<void> {
         try {
-            const result = await validateOrganizationName(command, this._createProbe, organizationName);
+            const result = await validateOrganizationName(this._createProbe, organizationName);
             if (revision !== this._revision) return;
             this._onValidationFailure?.(result.validationResults);
             if (result.hasExceptions || !result.isAuthorized) {

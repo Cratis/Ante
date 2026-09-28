@@ -6,7 +6,7 @@ import { CommandResult } from '@cratis/arc/commands';
 import { ValidationResult, ValidationResultReason, ValidationResultSeverity } from '@cratis/arc/validation';
 import { OrganizationNameStepValidation } from '../../OrganizationNameStepValidation';
 import type { OrganizationNameCommand } from '../../OrganizationNameCommand';
-import { shouldResumeRegistrationAfterFailure } from '../shouldResumeRegistrationAfterFailure';
+import { shouldResumeRegistrationAfterFailure } from '../../Registration/shouldResumeRegistrationAfterFailure';
 
 class RegistrationCommand implements OrganizationNameCommand {
     organizationName = '';
