@@ -158,7 +158,12 @@ public class OneUseCreateTenantInvitationConstraint : IConstraint
 /// registration.
 /// </summary>
 /// <param name="TenantName">The claimed name.</param>
+/// <remarks>
+/// Pinned to the local event log for the same reason as <see cref="OrganizationSetupProgress"/>: the contract
+/// events' <c language="csharp">[EventStore("Ante")]</c> would otherwise route a renamed store to <c language="csharp">inbox-Ante</c>.
+/// </remarks>
 [ReadModel]
+[EventLog]
 [FromEvent<InvitationToCreateTenantAccepted>]
 [FromEvent<OrganizationRegistrationCompleted>]
 public record AcceptedOrganizationName([Key] TenantName TenantName);

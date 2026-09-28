@@ -17,7 +17,7 @@ public class and_a_different_user_requests_it : Specification
 
     async Task Because()
     {
-        var store = QueryCollections.ReadModelStoreWith(new OrganizationSetupProgress(_id, "Acme", OwnerSubject: (RegistrationOwnerSubject)"sub-1", OwnerProvider: "github"));
+        var store = QueryCollections.ReadModelStoreWith(new OrganizationSetupProgress(_id, "Acme") { OwnerSubject = (RegistrationOwnerSubject)"sub-1", OwnerProvider = "github" });
         _published = Substitute.For<IMongoCollection<OrganizationSetupPublished>>();
         using var subscriptions = new OrganizationSetupStatusSubscriptions();
         _result = await OrganizationSetupAcceptanceStatusView.StatusForRegistration(_id, Substitute.For<ISignedInIdentity>(), subscriptions, store, _published);

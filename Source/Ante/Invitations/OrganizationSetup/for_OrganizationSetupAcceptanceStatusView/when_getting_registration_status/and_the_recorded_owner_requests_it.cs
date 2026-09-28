@@ -18,7 +18,7 @@ public class and_the_recorded_owner_requests_it : Specification
     {
         var identity = Substitute.For<ISignedInIdentity>();
         identity.IsVerifiedRegistrationOwner(Arg.Is<RegistrationOwner>(owner => owner.Subject.Value == "sub-1" && owner.Provider == "github")).Returns(true);
-        var store = QueryCollections.ReadModelStoreWith(new OrganizationSetupProgress(_id, "Acme", OwnerSubject: (RegistrationOwnerSubject)"sub-1", OwnerProvider: "github"));
+        var store = QueryCollections.ReadModelStoreWith(new OrganizationSetupProgress(_id, "Acme") { OwnerSubject = (RegistrationOwnerSubject)"sub-1", OwnerProvider = "github" });
         var published = QueryCollections.With(new OrganizationSetupPublished(_id, true));
         using var subscriptions = new OrganizationSetupStatusSubscriptions();
         _result = await OrganizationSetupAcceptanceStatusView.StatusForRegistration(_id, identity, subscriptions, store, published);
