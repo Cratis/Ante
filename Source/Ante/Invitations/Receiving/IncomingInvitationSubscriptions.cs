@@ -12,7 +12,7 @@ namespace Ante.Invitations.Receiving;
 
 /// <summary>
 /// Binds each trusted host outbox to its own inbox reactor on Ante's configured store and namespace.
-/// Initialized once after Chronicle connects; the client retains runtime registrations across reconnects.
+/// Initialized in the background after Chronicle connects; the client retains runtime registrations across reconnects.
 /// </summary>
 /// <param name="client">The Chronicle client for Ante's configured event store.</param>
 /// <param name="scopeFactory">Creates a scope per delivery for Chronicle's event serializer.</param>
@@ -24,7 +24,10 @@ public class IncomingInvitationSubscriptions(
 {
     const string LegacyReactorId = "Ante.Invitations.Receiving.IncomingInvitationReactor";
     readonly Dictionary<string, IReactorHandler> _handlers = new(StringComparer.Ordinal);
+    readonly HashSet<string> _subscribed = new(StringComparer.Ordinal);
     readonly Lock _readinessLock = new();
+    IEventStore? _registeredStore;
+    bool _initialized;
     Task<bool>? _readinessProbe;
 
     /// <summary>Gets the stable cursor identity for a configured source store.</summary>
@@ -46,38 +49,61 @@ public class IncomingInvitationSubscriptions(
 
     /// <summary>Registers all source routes once for the client store instance.</summary>
     /// <param name="options">Validated startup routing options.</param>
+    /// <param name="cancellationToken">Stops waiting when the host shuts down.</param>
     /// <returns>Awaitable registration.</returns>
     /// <exception cref="InvalidOperationException">Chronicle artifact registration failed.</exception>
-    public async Task Initialize(AnteOptions options)
+    public async Task Initialize(AnteOptions options, CancellationToken cancellationToken = default)
     {
-        var store = await client.GetEventStore(options.EventStore, options.Namespace);
-        var outcome = await store.WaitForRegistration(TimeSpan.FromSeconds(30));
+        lock (_readinessLock)
+        {
+            _initialized = false;
+            _readinessProbe = null;
+        }
+
+        var store = await client.GetEventStore(options.EventStore, options.Namespace).WaitAsync(cancellationToken);
+        var outcome = await store.WaitForRegistration(TimeSpan.FromSeconds(30)).WaitAsync(cancellationToken);
         if (!outcome.IsSuccess)
         {
             throw new InvalidOperationException("Chronicle artifact registration did not succeed for Ante routing.", outcome.Failure);
         }
 
+        lock (_readinessLock)
+        {
+            if (!ReferenceEquals(_registeredStore, store))
+            {
+                _registeredStore = store;
+                _handlers.Clear();
+                _subscribed.Clear();
+            }
+        }
+
         foreach (var source in options.HostStores!)
         {
-            if (_handlers.ContainsKey(source))
+            if (!_handlers.ContainsKey(source))
+            {
+                var handler = new IncomingInvitationReactor(store, logger, source);
+                var registered = await store.Reactors.Register(
+                    ReactorIdFor(source),
+                    definition => definition
+                        .OnEventSequence(InboxFor(source))
+                        .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToJoinTenant)))
+                        .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToCreateTenant)))
+                        .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationRevoked))),
+                    async (delivery, _) =>
+                    {
+                        await using var scope = scopeFactory.CreateAsyncScope();
+                        await handler.Handle(delivery, scope.ServiceProvider.GetRequiredService<IEventSerializer>());
+                    }).WaitAsync(cancellationToken);
+                lock (_readinessLock)
+                {
+                    _handlers.TryAdd(source, registered);
+                }
+            }
+
+            if (_subscribed.Contains(source))
             {
                 continue;
             }
-
-            var handler = new IncomingInvitationReactor(store, logger, source);
-            var registered = await store.Reactors.Register(
-                ReactorIdFor(source),
-                definition => definition
-                    .OnEventSequence(InboxFor(source))
-                    .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToJoinTenant)))
-                    .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToCreateTenant)))
-                    .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationRevoked))),
-                async (delivery, _) =>
-                {
-                    await using var scope = scopeFactory.CreateAsyncScope();
-                    await handler.Handle(delivery, scope.ServiceProvider.GetRequiredService<IEventSerializer>());
-                });
-            _handlers.Add(source, registered);
 
             // Registration opens the observation stream; subscribing after it has been installed
             // prevents delivering events before there is a consumer. Reusing the source id retains
@@ -88,7 +114,16 @@ public class IncomingInvitationSubscriptions(
                 definition => definition
                     .WithEventType<UserInvitedToJoinTenant>()
                     .WithEventType<UserInvitedToCreateTenant>()
-                    .WithEventType<InvitationRevoked>());
+                    .WithEventType<InvitationRevoked>()).WaitAsync(cancellationToken);
+            lock (_readinessLock)
+            {
+                _subscribed.Add(source);
+            }
+        }
+
+        lock (_readinessLock)
+        {
+            _initialized = true;
         }
     }
 
@@ -101,9 +136,14 @@ public class IncomingInvitationSubscriptions(
         // remains blocked: the Chronicle handler's GetState API has no cancellation argument.
         lock (_readinessLock)
         {
+            if (!_initialized)
+            {
+                return Task.FromResult(false);
+            }
+
             if (_readinessProbe?.IsCompleted != false)
             {
-                _readinessProbe = CheckReadiness(options);
+                _readinessProbe = Task.Run(() => CheckReadiness(options));
             }
 
             return _readinessProbe;
@@ -112,16 +152,34 @@ public class IncomingInvitationSubscriptions(
 
     async Task<bool> CheckReadiness(AnteOptions options)
     {
-        if (_handlers.Count != options.HostStores?.Count)
+        (string Source, IReactorHandler Handler)[] handlers;
+        IEventStore store;
+        lock (_readinessLock)
         {
-            return false;
-        }
-
-        foreach (var source in options.HostStores)
-        {
-            if (!_handlers.TryGetValue(source, out var handler))
+            if (!_initialized || _handlers.Count != options.HostStores?.Count)
             {
                 return false;
+            }
+
+            store = _registeredStore!;
+            handlers = [.. options.HostStores.Select(source => (source, _handlers[source]))];
+        }
+
+        foreach (var (source, previous) in handlers)
+        {
+            // Chronicle recreates its handler on reconnect without changing the client store instance.
+            var handler = previous.CancellationToken.IsCancellationRequested
+                ? store.Reactors.GetHandlerById(ReactorIdFor(source))
+                : previous;
+            if (!ReferenceEquals(handler, previous))
+            {
+                lock (_readinessLock)
+                {
+                    if (ReferenceEquals(_registeredStore, store))
+                    {
+                        _handlers[source] = handler;
+                    }
+                }
             }
 
             var state = await handler.GetState();
