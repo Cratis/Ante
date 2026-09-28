@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { Button } from '@cratis/components/Common';
 import { ProgressSpinner } from '@cratis/components/Display';
 import { InputTextField } from '@cratis/components/CommandForm';
@@ -9,6 +9,9 @@ import { CommandStepper, StepperPanel } from '@cratis/components/CommandDialog';
 import { RegisterOrganization } from './Registration';
 import { getOrCreateRegistrationOperation, clearRegistrationOperation } from './RegistrationOperation';
 import { registrationValidationFailure } from './registrationValidationFailure';
+import { shouldResumeRegistrationAfterFailure } from './shouldResumeRegistrationAfterFailure';
+import { OrganizationNameStepValidation } from '../OrganizationNameStepValidation';
+import { OrganizationNameStepError } from '../OrganizationNameStepError';
 import { useOrganizationSetupHandoff } from '../../Invitations/OrganizationSetup/useOrganizationSetupHandoff';
 import { OrganizationSetupFrame } from '../../Invitations/OrganizationSetup/OrganizationSetupFrame';
 import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
@@ -33,6 +36,19 @@ export const RegistrationPage = () => {
         isRegistration: true,
         recoveringRegistration: operation.isRecovered,
     });
+    const markSubmittedRef = useRef(handoff.markSubmitted);
+    markSubmittedRef.current = handoff.markSubmitted;
+    const nameValidation = useMemo(() => new OrganizationNameStepValidation(
+        () => {
+            const probe = new RegisterOrganization();
+            probe.registrationId = registrationId;
+            return probe;
+        },
+        strings.organizationSetup.nameValidationUnavailable,
+        results => { if (shouldResumeRegistrationAfterFailure(results)) markSubmittedRef.current(); }
+    ), [registrationId]);
+    const { isValidating: isNameValidating } = useSyncExternalStore(nameValidation.subscribe, nameValidation.getSnapshot);
+    useEffect(() => () => nameValidation.dispose(), [nameValidation]);
 
     // Memoized so an unrelated re-render - opening the terms dialog, a status poll tick - does not
     // recreate this object: CommandForm reasserts initialValues/currentValues onto the command whenever
@@ -135,6 +151,8 @@ export const RegistrationPage = () => {
                 <CommandStepper<RegisterOrganization>
                     command={RegisterOrganization}
                     validateOnInit
+                    isBusy={isNameValidating}
+                    onFieldChange={nameValidation.onFieldChange}
                     okLabel={strings.registration.register}
                     initialValues={initialValues}
                     currentValues={currentValues}
@@ -152,6 +170,7 @@ export const RegistrationPage = () => {
                             placeholder={strings.registration.organizationNamePlaceholder}
                             pt={{ root: { autoComplete: 'organization' } }}
                         />
+                        <OrganizationNameStepError validation={nameValidation} />
                     </StepperPanel>
                     <StepperPanel header={strings.organizationSetup.stepUserInformation}>
                         <InputTextField<RegisterOrganization>
