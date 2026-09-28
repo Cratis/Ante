@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Chronicle.EventSequences.Concurrency;
+
 namespace Ante.Outbox;
 
 /// <summary>
@@ -51,10 +53,12 @@ public static class OutboxForwarder
         object @event,
         IEnumerable<IPublicationStatusNotifier> notifiers)
     {
+        // Independent reactors forward facts to the same outbox source; neither decides its next state.
         var result = await eventStore.GetEventSequence(EventSequenceId.Outbox).Append(
             context.EventSourceId,
             @event,
             correlationId: context.CorrelationId,
+            concurrencyScope: ConcurrencyScope.None,
             occurred: context.Occurred,
             subject: context.Subject);
 

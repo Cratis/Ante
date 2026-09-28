@@ -28,7 +28,9 @@ openssl rsa -in ante-private.pem -pubout -out ante-public.pem
 
 For a deployment that issues or exchanges invitations, inject the private PEM, including line breaks, as `Ante__Invitations__Token__PrivateKeyPem` from a protected secret source. Configure distinct `Ante__Invitations__Token__Issuer` and `Ante__Invitations__Token__Audience` values for this deployment when rolling out their verification; startup warns but does not refuse to run when they are empty. Ante derives its current trusted verification key from the private key; distribute the matching public key to the external verifier. `Ante__Invitations__Token__PublicKeyPem` adds a second trusted exchange-verification key (for example, the outgoing key during rotation), not a signing key. Do not reuse the checked-in Development key. Coordinate an overlap with external verifiers and allow outstanding links to expire before removing the old key.
 
-**Before upgrading:** `PublicKeyPem` was previously ignored by Ante at exchange and is now trusted to verify invitation signatures. Remove any non-Ante key from this setting before upgrading; a host or proxy key left there would grant that party invitation-signing authority. Adding `Issuer` or `Audience` makes links minted without those claims fail exchange; tokens live seven days by default. Plan the switch around outstanding links rather than introducing both values during an unplanned upgrade.
+**Before upgrading:** `PublicKeyPem` was previously ignored by Ante at exchange and is now trusted to verify invitation signatures. Remove any non-Ante key from this setting before upgrading; a host or proxy key left there would grant that party invitation-signing authority.
+
+**Next-major migration ([Ante #69](https://github.com/Cratis/Ante/issues/69)):** outside Development, startup will require issuer, audience and a usable RSA private key. Today missing claims only warn and an empty private key still permits startup (but cannot issue or exchange links). For a planned cutover, stop issuing old links and drain outstanding links for the configured `Ante:Invitations:Token:Expiry` (seven days is the default, not a universal window). Then set issuer/audience consistently in Ante and AuthProxy, verify matching validation and resume issuance. If draining is unacceptable, revoke outstanding invitations and reissue links under the new configuration. **Enabling issuer or audience now already invalidates older links that lack those claims**; enabling validation first and waiting afterward will not preserve them. See [Signing options](./configuration.md#signing-options-anteinvitationstoken).
 
 This **illustrative** `docker run` assumes Chronicle and MongoDB already exist on a private container network, the proxy alone can reach port 8080, and a secret manager has exported the full PEM as `Ante__Invitations__Token__PrivateKeyPem` without printing it. Replace the placeholders, including the Chronicle connection string, for your infrastructure; it is not a standalone first-invitation fixture:
 
@@ -65,6 +67,12 @@ Releases v0.5.0 through v0.10.0 never forwarded acceptances, legal acceptance, o
 3. Expect a backlog. The reactors publish every historical `InvitationToJoinTenantAccepted`, `InvitationToCreateTenantAccepted`, `OrganizationRegistrationCompleted` and `LegalTermsAccepted` from the start of Ante's event log, including facts an earlier release (v0.4.x or before) already forwarded. Tell your hosts before the upgrade. Hosts must consume these idempotently, and should decide how to treat acceptances older than the upgrade (for example, grant membership, or ask the user to be invited again).
 
 The rehearsal used `-development` images with their default kernel settings.
+
+## Upgrade from a release where self-registration status stayed pending
+
+On releases before the fix for the registration owner projection, a self-registering user's status never left `Pending`. The owner fields were missing from the `OrganizationSetupProgress` read-model schema, so reads returned no owner, and the owner subject was stored unencrypted in that collection. On a deployment whose `Ante:EventStore` is not `Ante`, the setup read models (`OrganizationSetupProgress`, `UserSetupProgress`, `AcceptedOrganizationName`) also observed `inbox-Ante` instead of the event log and stayed empty, which weakened the organization-name uniqueness pre-check.
+
+After upgrading, replay those three projections from the start of the event log so every document is rebuilt under the corrected schema and sequence. This also rewrites the previously plaintext owner subjects in encrypted form.
 
 ## Cut over or roll back routing
 
