@@ -7,7 +7,7 @@ using Ante.Resources;
 namespace Ante.Locale;
 
 /// <summary>
-/// Translates Chronicle's append-time constraint messages at the Arc HTTP response boundary.
+/// Translates Chronicle's append-time constraint and concurrency messages at the Arc HTTP response boundary.
 /// Chronicle 19.4.7 captures the message in the constraint definition/attribute at startup,
 /// outside any request culture; the stable reasonDetail constraint name identifies the failure.
 /// </summary>
@@ -39,6 +39,16 @@ public static class LocalizedConstraintResponses
             var changed = false;
             foreach (var result in results.OfType<JsonObject>())
             {
+                // A concurrency violation means the state the command decided on moved before it was
+                // appended - for onboarding, typically a newer legal document set. Chronicle's message is
+                // technical and fixed; the user needs a localized "review and submit again".
+                if (result["reason"]?.GetValue<string>() == "concurrencyViolation")
+                {
+                    result["message"] = Messages.Get("ConcurrentChange");
+                    changed = true;
+                    continue;
+                }
+
                 if (result["reason"]?.GetValue<string>() != "constraintViolation" ||
                     result["reasonDetail"]?.GetValue<string>() is not { } name ||
                     !_messages.TryGetValue(name, out var key))

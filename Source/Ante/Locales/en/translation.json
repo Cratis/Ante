@@ -18,7 +18,9 @@
         "checkAgain": "Check again",
         "contactSupport": "If this keeps happening, please contact support.",
         "continueToHost": "Continue",
-        "hostOutcomeReference": "Reference: {reasonCode}"
+        "hostOutcomeReference": "Reference: {reasonCode}",
+        "legalDocumentsUnavailable": "Legal documents are not available yet. Check again before continuing.",
+        "legalDocumentsChecking": "Checking legal documents..."
     },
     "accessibility": {
         "stepAnnouncement": "Step {current} of {total}: {label}"

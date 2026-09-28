@@ -29,6 +29,7 @@ function specifyMountedForm<T extends OnboardingCommand>(flow: string, commandTy
         let update: (values: T) => void;
         let executeForm: () => Promise<unknown>;
         let version: string | undefined;
+        let isChecking: boolean;
         let locale: 'en' | 'nb-NO';
         let submittedVersion: string | undefined;
 
@@ -45,9 +46,10 @@ function specifyMountedForm<T extends OnboardingCommand>(flow: string, commandTy
             await act(async () => {
                 root.render(React.createElement(LocaleProvider, {
                     locale, settings: { defaultLocale: 'en', supportedLocales: ['en', 'nb-NO'] }, onChange: () => { }
-                }, React.createElement(Form, { command: commandType, initialValues },
-                    React.createElement(CaptureCommand),
-                    version && React.createElement(LegalVersionValues, { version }))));
+                }, React.createElement('div', { hidden: isChecking, inert: isChecking },
+                    React.createElement(Form, { command: commandType, initialValues },
+                        React.createElement(CaptureCommand),
+                        version && React.createElement(LegalVersionValues, { version })))));
             });
         };
 
@@ -56,6 +58,7 @@ function specifyMountedForm<T extends OnboardingCommand>(flow: string, commandTy
             document.body.append(container);
             root = createRoot(container);
             version = undefined;
+            isChecking = false;
             locale = 'en';
             submittedVersion = undefined;
             await renderForm();
@@ -86,6 +89,23 @@ function specifyMountedForm<T extends OnboardingCommand>(flow: string, commandTy
                 await executeForm();
             });
             submittedVersion!.should.equal('legal-v4');
+        });
+
+        it('should keep entered names and acceptance when checking the same legal version again', async () => {
+            act(() => {
+                command.acceptedLegalTerms = true;
+                update(command);
+            });
+            isChecking = true;
+            await renderForm();
+            command.firstName.should.equal('Ada');
+            command.acceptedLegalTerms.should.be.true;
+            isChecking = false;
+            await renderForm();
+            command.firstName.should.equal('Ada');
+            command.middleName!.should.equal('Marie');
+            command.lastName.should.equal('Lovelace');
+            command.acceptedLegalTerms.should.be.true;
         });
 
         it('should preserve entered names through pre-flight and a language switch', async () => {

@@ -18,11 +18,12 @@ import { validateChangedName } from '../NameFieldValidation';
 import { localeHttpHeaders } from '../../Locale/localeHttpHeaders';
 import { useLocale } from '../../Locale/LocaleContext';
 import { HostOutcomeStatus } from '../HostOutcome/HostOutcomeStatus';
-import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
+import { useFreshLegalDocuments } from '../../Legal/useFreshLegalDocuments';
 import { OrganizationSetupFrame } from './OrganizationSetupFrame';
 import { InvitationIdentityDetails } from '../Accepting/Accepting';
 import { getInvitationIdFromToken } from '../Accepting/invitationToken';
 import { LegalAcceptanceField } from '../../Legal/LegalAcceptanceField';
+import { LegalDocumentsUnavailable } from '../../Legal/LegalDocumentsUnavailable';
 import { LegalVersionValues } from '../../Legal/LegalVersionValues';
 import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
 import { ErrorSummary } from '../../Accessibility/ErrorSummary';
@@ -49,7 +50,8 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
     }, [identity.isSet, invitationIdentityDetails, invitationToken]);
     const resolvedInvitationId = invitationId ?? Guid.empty;
     const invitationIdText = resolvedInvitationId.toString();
-    const [legalStatus] = LegalDocumentsCurrent.use();
+    const { documents: availableDocuments, lastAvailableDocuments, isChecking: checkingLegalDocuments, refresh: refreshLegalDocuments } = useFreshLegalDocuments();
+    const displayedDocuments = availableDocuments ?? lastAvailableDocuments;
     const locale = useLocale();
 
     const handoff = useOrganizationSetupHandoff({
@@ -74,8 +76,8 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
     const initialValues = useMemo(() => initialOrganizationSetupValues(resolvedInvitationId), [resolvedInvitationId]);
 
     const legalDocuments = useLegalDocumentViewer({
-        termsAndConditions: legalStatus.data?.termsAndConditions ?? '',
-        privacyPolicy: legalStatus.data?.privacyPolicy ?? ''
+        termsAndConditions: displayedDocuments?.termsAndConditions ?? '',
+        privacyPolicy: displayedDocuments?.privacyPolicy ?? ''
     });
 
     const stepperContainerRef = useRef<HTMLDivElement>(null);
@@ -173,9 +175,33 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
         );
     }
 
+    if (checkingLegalDocuments && !displayedDocuments) {
+        return (
+            <OrganizationSetupFrame>
+                <div className='organization-setup-card__content'>
+                    <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
+    if (!displayedDocuments) {
+        return (
+            <OrganizationSetupFrame>
+                <div className='organization-setup-card__content'>
+                    <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
     return (
         <OrganizationSetupFrame>
             <div className='organization-setup-card__content organization-setup-card__content--stepper' ref={stepperContainerRef}>
+                {!availableDocuments && (checkingLegalDocuments
+                    ? <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
+                    : <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />)}
+                <div hidden={!availableDocuments} inert={!availableDocuments}>
                 <CommandStepper<SetupOrganization>
                     key={invitationIdText}
                     command={SetupOrganization}
@@ -221,14 +247,15 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
                             pt={{ root: { autoComplete: 'family-name' } }}
                         />
                     </StepperPanel>
-                    {legalStatus.data?.isConfigured && (
+                    {displayedDocuments.isConfigured && (
                         <StepperPanel header={strings.organizationSetup.stepTermsConditions}>
-                            <LegalVersionValues version={legalStatus.data.version} />
+                            <LegalVersionValues version={displayedDocuments.version} />
                             <LegalAcceptanceField<SetupOrganization> value={c => c.acceptedLegalTerms} onShowDocument={legalDocuments.showDocument} />
                         </StepperPanel>
                     )}
                 </CommandStepper>
-                {legalDocuments.dialog}
+                </div>
+                {availableDocuments && legalDocuments.dialog}
             </div>
             <LiveRegion message={announcement} />
             <LiveRegion message={nameValidationError ?? ''} />

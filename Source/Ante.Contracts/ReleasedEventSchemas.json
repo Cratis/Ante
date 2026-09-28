@@ -7,6 +7,8 @@
   "InvitationTokenIssued:1",
   "InvitationTokenIssued:2",
   "InvitationTokenIssued:3",
+  "LegalDocumentSetActivated:1",
+  "LegalDocumentSetPublished:1",
   "LegalTermsAccepted:1",
   "OrganizationRegistrationCompleted:1",
   "UserInvitedToCreateTenant:1",

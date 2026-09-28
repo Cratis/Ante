@@ -175,7 +175,8 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
     /// <param name="acceptanceFence">The authoritative invitation revision used to fence revocation.</param>
     /// <param name="signedInIdentity">The actor whose live attested session owns this acceptance.</param>
-    /// <returns>The compliance subject and a batch scoped to the invitation's read revision.</returns>
+    /// <param name="eventStore">The local event store for composing the atomic append.</param>
+    /// <returns>The compliance subject and events fenced against revocation and legal activation.</returns>
     /// <remarks>
     /// Does not mark the invitation as accepted here - that would be a pre-append success signal, visible
     /// to a polling client before the event this method returns has even been appended, let alone
@@ -188,7 +189,8 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
         OrganizationSetupProgress? existingSetup,
         ILegalDocumentSource legalDocumentSource,
         IInvitationAcceptanceFence acceptanceFence,
-        ISignedInIdentity signedInIdentity)
+        ISignedInIdentity signedInIdentity,
+        IEventStore eventStore)
     {
         if (pendingInvitation is null || existingSetup is not null)
         {
@@ -198,14 +200,14 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
         // Resolved once, authoritatively, from the host's document source as it reads right now - not
         // trusted from the command payload - so the version recorded as evidence is always the version
         // this very check just confirmed was accepted.
-        var legalResolution = await LegalAcceptanceEvidence.Resolve(
+        var legalResolution = await LegalAcceptanceEvidence.ResolveWithScope(
             legalDocumentSource,
             AcceptedLegalTerms,
             AcceptedLegalVersion,
             pendingInvitation.TenantName,
             identity.Provider,
             identity.Subject.ToString());
-        if (!legalResolution.TryGetResult(out var legalEvents))
+        if (!legalResolution.TryGetResult(out var legalEvidence))
         {
             legalResolution.TryGetError(out var legalError);
             return legalError;
@@ -240,7 +242,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
             events.Add(owner);
         }
 
-        events.AddRange(legalEvents);
+        events.AddRange(legalEvidence.Events);
 
         var scope = await acceptanceFence.For(InvitationId, InvitationFlowType.JoinTenant);
         if (scope is null)
@@ -248,10 +250,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
             return ValidationResult.Error(Messages.Get("AcceptNotPending"));
         }
 
-        var source = (EventSourceId)InvitationId.Value.ToString("D");
-        return (identity.Subject, new EventsWithConcurrencyScopes(
-            [.. events.Select(@event => new EventForEventSourceId(source, @event) { Subject = identity.Subject })],
-            [new KeyValuePair<EventSourceId, ConcurrencyScope>(source, scope)]));
+        return (identity.Subject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence, scope));
     }
 }
 

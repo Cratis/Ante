@@ -15,11 +15,13 @@
   <data name="AcceptNotPending" xml:space="preserve"><value>Invitation is no longer pending and cannot be used to accept the invitation.</value></data>
   <data name="InvitationAlreadyAccepted" xml:space="preserve"><value>This invitation has already been accepted.</value></data>
   <data name="AttemptAlreadySubmitted" xml:space="preserve"><value>This onboarding attempt has already been submitted.</value></data>
+  <data name="ConcurrentChange" xml:space="preserve"><value>Something changed while you were submitting, for example the terms and conditions. Review the page and submit again.</value></data>
   <data name="RegisterIdentityRequired" xml:space="preserve"><value>A signed-in subject and provider are required to register an organization.</value></data>
   <data name="RegistrationOwnedByAnotherSignIn" xml:space="preserve"><value>This registration belongs to another sign-in.</value></data>
   <data name="SetupIdentityRequired" xml:space="preserve"><value>A signed-in subject and provider are required to set up an organization.</value></data>
   <data name="AcceptIdentityRequired" xml:space="preserve"><value>A signed-in subject and provider are required to accept this invitation.</value></data>
   <data name="LoginAlreadyAssociated" xml:space="preserve"><value>This login is already associated with a user in the organization. Sign in with it instead of accepting this invitation.</value></data>
+  <data name="UnavailableMessage" xml:space="preserve"><value>Legal documents are not available yet. Check again before continuing.</value></data>
   <data name="MustAcceptMessage" xml:space="preserve"><value>You must accept the terms and conditions and the privacy policy to proceed.</value></data>
   <data name="StaleVersionMessage" xml:space="preserve"><value>The terms and conditions and privacy policy have changed. Reload the page and accept the current version.</value></data>
   <data name="UnsolicitedAcceptanceMessage" xml:space="preserve"><value>There are no terms and conditions to accept right now. Reload the page and continue.</value></data>

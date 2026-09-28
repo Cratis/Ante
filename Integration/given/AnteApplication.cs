@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Ante.Invitations.Accepting;
 using Ante.Legal;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -23,12 +24,18 @@ namespace Ante.Integration.given;
 /// <param name="hostStores">The trusted host stores (<c>Ante:HostStores</c>).</param>
 /// <param name="legalDocuments">Optional legal document source, standing in for a host-provided one.</param>
 /// <param name="attestedExchange">Whether to configure the real host in attested exchange mode.</param>
+/// <param name="legalDocumentSetId">When set, selects the first host's inbox legal stream.</param>
+/// <param name="legalDocumentFactory">Optional scoped test source wrapping the inbox implementation.</param>
+/// <param name="acceptanceFenceFactory">Optional scoped test fence for a deterministic revocation race.</param>
 public sealed class AnteApplication(
     ChronicleInfrastructure infrastructure,
     string eventStore,
     IReadOnlyList<string> hostStores,
     ILegalDocumentSource? legalDocuments = default,
-    bool attestedExchange = false) : WebApplicationFactory<Program>
+    bool attestedExchange = false,
+    string? legalDocumentSetId = default,
+    Func<IServiceProvider, ILegalDocumentSource>? legalDocumentFactory = default,
+    Func<IServiceProvider, IInvitationAcceptanceFence>? acceptanceFenceFactory = default) : WebApplicationFactory<Program>
 {
     public const string IdentityProvider = "integration-idp";
 
@@ -104,6 +111,12 @@ public sealed class AnteApplication(
                 .UseSetting("Ante:Invitations:Exchange:Attestation:Providers:0:Issuer", "https://integration.example")
                 .UseSetting("Ante:Invitations:Exchange:Attestation:Providers:0:AcceptableAssurances:0", "oidc");
         }
+        if (legalDocumentSetId is not null)
+        {
+            builder.UseSetting("Ante:Legal:Source", "Inbox")
+                .UseSetting("Ante:Legal:PublisherStore", hostStores[0])
+                .UseSetting("Ante:Legal:DocumentSetId", legalDocumentSetId);
+        }
 
         for (var index = 0; index < hostStores.Count; index++)
         {
@@ -119,6 +132,14 @@ public sealed class AnteApplication(
         if (legalDocuments is not null)
         {
             builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Singleton(legalDocuments)));
+        }
+        if (legalDocumentFactory is not null)
+        {
+            builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Scoped(legalDocumentFactory)));
+        }
+        if (acceptanceFenceFactory is not null)
+        {
+            builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Scoped(acceptanceFenceFactory)));
         }
     }
 

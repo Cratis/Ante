@@ -23,6 +23,7 @@ public sealed class HostStore : IAsyncDisposable
         typeof(InvitationToJoinTenantAccepted),
         typeof(InvitationToCreateTenantAccepted),
         typeof(LegalTermsAccepted),
+        typeof(LegalDocumentSetActivated),
         typeof(OrganizationRegistrationCompleted),
     ];
 

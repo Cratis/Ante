@@ -1,8 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Ante.Contracts.Legal;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.Issuing;
+using Ante.Legal.Receiving;
 using Ante.Outbox;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Chronicle.Reactors;
@@ -56,7 +58,8 @@ public record InvitationSourceInboxEventRecorded(EventSequenceNumber InboxSequen
 /// <param name="logger">The warning logger for invalid invitation ids.</param>
 /// <param name="exchange">The selected exchange mode.</param>
 /// <param name="sourceStore">The host store whose inbox delivered this event.</param>
-public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name)
+/// <param name="legalReceiver">The optional legal-set receiver for configured inbox deliveries.</param>
+public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name, LegalDocumentSetReceiver? legalReceiver = null)
 {
     static readonly EventType[] _decisionEventTypes =
     [
@@ -142,11 +145,20 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
                 await serializer.Deserialize(typeof(UserInvitedToCreateTenant), delivery.Content),
             var type when type == typeof(InvitationRevoked).GetEventType() =>
                 await serializer.Deserialize(typeof(InvitationRevoked), delivery.Content),
+            var type when type == typeof(LegalDocumentSetPublished).GetEventType() =>
+                await serializer.Deserialize(typeof(LegalDocumentSetPublished), delivery.Content),
             _ => throw new InvalidOperationException($"Unexpected incoming invitation event type {context.EventType}."),
         };
 
         switch (content)
         {
+            case LegalDocumentSetPublished published:
+                if (legalReceiver is null)
+                {
+                    throw new InvalidOperationException("Legal inbox receiver is not registered.");
+                }
+                await legalReceiver.Receive(published, context, sourceStore);
+                break;
             case UserInvitedToJoinTenant join:
                 await AppendReceipt(await On(join, context), context);
                 break;

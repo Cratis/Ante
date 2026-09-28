@@ -226,6 +226,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// <param name="signedInIdentity">The identity the user is signed in with for this request.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
     /// <param name="acceptanceFence">The authoritative invitation revision used to fence revocation.</param>
+    /// <param name="eventStore">The local event store for composing the atomic append.</param>
     /// <returns>
     /// A <see cref="Result{T0, T1}"/> containing either a failed <see cref="ValidationResult"/> or the
     /// compliance subject and events to append.
@@ -244,7 +245,8 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
         ISignedInIdentity signedInIdentity,
         ILegalDocumentSource legalDocumentSource,
-        IInvitationAcceptanceFence acceptanceFence)
+        IInvitationAcceptanceFence acceptanceFence,
+        IEventStore eventStore)
     {
         // Re-read rather than trust the validator: the name can be claimed between the two, and this is
         // the last look before the events are composed. The member is named the way the client names
@@ -267,14 +269,14 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
             return ValidationResult.Error(Messages.Get("SetupIdentityRequired"));
         }
 
-        var legalResolution = await LegalAcceptanceEvidence.Resolve(
+        var legalResolution = await LegalAcceptanceEvidence.ResolveWithScope(
             legalDocumentSource,
             AcceptedLegalTerms,
             AcceptedLegalVersion,
             OrganizationName,
             identityProviderValue,
             complianceSubject.ToString());
-        if (!legalResolution.TryGetResult(out var legalEvents))
+        if (!legalResolution.TryGetResult(out var legalEvidence))
         {
             legalResolution.TryGetError(out var legalError);
             return legalError;
@@ -309,7 +311,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
             events.Add(owner);
         }
 
-        events.AddRange(legalEvents);
+        events.AddRange(legalEvidence.Events);
 
         var scope = await acceptanceFence.For(InvitationId, InvitationFlowType.CreateTenant);
         if (scope is null)
@@ -319,10 +321,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
 
         httpContextAccessor.HttpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
 
-        var source = (EventSourceId)InvitationId.Value.ToString("D");
-        return (complianceSubject, new EventsWithConcurrencyScopes(
-            [.. events.Select(@event => new EventForEventSourceId(source, @event) { Subject = complianceSubject })],
-            [new KeyValuePair<EventSourceId, ConcurrencyScope>(source, scope)]));
+        return (complianceSubject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence, scope));
     }
 }
 
