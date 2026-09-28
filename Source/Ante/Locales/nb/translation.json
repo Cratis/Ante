@@ -82,7 +82,9 @@
         "organizationNamePlaceholder": "EksempelAS",
         "register": "Registrer organisasjon",
         "hostAppUrlUnavailable": "Organisasjonen er registrert, men vi finner ikke ut hvor vi skal sende deg videre. Kontakt brukerstøtte.",
-        "startNewRegistration": "Registrer en annen organisasjon"
+        "startNewRegistration": "Registrer en annen organisasjon",
+        "startUnavailable": "Vi kunne ikke starte denne registreringen. Prøv igjen, eller logg inn med kontoen som startet den.",
+        "starting": "Forbereder registreringen din …"
     },
     "organizationSetup": {
         "subtitle": "Opprett organisasjonen din",
