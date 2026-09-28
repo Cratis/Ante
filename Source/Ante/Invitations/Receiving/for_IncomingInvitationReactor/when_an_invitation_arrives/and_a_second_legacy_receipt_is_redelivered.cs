@@ -12,11 +12,9 @@ public class and_a_second_legacy_receipt_is_redelivered : a_local_invitation_his
 
     void Establish()
     {
-        AlreadyRecorded(new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]));
-        AlreadyRecorded(new JoinTenantInvitationReceived("second@example.com", "Acme", ["Member"]));
+        AlreadyRecorded(new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]), 1);
+        AlreadyRecorded(new JoinTenantInvitationReceived("second@example.com", "Acme", ["Member"]), 2);
         AlreadyRecorded(new InvitationRevocationReceived());
-        InboxHistory.Add(new(EventContext.Empty with { SequenceNumber = 1 }, new UserInvitedToJoinTenant("jane@example.com", "Acme", ["Member"])));
-        InboxHistory.Add(new(EventContext.Empty with { SequenceNumber = 2 }, new UserInvitedToJoinTenant("second@example.com", "Acme", ["Member"])));
     }
 
     async Task Because() => _produced = await Reactor.On(

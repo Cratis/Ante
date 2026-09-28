@@ -63,66 +63,46 @@ public static class InviteExchangeProcessor
     /// <param name="request">The exchange request body.</param>
     /// <param name="acceptedInvitations">The collection accepted invitation sessions are recorded in.</param>
     /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
+    /// <param name="tokenValidator">Verifier of invitation signatures and claims.</param>
+    /// <param name="logger">Logger for rejected unresolved provider evidence.</param>
     /// <returns>True when the token was valid and the session was recorded.</returns>
     public static async Task<bool> TryStoreAcceptedInvitation(
         string authorizationHeader,
         ExchangeInviteRequest request,
         IMongoCollection<AcceptedInvitation> acceptedInvitations,
-        IIdentityProviderResolver identityProviderResolver)
+        IIdentityProviderResolver identityProviderResolver,
+        IInvitationTokenValidator tokenValidator,
+        ILogger<InviteExchangeBypassMiddleware> logger)
     {
-        if (!authorizationHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(request.Subject))
         {
             return false;
         }
 
-        var token = authorizationHeader["Bearer ".Length..].Trim();
-
-        InvitationId invitationId;
-        InvitationFlowType flowType;
-        DateTimeOffset expiresAtUtc;
-
-        try
-        {
-            var handler = new JsonWebTokenHandler();
-            var jwt = handler.ReadJsonWebToken(token);
-            if (!Guid.TryParse(jwt.Id, out var guid))
-            {
-                return false;
-            }
-
-            // A token with no exp claim reads back as DateTime.MinValue here, so it is rejected the same
-            // way an already-expired one is - every invitation token this endpoint accepts is bounded in
-            // time by InvitationTokenIssuer, and a stale or malformed link fails cleanly here rather than
-            // minting a session that would authorize forever.
-            if (jwt.ValidTo == DateTime.MinValue || jwt.ValidTo <= DateTime.UtcNow)
-            {
-                return false;
-            }
-
-            invitationId = guid;
-            expiresAtUtc = new DateTimeOffset(DateTime.SpecifyKind(jwt.ValidTo, DateTimeKind.Utc));
-            var inviteTypeClaimValue = jwt.Claims
-                .FirstOrDefault(claim => claim.Type == InvitationClaims.InvitationType)
-                ?.Value;
-            flowType = Enum.TryParse<InvitationFlowType>(inviteTypeClaimValue, out var parsedInviteType)
-                ? parsedInviteType
-                : InvitationFlowType.JoinTenant;
-        }
-        catch (Exception)
+        var verifiedToken = await tokenValidator.Validate(authorizationHeader);
+        if (verifiedToken is null)
         {
             return false;
         }
 
         // Resolved on the way in, so the session records the provider the user actually authenticated
         // with rather than a placeholder that has to be un-guessed everywhere it is later read.
-        var normalizedIdentityProvider = identityProviderResolver.ResolveFrom([request.ProviderKey, request.Issuer, request.IdentityProvider]);
+        var normalizedIdentityProvider = identityProviderResolver.ResolveFrom(
+            new AuthProxySignInReport(request.ProviderKey, request.Issuer, request.IdentityProvider).Candidates());
+        if (string.IsNullOrWhiteSpace(normalizedIdentityProvider) ||
+            normalizedIdentityProvider.Equals(IdentityProviderResolver.Unidentified, StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogUnresolvedExchangeProvider();
+            return false;
+        }
+
         var acceptedInvitation = new AcceptedInvitation(
             request.Subject,
             normalizedIdentityProvider,
-            invitationId,
-            flowType,
+            verifiedToken.InvitationId,
+            verifiedToken.FlowType,
             DateTimeOffset.UtcNow,
-            expiresAtUtc);
+            verifiedToken.ExpiresAtUtc);
 
         // A single upsert is the whole idempotency story here: at-least-once delivery from the
         // authentication proxy, a user double-submitting, or a lost response all replay the very same
@@ -183,10 +163,14 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
     /// <param name="context">The HTTP context.</param>
     /// <param name="acceptedInvitations">The collection accepted invitation sessions are recorded in.</param>
     /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
+    /// <param name="tokenValidator">The invitation token verifier.</param>
+    /// <param name="logger">Logger for rejected unresolved provider evidence.</param>
     public async Task InvokeAsync(
         HttpContext context,
         IMongoCollection<AcceptedInvitation> acceptedInvitations,
-        IIdentityProviderResolver identityProviderResolver)
+        IIdentityProviderResolver identityProviderResolver,
+        IInvitationTokenValidator tokenValidator,
+        ILogger<InviteExchangeBypassMiddleware> logger)
     {
         if (HttpMethods.IsPost(context.Request.Method)
             && context.Request.Path.Equals("/_invite/exchange", StringComparison.OrdinalIgnoreCase))
@@ -212,7 +196,9 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
                 context.Request.Headers.Authorization.ToString(),
                 request,
                 acceptedInvitations,
-                identityProviderResolver);
+                identityProviderResolver,
+                tokenValidator,
+                logger);
 
             context.Response.StatusCode = success
                 ? StatusCodes.Status200OK
@@ -230,11 +216,15 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
 /// </summary>
 /// <param name="acceptedInvitations">The collection accepted invitation sessions are recorded in.</param>
 /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
+/// <param name="tokenValidator">The invitation token verifier.</param>
+/// <param name="logger">Logger for rejected unresolved provider evidence.</param>
 [Route("_invite/exchange")]
 [ApiController]
 public class InviteExchangeController(
     IMongoCollection<AcceptedInvitation> acceptedInvitations,
-    IIdentityProviderResolver identityProviderResolver) : ControllerBase
+    IIdentityProviderResolver identityProviderResolver,
+    IInvitationTokenValidator tokenValidator,
+    ILogger<InviteExchangeBypassMiddleware> logger) : ControllerBase
 {
     /// <summary>
     /// Exchanges an invitation token for a recorded acceptance session.
@@ -242,13 +232,20 @@ public class InviteExchangeController(
     /// <param name="request">The exchange request.</param>
     /// <returns>200 when the exchange succeeded; otherwise 400.</returns>
     [HttpPost]
-    public async Task<IActionResult> Exchange([FromBody] ExchangeInviteRequest request)
+    public async Task<IActionResult> Exchange([FromBody] ExchangeInviteRequest? request)
     {
+        if (request is null)
+        {
+            return BadRequest();
+        }
+
         var success = await InviteExchangeProcessor.TryStoreAcceptedInvitation(
             Request.Headers.Authorization.ToString(),
             request,
             acceptedInvitations,
-            identityProviderResolver);
+            identityProviderResolver,
+            tokenValidator,
+            logger);
 
         return success ? Ok() : BadRequest();
     }
@@ -262,15 +259,16 @@ public class InviteExchangeController(
 public record InvitationIdentityDetails(InvitationId InvitationId, InvitationFlowType FlowType);
 
 /// <summary>
-/// Provides identity details for the Ante application.
-/// A user is only authorized when the authentication proxy has forwarded a valid <c language="csharp">jti</c> claim from
-/// the invite token, and that claim corresponds to a pending invitation.
-/// The <c language="csharp">jti</c> and <c language="csharp">invite_type</c> claims are forwarded by the authentication proxy's invite
-/// claims enricher.
+/// Provides identity details for the Ante application. The proxy may forward <c language="csharp">jti</c>
+/// and <c language="csharp">invite_type</c> claims from an invitation, or a live exchange session may
+/// identify the invitation by the request's forwarded subject and resolved provider. This provider
+/// supplies details; invitation-bound commands enforce ownership separately.
 /// </summary>
 /// <param name="acceptedInvitations">Collection used to resolve accepted invitation sessions for fallback identity resolution.</param>
+/// <param name="identityProviderResolver">Resolver for the forwarded request's identity provider.</param>
 public class InvitationIdentityProvider(
-    IMongoCollection<AcceptedInvitation> acceptedInvitations) : IProvideIdentityDetails<InvitationIdentityDetails>
+    IMongoCollection<AcceptedInvitation> acceptedInvitations,
+    IIdentityProviderResolver identityProviderResolver) : IProvideIdentityDetails<InvitationIdentityDetails>
 {
     /// <inheritdoc/>
     public async Task<IdentityDetails> Provide(IdentityProviderContext context)
@@ -290,24 +288,18 @@ public class InvitationIdentityProvider(
             return new IdentityDetails(true, new InvitationIdentityDetails(invitationGuid, flowType));
         }
 
-        var subject = context.Claims
-            .FirstOrDefault(c => c.Key == ClaimTypes.NameIdentifier).Value
-            ?? context.Claims.FirstOrDefault(c => c.Key == "sub").Value;
-
-        if (string.IsNullOrWhiteSpace(subject))
+        var subject = ForwardedIdentitySubject.Resolve(context.Claims, context.Id.Value);
+        var provider = ForwardedIdentityProvider.Resolve(context.Claims, identityProviderResolver);
+        if (subject is null || string.IsNullOrWhiteSpace(provider))
         {
             return new IdentityDetails(true, new InvitationIdentityDetails(InvitationId.NotSet, InvitationFlowType.JoinTenant));
         }
 
-        // The subject alone identifies the login, so the most recent session it authenticated is the
-        // one this request belongs to. Narrowing by provider as well only ever risked missing the
-        // session when the two sides had attributed the same sign-in differently. Also filtered by
-        // expiry here rather than only in the exchange or a cleanup sweep - authorization must stop the
-        // instant a session expires, not whenever a TTL index next gets around to removing it.
-        var acceptedInvitation = await acceptedInvitations
-            .Find(a => a.Subject == subject && a.ExpiresAtUtc > DateTimeOffset.UtcNow)
-            .SortByDescending(a => a.AcceptedAtUtc)
-            .FirstOrDefaultAsync();
+        // A subject can occur at more than one provider. Select only this request's live exchange
+        // session, using the same rule as invitation queries and commands. The forwarded-jti path above
+        // still relies on the proxy to have verified that claim independently.
+        var sessions = await acceptedInvitations.Find(Builders<AcceptedInvitation>.Filter.Eq(a => a.Subject, subject)).ToListAsync();
+        var acceptedInvitation = SignedInIdentity.SelectSession(sessions, InvitationId.NotSet, subject, (IdentityProviderName)provider, DateTimeOffset.UtcNow);
 
         return acceptedInvitation is null
             ? new IdentityDetails(true, new InvitationIdentityDetails(InvitationId.NotSet, InvitationFlowType.JoinTenant))

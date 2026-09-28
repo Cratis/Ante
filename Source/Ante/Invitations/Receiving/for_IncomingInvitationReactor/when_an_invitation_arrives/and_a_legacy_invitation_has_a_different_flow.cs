@@ -14,8 +14,6 @@ public class and_a_legacy_invitation_has_a_different_flow : a_local_invitation_h
     {
         AlreadyRecorded(new CreateTenantInvitationReceived("jane@example.com", ["Owner"]));
         AlreadyRecorded(new InvitationRevocationReceived());
-        InboxHistory.Add(new(EventContext.Empty with { SequenceNumber = 1 }, new UserInvitedToCreateTenant("jane@example.com", ["Owner"])));
-        InboxHistory.Add(new(EventContext.Empty with { SequenceNumber = 3 }, new UserInvitedToJoinTenant("jane@example.com", "Acme", ["Member"])));
     }
 
     async Task Because() => _produced = await Reactor.On(

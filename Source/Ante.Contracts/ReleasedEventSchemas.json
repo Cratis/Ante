@@ -1,8 +1,10 @@
 [
+  "InvitationRejected:1",
   "InvitationRevoked:1",
   "InvitationToCreateTenantAccepted:1",
   "InvitationToJoinTenantAccepted:1",
   "InvitationTokenIssued:1",
+  "InvitationTokenIssued:2",
   "LegalTermsAccepted:1",
   "OrganizationRegistrationCompleted:1",
   "UserInvitedToCreateTenant:1",

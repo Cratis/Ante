@@ -18,7 +18,7 @@ public class and_the_subject_matches_a_live_session_for_the_invitation : Specifi
     AcceptedInvitation? _result;
 
     void Because() =>
-        _result = SignedInIdentity.SelectSession([_session], _invitationId, "requesting-subject", DateTimeOffset.UtcNow);
+        _result = SignedInIdentity.SelectSession([_session], _invitationId, "requesting-subject", "github", DateTimeOffset.UtcNow);
 
     [Fact] void should_select_the_session() => Assert.Same(_session, _result);
 }

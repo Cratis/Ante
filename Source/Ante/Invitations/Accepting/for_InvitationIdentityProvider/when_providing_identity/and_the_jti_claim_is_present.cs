@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 #if DEBUG
+using Ante.IdentityProviders;
 using Ante.Invitations.Issuing;
 using Cratis.Arc.Identity;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -17,7 +18,7 @@ public class and_the_jti_claim_is_present : Specification
     IdentityDetails _result = null!;
 
     void Establish() =>
-        _provider = new(Substitute.For<IMongoCollection<AcceptedInvitation>>());
+        _provider = new(Substitute.For<IMongoCollection<AcceptedInvitation>>(), Substitute.For<IIdentityProviderResolver>());
 
     async Task Because() =>
         _result = await _provider.Provide(new IdentityProviderContext(

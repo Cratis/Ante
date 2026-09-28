@@ -20,7 +20,7 @@ public class and_the_append_has_a_concurrency_violation : Specification
         _store = Substitute.For<IEventStore>();
         var outbox = Substitute.For<IEventSequence>();
         _store.GetEventSequence(EventSequenceId.Outbox).Returns(outbox);
-        _violation = new ConcurrencyViolation(_id, 1, 2);
+        _violation = new ConcurrencyViolation(_id, 4711, 4712);
         outbox.Append(
             Arg.Any<EventSourceId>(),
             Arg.Any<object>(),
@@ -49,6 +49,7 @@ public class and_the_append_has_a_concurrency_violation : Specification
 
     [Fact] void should_fail_the_forward() => Assert.NotNull(_failure);
     [Fact] void should_retain_the_concurrency_details() => Assert.Equal(_violation, _failure?.Result.ConcurrencyViolation);
-    [Fact] void should_explain_the_concurrency_violation() => Assert.Contains(_id.Value, _failure?.Message, StringComparison.Ordinal);
+    [Fact] void should_explain_the_expected_sequence_number() => Assert.Contains($"ExpectedEventSequenceNumber = {_violation.ExpectedEventSequenceNumber}", _failure?.Message, StringComparison.Ordinal);
+    [Fact] void should_explain_the_actual_sequence_number() => Assert.Contains($"ActualEventSequenceNumber = {_violation.ActualEventSequenceNumber}", _failure?.Message, StringComparison.Ordinal);
 }
 #endif

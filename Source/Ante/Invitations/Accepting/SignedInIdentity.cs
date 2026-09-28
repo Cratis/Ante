@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using Ante.IdentityProviders;
+using Ante.Organization.Registration;
 using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.JsonWebTokens;
 using MongoDB.Driver;
@@ -16,7 +17,7 @@ namespace Ante.Invitations.Accepting;
 public interface ISignedInIdentity
 {
     /// <summary>
-    /// Resolves the identity provider and compliance subject for the current request.
+    /// Resolves the identity provider and compliance subject for the current request. Callers must reject an empty provider.
     /// </summary>
     /// <param name="invitationId">The invitation being accepted, or <see cref="InvitationId.NotSet"/> for self-service registration.</param>
     /// <param name="fallbackSubject">The subject to fall back to when the request itself carries none.</param>
@@ -24,26 +25,45 @@ public interface ISignedInIdentity
     (IdentityProviderName Provider, Cratis.Chronicle.Subject Subject) Resolve(InvitationId invitationId, Cratis.Chronicle.Subject fallbackSubject);
 
     /// <summary>
-    /// Resolves the identity provider for the current request.
+    /// Resolves the identity provider for the current request; an empty provider does not identify an owner.
     /// </summary>
     /// <returns>The resolved identity provider.</returns>
     IdentityProviderName ResolveProvider();
 
     /// <summary>
     /// Determines whether the current request is a verified owner of an invitation - either the invite
-    /// token's own <c language="csharp">jti</c> claim names it directly, or the request's subject has exchanged this exact
-    /// invitation for a session that has not yet expired.
+    /// token's own <c language="csharp">jti</c> claim names it directly, or the request's subject and resolved provider
+    /// match a live exchange session for this exact invitation.
     /// </summary>
     /// <remarks>
     /// This is the authorization gate every invitation-bound onboarding command must pass before acting:
     /// a known invitation id alone - visible in a URL, a token, or a shared link - must never be enough
-    /// to act on somebody else's onboarding state. There is deliberately no "best guess" fallback here
-    /// the way there is in <see cref="Resolve"/> - a request that names no subject, or one whose subject
-    /// was never recorded against this exact invitation, proves nothing and is rejected outright.
+    /// to act on somebody else's onboarding state. The invitation's subject may be a fallback for
+    /// event attribution in <see cref="Resolve"/>, never proof of request ownership: a request that
+    /// names no subject, or one whose subject was never recorded for this invitation, is rejected.
     /// </remarks>
     /// <param name="invitationId">The invitation to verify ownership of.</param>
     /// <returns>True when the current request verifiably owns the invitation; otherwise false.</returns>
     bool IsVerifiedOwnerOf(InvitationId invitationId);
+
+    /// <summary>
+    /// Resolves the current registration owner only from the forwarded sign-in identity, never from an invitation session.
+    /// </summary>
+    /// <returns>The owner, or null when the request has no subject.</returns>
+    RegistrationOwner? CurrentRegistrationOwner();
+
+    /// <summary>
+    /// Checks whether the current login matches a durably recorded registration owner.
+    /// </summary>
+    /// <param name="owner">The owner recorded with the registration.</param>
+    /// <returns>True only for the same subject and provider.</returns>
+    bool IsVerifiedRegistrationOwner(RegistrationOwner owner);
+
+    /// <summary>
+    /// Resolves the invitation belonging to this request's forwarded claim or most recent live exchange session.
+    /// </summary>
+    /// <returns>The invitation id, or <see cref="InvitationId.NotSet"/> when there is no verified session.</returns>
+    InvitationId CurrentInvitationId();
 }
 
 /// <summary>
@@ -64,19 +84,11 @@ public class SignedInIdentity(
     IMongoCollection<AcceptedInvitation> acceptedInvitations,
     IIdentityProviderResolver identityProviderResolver) : ISignedInIdentity
 {
-    // The authentication proxy stamps these onto the forwarded principal once it is configured to
-    // resolve a canonical federated identity, and they are the only request-time signals that name the
-    // provider behind a federated sign-in: the OpenID Connect handler deletes the `iss` claim by
-    // default, and every federated identity is otherwise named after the same authentication type.
-    const string CanonicalProviderKeyClaim = "urn:cratis:identity:provider-key";
-    const string CanonicalIssuerClaim = "urn:cratis:identity:issuer";
-    const string CanonicalSubjectClaim = "urn:cratis:identity:subject";
-
     /// <inheritdoc/>
     public (IdentityProviderName Provider, Cratis.Chronicle.Subject Subject) Resolve(InvitationId invitationId, Cratis.Chronicle.Subject fallbackSubject)
     {
         var subject = SubjectOfCurrentRequest();
-        var session = SessionFor(invitationId, subject);
+        var session = SessionFor(invitationId, subject, ProviderOf(null));
 
         return (ProviderOf(session), SubjectOf(subject, session, fallbackSubject));
     }
@@ -86,7 +98,7 @@ public class SignedInIdentity(
     {
         var subject = SubjectOfCurrentRequest();
 
-        return ProviderOf(SessionFor(InvitationId.NotSet, subject));
+        return ProviderOf(SessionFor(InvitationId.NotSet, subject, ProviderOf(null)));
     }
 
     /// <inheritdoc/>
@@ -108,41 +120,63 @@ public class SignedInIdentity(
 
         var subject = SubjectOfCurrentRequest();
 
-        // Deliberately not SessionFor's "no subject on the request" fallback - that heuristic exists to
-        // pick which login a request belongs to when nothing else disambiguates it, never to decide
-        // whether it is authorized to act on someone else's invitation. Ownership requires a subject that
-        // names this request, matched to a live session recorded for this exact invitation.
-        return subject is not null && SessionFor(invitationId, subject) is not null;
+        // Ownership requires a subject that names this request, matched to a live session recorded
+        // for this exact invitation. A request with no forwarded subject cannot select a session.
+        var provider = ProviderOf(null);
+        return subject is not null && !string.IsNullOrWhiteSpace(provider.Value) &&
+            SessionFor(invitationId, subject, provider) is not null;
     }
 
+    /// <inheritdoc/>
+    public InvitationId CurrentInvitationId()
+    {
+        var jti = httpContextAccessor.HttpContext?.User?.FindFirstValue(JwtRegisteredClaimNames.Jti);
+        if (Guid.TryParse(jti, out var invitationGuid))
+        {
+            return invitationGuid;
+        }
+
+        var subject = SubjectOfCurrentRequest();
+        var provider = ProviderOf(null);
+        return subject is null || string.IsNullOrWhiteSpace(provider.Value)
+            ? InvitationId.NotSet
+            : SessionFor(InvitationId.NotSet, subject, provider)?.InvitationId ?? InvitationId.NotSet;
+    }
+
+    /// <inheritdoc/>
+    public RegistrationOwner? CurrentRegistrationOwner() => RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver);
+
+    /// <inheritdoc/>
+    public bool IsVerifiedRegistrationOwner(RegistrationOwner owner) =>
+        CurrentRegistrationOwner() is { } current &&
+        !string.IsNullOrWhiteSpace(current.Subject.Value) &&
+        !string.IsNullOrWhiteSpace(current.Provider.Value) &&
+        !string.IsNullOrWhiteSpace(owner.Provider.Value) &&
+        current.Subject == owner.Subject && current.Provider == owner.Provider;
+
     /// <summary>
-    /// Selects the session a request belongs to out of every recorded accepted-invitation session - the
+    /// Selects the session a request belongs to from candidate accepted-invitation sessions - the
     /// pure decision at the heart of <see cref="Resolve"/>, <see cref="ResolveProvider"/> and
     /// <see cref="IsVerifiedOwnerOf"/>, kept free of the Mongo round-trip so it can be exercised directly.
     /// </summary>
-    /// <param name="allSessions">Every recorded accepted-invitation session.</param>
+    /// <param name="allSessions">Candidate accepted-invitation sessions for the request subject.</param>
     /// <param name="invitationId">The invitation to select a session for, or <see cref="InvitationId.NotSet"/> for any invitation.</param>
     /// <param name="subject">The subject of the current request, or null when the request carries none.</param>
+    /// <param name="provider">The provider resolved from the current request.</param>
     /// <param name="now">The current time, used to exclude expired sessions.</param>
     /// <returns>The selected session, or null when none qualifies.</returns>
-    internal static AcceptedInvitation? SelectSession(IEnumerable<AcceptedInvitation> allSessions, InvitationId invitationId, string? subject, DateTimeOffset now)
+    internal static AcceptedInvitation? SelectSession(IEnumerable<AcceptedInvitation> allSessions, InvitationId invitationId, string? subject, IdentityProviderName provider, DateTimeOffset now)
     {
         var sessions = allSessions
             .Where(session => session.ExpiresAtUtc > now
+                && session.IdentityProvider == provider.Value
                 && (invitationId == InvitationId.NotSet || session.InvitationId.Value == invitationId.Value))
             .OrderByDescending(session => session.AcceptedAtUtc)
             .ToArray();
 
-        // One invitation link can be opened by more than one login - a first attempt through one
-        // provider, a second through another - and each authentication stores its own session. Only the
-        // session belonging to the login making this request describes the person onboarding. When the
-        // request names a subject, a mismatch is contradictory evidence, not missing evidence - the
-        // request has already said who it is, and no other session is a substitute for that answer. The
-        // most recent session is only ever the best guess left when the request itself carries no
-        // subject to disambiguate with.
-        return subject is null
-            ? sessions.FirstOrDefault()
-            : sessions.FirstOrDefault(session => session.Subject == subject);
+        // One invitation link can be opened by more than one login. A request without a subject
+        // cannot select one of those sessions; a different subject is contradictory evidence.
+        return subject is null ? null : sessions.FirstOrDefault(session => session.Subject == subject);
     }
 
     static Cratis.Chronicle.Subject SubjectOf(string? subject, AcceptedInvitation? session, Cratis.Chronicle.Subject fallbackSubject)
@@ -152,39 +186,24 @@ public class SignedInIdentity(
         return resolved is null ? fallbackSubject : new Cratis.Chronicle.Subject(resolved);
     }
 
-    string? SubjectOfCurrentRequest()
+    string? SubjectOfCurrentRequest() => ForwardedIdentitySubject.Resolve(httpContextAccessor);
+
+    IdentityProviderName ProviderOf(AcceptedInvitation? session) =>
+        (IdentityProviderName)ForwardedIdentityProvider.Resolve(httpContextAccessor, identityProviderResolver, session?.IdentityProvider);
+
+    AcceptedInvitation? SessionFor(InvitationId invitationId, string? subject, IdentityProviderName provider)
     {
-        var httpContext = httpContextAccessor.HttpContext;
-        var user = httpContext?.User;
+        // A request without a forwarded subject cannot identify a login's exchange session.
+        if (subject is null)
+        {
+            return null;
+        }
 
-        var subject = user?.FindFirstValue(CanonicalSubjectClaim)
-            ?? httpContext?.Request.Headers[Cratis.Arc.Identity.MicrosoftIdentityPlatformHeaders.IdentityIdHeader].FirstOrDefault()
-            ?? user?.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? user?.FindFirstValue("sub");
+        // The invitation id is persisted as a BSON UUID; comparing its EventSourceId wrapper in a
+        // driver-side filter can silently miss it. Filter by the primitive subject, then compare
+        // invitation id, provider and expiry against the deserialized candidate sessions.
+        var allSessions = acceptedInvitations.Find(Builders<AcceptedInvitation>.Filter.Eq(a => a.Subject, subject)).ToList();
 
-        return string.IsNullOrWhiteSpace(subject) ? null : subject;
-    }
-
-    IdentityProviderName ProviderOf(AcceptedInvitation? session)
-    {
-        var user = httpContextAccessor.HttpContext?.User;
-
-        return (IdentityProviderName)identityProviderResolver.ResolveFrom(
-        [
-            user?.FindFirstValue(CanonicalProviderKeyClaim),
-            user?.FindFirstValue(CanonicalIssuerClaim),
-            user?.FindFirstValue("iss"),
-            session?.IdentityProvider
-        ]);
-    }
-
-    AcceptedInvitation? SessionFor(InvitationId invitationId, string? subject)
-    {
-        // The invitation id is persisted as a BSON UUID, and both LINQ translation and driver-side value
-        // serialization of an EventSourceId-typed filter are unreliable against it - they silently match
-        // nothing. Read the (small) accepted-invitation set and compare the deserialized values instead.
-        var allSessions = acceptedInvitations.Find(Builders<AcceptedInvitation>.Filter.Empty).ToList();
-
-        return SelectSession(allSessions, invitationId, subject, DateTimeOffset.UtcNow);
+        return SelectSession(allSessions, invitationId, subject, provider, DateTimeOffset.UtcNow);
     }
 }

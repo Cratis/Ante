@@ -28,6 +28,9 @@ public class when_upcasting_a_historical_token : Specification
             DateTimeOffset.UnixEpoch,
             _builder.ToJson()["expiresAt"]?["$defaultValue"]?.GetValue<DateTimeOffset>());
 
+    // The event-log migration does not update existing inbox/outbox rows in Chronicle 19.4.7.
+    // for_InvitationTokenIssued/when_observing_a_persisted_generation_one_payload covers
+    // their direct deserialization through the new contract.
     [Fact]
     void should_migrate_the_same_event_type_between_consecutive_generations()
     {

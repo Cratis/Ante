@@ -28,6 +28,6 @@ public class and_nothing_was_reported_with_one_issuerless_provider : Specificati
     void Because() => _result = _resolver.Resolve(null);
 
     [Fact]
-    void should_attribute_it_to_the_only_provider_that_issues_no_issuer() => Assert.Equal("GitHub", _result);
+    void should_not_infer_a_provider_among_several_configured_providers() => Assert.Equal(string.Empty, _result);
 }
 #endif
