@@ -28,7 +28,7 @@ describe('when cached legal documents are refreshed under StrictMode', () => {
             data: { isConfigured: true, termsAndConditions: 'Cached terms', privacyPolicy: 'Cached privacy', version: '2026-02', isUnavailable: false },
             hasData: true, isSuccess: true, isPerforming: false,
         };
-        sinon.stub(Current, 'use').callsFake(() => [cached, () => new Promise<void>(resolve => { completions.push(resolve); }), () => { }] as ReturnType<typeof Current.use>);
+        sinon.stub(Current, 'use').callsFake(() => [cached, () => new Promise<void>(resolve => { completions.push(resolve); }), () => { }] as unknown as ReturnType<typeof Current.use>);
         container = document.createElement('div');
         document.body.append(container);
         root = createRoot(container);
