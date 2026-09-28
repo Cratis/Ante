@@ -9,6 +9,7 @@ using Ante.IdentityProviders;
 using Ante.Invitations;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Legal;
+using Ante.Organization.Names;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
@@ -25,10 +26,15 @@ public class and_the_registration_id_was_used_previously : Specification
     {
         _scenario.Given.ForEventSource(_id).Events(new OrganizationRegistrationCompleted(
             "Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
-        await _scenario.EventScenario.Given.ForEventSource(_id).Events(new OrganizationRegistrationCompleted(
-            "Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
-        var names = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
-        names.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+
+        // A registration is always appended together with its one-use claim. The claim is what the
+        // in-memory event log can find: it only matches generation-1 event types by id
+        // (Cratis/Chronicle#4364), and OrganizationRegistrationCompleted is generation 2.
+        await _scenario.EventScenario.Given.ForEventSource(_id).Events(
+            new OnboardingAttemptClaimed(),
+            new OrganizationRegistrationCompleted("Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
+        var names = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
+        names.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
         var accessor = Substitute.For<IHttpContextAccessor>();
         accessor.HttpContext.Returns(new DefaultHttpContext
         {

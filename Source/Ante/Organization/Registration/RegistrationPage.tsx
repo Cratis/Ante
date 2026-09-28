@@ -29,9 +29,44 @@ import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
 import { ErrorSummary } from '../../Accessibility/ErrorSummary';
 import { LiveRegion } from '../../Accessibility/LiveRegion';
 import { useAccessibleStepper } from '../../Accessibility/useAccessibleStepper';
+import { Registration as RegistrationConfigurationQuery, RegistrationConfiguration } from '../../Configuration/Configuration';
+import { RegistrationClosed } from './RegistrationClosed';
+import { RegistrationIntro } from './RegistrationIntro';
+import { captureSignupContext, clearSignupContext } from './signupContext';
+import { HostOutcomeCompletion } from '../../Invitations/OrganizationSetup/HostOutcomeCompletion';
 import strings from 'Strings';
 
 export const RegistrationPage = () => {
+    const [configuration] = RegistrationConfigurationQuery.use();
+    if (!configuration.hasData) {
+        return (
+            <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+                <div className='organization-setup-card__content'>
+                    <ProgressSpinner aria-label={strings.registration.loading} />
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
+    if (!configuration.data.isEnabled) {
+        return (
+            <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+                <div className='organization-setup-card__content'>
+                    <RegistrationClosed closedUrl={configuration.data.closedUrl} />
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
+    return <OpenRegistration configuration={configuration.data} />;
+};
+
+const OpenRegistration = ({ configuration }: { configuration: RegistrationConfiguration }) => {
+    const content = configuration.content;
+    const subtitle = content?.title || strings.registration.subtitle;
+    const signupContext = useMemo(
+        () => captureSignupContext(configuration.contextKeys ?? [], globalThis.location?.search ?? ''),
+        [configuration.contextKeys]);
     // Persisted per-tab (not merely a mount-local value) so a reload or a return later resumes polling
     // the same durable registration instead of losing track of what was already submitted - see
     // RegistrationOperation.ts for what is, and is never, stored.
@@ -48,6 +83,7 @@ export const RegistrationPage = () => {
         hostAppUnavailableMessage: strings.registration.hostAppUrlUnavailable,
         isRegistration: true,
         recoveringRegistration: operation.isRecovered,
+        supportsHostOutcome: true,
     });
     const markSubmittedRef = useRef(handoff.markSubmitted);
     markSubmittedRef.current = handoff.markSubmitted;
@@ -92,12 +128,13 @@ export const RegistrationPage = () => {
 
     const startNewRegistration = () => {
         clearRegistrationOperation();
+        clearSignupContext();
         window.location.reload();
     };
 
     if (handoff.errorMessages.length > 0) {
         return (
-            <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+            <OrganizationSetupFrame subtitle={subtitle}>
                 <div className='organization-setup-card__content'>
                     <ErrorSummary
                         messages={handoff.errorMessages}
@@ -114,7 +151,7 @@ export const RegistrationPage = () => {
     // registration flash a form it must never resubmit.
     if (!handoff.hasStatus) {
         return (
-            <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+            <OrganizationSetupFrame subtitle={subtitle}>
                 <div className='organization-setup-card__content'>
                     <div className='organization-setup-waiting'>
                         <ProgressSpinner className='organization-setup-waiting__spinner' />
@@ -126,7 +163,7 @@ export const RegistrationPage = () => {
 
     if (handoff.phase === 'timedOut') {
         return (
-            <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+            <OrganizationSetupFrame subtitle={subtitle}>
                 <div className='organization-setup-card__content'>
                     <div className='organization-setup-waiting' role='status' aria-live='polite'>
                         <p className='organization-setup-waiting__message'>{strings.onboarding.notYetConfirmed}</p>
@@ -139,13 +176,23 @@ export const RegistrationPage = () => {
         );
     }
 
+    if (handoff.phase === 'hostOutcome') {
+        return (
+            <OrganizationSetupFrame subtitle={subtitle}>
+                <div className='organization-setup-card__content'>
+                    <HostOutcomeCompletion handoff={handoff} succeededMessage={content?.completionMessage} />
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
     if (handoff.phase === 'waiting') {
         return (
-            <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+            <OrganizationSetupFrame subtitle={subtitle}>
                 <div className='organization-setup-card__content'>
                     <div className='organization-setup-waiting'>
                         <ProgressSpinner className='organization-setup-waiting__spinner' aria-label={strings.organizationSetup.settingUp} />
-                        <p className='organization-setup-waiting__message'>{strings.organizationSetup.settingUp}</p>
+                        <p className='organization-setup-waiting__message'>{content?.completionMessage || strings.organizationSetup.settingUp}</p>
                     </div>
                 </div>
             </OrganizationSetupFrame>
@@ -154,7 +201,7 @@ export const RegistrationPage = () => {
 
     if (startState !== 'started') {
         return (
-            <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+            <OrganizationSetupFrame subtitle={subtitle}>
                 <div className='organization-setup-card__content'>
                     {startState === 'failed' ? (
                         <RegistrationStartFailed
@@ -169,7 +216,7 @@ export const RegistrationPage = () => {
 
     if (checkingLegalDocuments && !displayedDocuments) {
         return (
-            <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+            <OrganizationSetupFrame subtitle={subtitle}>
                 <div className='organization-setup-card__content'>
                     <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
                 </div>
@@ -179,7 +226,7 @@ export const RegistrationPage = () => {
 
     if (!displayedDocuments) {
         return (
-            <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+            <OrganizationSetupFrame subtitle={subtitle}>
                 <div className='organization-setup-card__content'>
                     <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />
                 </div>
@@ -188,8 +235,9 @@ export const RegistrationPage = () => {
     }
 
     return (
-        <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+        <OrganizationSetupFrame subtitle={subtitle}>
             <div className='organization-setup-card__content organization-setup-card__content--stepper' ref={stepperContainerRef}>
+                <RegistrationIntro content={content} />
                 {!availableDocuments && (checkingLegalDocuments
                     ? <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
                     : <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />)}
@@ -204,6 +252,7 @@ export const RegistrationPage = () => {
                     initialValues={initialValues}
                     onBeforeExecute={(values) => {
                         handoff.captureOrganizationName(values.organizationName ?? '');
+                        values.signupContext = signupContext;
                         return values;
                     }}
                     onSuccess={async () => { handoff.markSubmitted(); }}

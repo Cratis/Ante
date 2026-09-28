@@ -14,6 +14,7 @@ using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Legal.Receiving;
 using Ante.Locale;
+using Ante.Organization.Registration;
 using Cratis.Arc;
 using Cratis.Arc.MongoDB;
 using Microsoft.AspNetCore.Builder;
@@ -35,6 +36,7 @@ var anteConfiguration = builder.Configuration.GetSection("Ante");
 var anteOptions = anteConfiguration.Get<AnteOptions>() ?? new AnteOptions();
 AnteRoutingValidator.Validate(anteOptions, anteConfiguration);
 LegalOptions.Validate(anteOptions);
+RegistrationOptionsValidator.Validate(anteOptions);
 var localizationOptions = LocaleNegotiation.CreateOptions(anteOptions);
 var invitationTokenOptions = builder.Configuration.GetSection("Ante:Invitations:Token").Get<InvitationTokenConfig>() ?? new InvitationTokenConfig();
 InvitationTokenConfigurationValidator.Validate(invitationTokenOptions);
@@ -65,6 +67,7 @@ builder.Services.AddOpenApi();
 builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o => o.SuppressModelStateInvalidFilter = true);
 
 builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(anteOptions));
+builder.Services.TryAddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IncomingInvitationSubscriptions>();
 builder.Services.AddHostedService<IncomingInvitationRegistration>();
 builder.Services.Configure<InvitationTokenConfig>(builder.Configuration.GetSection("Ante:Invitations:Token"));
@@ -101,6 +104,7 @@ else
 }
 
 builder.Services.AddAuthorization();
+builder.Services.AddRegistrationRateLimiting(anteOptions);
 
 // Bounded, dependency-aware readiness, separate from the unconditional /healthz liveness endpoint
 // mapped below - see AnteHealthChecks and Documentation/deployment.md.
@@ -141,6 +145,7 @@ app.Use(async (context, next) =>
     await next(context);
 });
 app.UseRouting();
+app.UseRegistrationRateLimiting(anteOptions);
 app.Use(LocalizedConstraintResponses.Invoke);
 app.UseAuthentication();
 app.UseAuthorization();

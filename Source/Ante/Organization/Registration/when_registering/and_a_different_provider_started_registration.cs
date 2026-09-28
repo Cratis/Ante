@@ -8,6 +8,7 @@ using Ante.IdentityProviders;
 using Ante.Invitations;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Legal;
+using Ante.Organization.Names;
 using Ante.Organization.Registration.Start;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,8 +25,8 @@ public class and_a_different_provider_started_registration : Specification
     async Task Establish()
     {
         await _scenario.EventScenario.Given.ForEventSource(_id).Events(new RegistrationStarted((RegistrationOwnerSubject)"subject-1", "other-provider"));
-        var names = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
-        names.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var names = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
+        names.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
         var accessor = Substitute.For<IHttpContextAccessor>();
         accessor.HttpContext.Returns(new DefaultHttpContext
         {

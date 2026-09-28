@@ -9,6 +9,7 @@ using Ante.IdentityProviders;
 using Ante.Invitations;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Legal;
+using Ante.Organization.Names;
 using Ante.Organization.Registration.Start;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,8 +27,8 @@ public class and_values_are_valid : Specification
     async Task Establish()
     {
         await _scenario.EventScenario.Given.ForEventSource(_registrationId).Events(new RegistrationStarted((RegistrationOwnerSubject)"sub-1", "github"));
-        var acceptedNames = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
-        acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var acceptedNames = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
+        acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
 
         _scenario.Services.AddSingleton(acceptedNames);
         var accessor = Substitute.For<IHttpContextAccessor>();

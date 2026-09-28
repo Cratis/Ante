@@ -35,13 +35,22 @@ public record BeginRegistration(InvitationId RegistrationId)
     /// <param name="httpContextAccessor">Accessor for the current forwarded sign-in.</param>
     /// <param name="resolver">The canonical identity-provider resolver.</param>
     /// <param name="eventStore">The authoritative local event log and read models.</param>
+    /// <param name="options">The deployment's options, deciding whether registration is offered and its per-sign-in limit.</param>
+    /// <param name="timeProvider">The clock used for the per-sign-in registration window.</param>
     /// <returns>An empty event list after a start is recorded or the same owner retries.</returns>
     /// <exception cref="RegistrationStartAppendFailed">The event log could not record the start.</exception>
     public async Task<Result<ValidationResult, IEnumerable<object>>> Handle(
         IHttpContextAccessor httpContextAccessor,
         IIdentityProviderResolver resolver,
-        IEventStore eventStore)
+        IEventStore eventStore,
+        IOptions<AnteOptions> options,
+        TimeProvider timeProvider)
     {
+        if (!options.Value.Registration.Enabled)
+        {
+            return ValidationResult.Error(Messages.Get("RegistrationClosed"));
+        }
+
         var owner = RegistrationOwner.Resolve(httpContextAccessor, resolver);
         if (RegistrationId == InvitationId.NotSet || owner is null || string.IsNullOrWhiteSpace(owner.Provider.Value))
         {
@@ -51,6 +60,13 @@ public record BeginRegistration(InvitationId RegistrationId)
         if (!await RegistrationSourceAvailability.IsAvailable(RegistrationId, eventStore))
         {
             return ValidationResult.Error(Messages.Get("AttemptAlreadySubmitted"), reasonDetail: OnboardingAttemptConstraintNames.OneUseAttempt);
+        }
+
+        // Checked before the start is recorded so a sign-in that has used its allowance learns so before
+        // filling in the wizard; RegisterOrganization re-checks authoritatively at submission.
+        if (!await RegistrationQuota.IsWithinLimit(eventStore, options.Value.Registration, owner, timeProvider.GetUtcNow()))
+        {
+            return ValidationResult.Error(Messages.Get("RegistrationLimitReached"));
         }
 
         var starts = await RegistrationStartHistory.For(RegistrationId, eventStore);

@@ -86,7 +86,12 @@
         "starting": "Preparing your registration...",
         "startUnavailable": "We couldn't start this registration. Please try again or sign in with the account that started it.",
         "hostAppUrlUnavailable": "Organization was registered, but we could not determine where to take you next. Please contact support.",
-        "startNewRegistration": "Register a different organization"
+        "startNewRegistration": "Register a different organization",
+        "closed": "Sign-up is not available right now.",
+        "closedLink": "Find out more",
+        "pricingLink": "See pricing",
+        "loginLink": "Already have an account? Log in",
+        "loading": "Loading..."
     },
     "organizationSetup": {
         "subtitle": "Set up your organization",

@@ -7,6 +7,7 @@ using Ante.IdentityProviders;
 using Ante.Invitations;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Legal;
+using Ante.Organization.Names;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
@@ -20,8 +21,8 @@ public class and_organization_name_is_already_claimed : Specification
 
     void Establish()
     {
-        var acceptedNames = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
-        acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(1L);
+        var acceptedNames = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
+        acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(1L);
 
         _scenario.Services.AddSingleton(acceptedNames);
         _scenario.Services.AddSingleton(Substitute.For<IHttpContextAccessor>());

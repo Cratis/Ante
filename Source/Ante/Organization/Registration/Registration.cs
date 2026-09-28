@@ -9,6 +9,7 @@ using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.Receiving;
 using Ante.Invitations.UserSetup;
 using Ante.Legal;
+using Ante.Organization.Names;
 using Ante.Organization.Registration.Start;
 using Ante.Outbox;
 using Ante.Resources;
@@ -32,15 +33,25 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
     /// <param name="httpContextAccessor">Accessor for the current sign-in.</param>
     /// <param name="identityProviderResolver">Resolver of the current sign-in provider.</param>
     /// <param name="eventStore">The current namespace's read models for checking prior use of the registration id.</param>
+    /// <param name="options">The deployment's options, deciding whether registration is offered and which names are reserved.</param>
     public RegisterOrganizationValidator(
         ILegalDocumentSource legalDocumentSource,
-        IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
+        IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
         IHttpContextAccessor httpContextAccessor,
         IIdentityProviderResolver identityProviderResolver,
-        IEventStore eventStore)
+        IEventStore eventStore,
+        IOptions<AnteOptions> options)
     {
+        RuleFor(c => c)
+            .Must(_ => options.Value.Registration.Enabled)
+            .WithMessage(_ => Messages.Get("RegistrationClosed"));
+
         RuleFor(c => (string)c.OrganizationName)
             .MustBeAValidOrganizationName();
+
+        RuleFor(c => (string)c.OrganizationName)
+            .Must(organizationName => !ReservedOrganizationNames.IsReserved(options.Value, organizationName))
+            .WithMessage(_ => Messages.Get("OrganizationNameReserved"));
 
         // Expressed as a rule rather than only as a handler check so the wizard's eager server
         // validation reaches it: the validator is what the /validate endpoint runs, and a failure it
@@ -96,8 +107,12 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
 /// <param name="LastName">The last name of the registering user.</param>
 /// <param name="AcceptedLegalTerms">Whether the user has accepted the terms and conditions and the privacy policy.</param>
 /// <param name="AcceptedLegalVersion">The version of the legal document set that was presented and accepted.</param>
+/// <param name="SignupContext">
+/// Host-supplied context carried from the registration link (for example the offer or campaign). Keys not in
+/// <c language="csharp">Ante:Registration:ContextKeys</c> are dropped; the host must treat what remains as untrusted input.
+/// </param>
 [Command]
-public record RegisterOrganization(InvitationId RegistrationId, TenantName OrganizationName, FirstName FirstName, MiddleName? MiddleName, LastName LastName, bool AcceptedLegalTerms, LegalVersion AcceptedLegalVersion)
+public record RegisterOrganization(InvitationId RegistrationId, TenantName OrganizationName, FirstName FirstName, MiddleName? MiddleName, LastName LastName, bool AcceptedLegalTerms, LegalVersion AcceptedLegalVersion, IEnumerable<SignupContextEntry>? SignupContext = null)
 {
     /// <summary>
     /// Handles the command by producing an <see cref="OrganizationRegistrationCompleted"/> event and,
@@ -109,6 +124,8 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
     /// <param name="identityProviderResolver">Resolver used to attribute the sign-in to a configured provider.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
     /// <param name="eventStore">The event store used to check whether the registration id belongs to an invitation.</param>
+    /// <param name="options">The deployment's options.</param>
+    /// <param name="timeProvider">The clock used for the per-sign-in registration window.</param>
     /// <returns>
     /// A <see cref="Result{T0, T1}"/> containing either a failed <see cref="ValidationResult"/> or the
     /// events to append.
@@ -121,11 +138,23 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
     /// </remarks>
     public async Task<Result<ValidationResult, EventsWithConcurrencyScopes>> Handle(
         IHttpContextAccessor httpContextAccessor,
-        IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
+        IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
         IIdentityProviderResolver identityProviderResolver,
         ILegalDocumentSource legalDocumentSource,
-        IEventStore eventStore)
+        IEventStore eventStore,
+        IOptions<AnteOptions> options,
+        TimeProvider timeProvider)
     {
+        if (!options.Value.Registration.Enabled)
+        {
+            return ValidationResult.Error(Messages.Get("RegistrationClosed"));
+        }
+
+        if (ReservedOrganizationNames.IsReserved(options.Value, OrganizationName))
+        {
+            return ValidationResult.Error(Messages.Get("OrganizationNameReserved"), ["organizationName"]);
+        }
+
         var httpContext = httpContextAccessor.HttpContext;
         var user = httpContext?.User;
         var owner = RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver);
@@ -158,6 +187,12 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             return ValidationResult.Error(Messages.Get("RegistrationOwnedByAnotherSignIn"));
         }
 
+        var quota = await RegistrationQuota.Check(eventStore, options.Value.Registration, owner, timeProvider.GetUtcNow());
+        if (!quota.IsAllowed)
+        {
+            return ValidationResult.Error(Messages.Get("RegistrationLimitReached"));
+        }
+
         var subject = owner.Subject.Value;
         var identityProviderValue = owner.Provider;
         var legalResolution = await LegalAcceptanceEvidence.ResolveWithScope(
@@ -178,12 +213,23 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
-            new OrganizationRegistrationCompleted(OrganizationName, subject, identityProviderValue, FirstName, MiddleName ?? Contracts.Invitations.MiddleName.NotSet, LastName, email),
+            new OrganizationRegistrationCompleted(
+                OrganizationName,
+                subject,
+                identityProviderValue,
+                FirstName,
+                MiddleName ?? Contracts.Invitations.MiddleName.NotSet,
+                LastName,
+                email,
+                SignupContextRules.Filter(options.Value.Registration, SignupContext)),
             new RegistrationOwnerRecorded(owner.Subject, owner.Provider),
         };
         events.AddRange(legalEvidence.Events);
 
-        return await LegalAcceptanceEvidence.ForAppend(eventStore, RegistrationId, events, legalEvidence);
+        var append = await LegalAcceptanceEvidence.ForAppend(eventStore, RegistrationId, events, legalEvidence);
+        return new EventsWithConcurrencyScopes(
+            [.. append.Events, new EventForEventSourceId(quota.Key, new RegistrationQuotaConsumed())],
+            [.. append.ConcurrencyScopes, new(quota.Key, quota.Scope)]);
     }
 }
 

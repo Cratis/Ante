@@ -11,7 +11,7 @@ public class and_the_same_owner_wins : a_racing_start
 {
     Result<ValidationResult, IEnumerable<object>> _result = null!;
 
-    async Task Because() => _result = await new BeginRegistration(Id).Handle(Accessor, Resolver, Store);
+    async Task Because() => _result = await new BeginRegistration(Id).Handle(Accessor, Resolver, Store, Microsoft.Extensions.Options.Options.Create(new AnteOptions()), TimeProvider.System);
 
     [Fact] void should_succeed_after_confirming_the_winning_owner() => _result.TryGetError(out _).ShouldBeTrue();
     [Fact]
