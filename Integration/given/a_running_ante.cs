@@ -3,6 +3,7 @@
 
 using System.Net;
 using System.Text.Json;
+using Ante.Invitations.Accepting;
 using Ante.Legal;
 
 namespace Ante.Integration.given;
@@ -30,9 +31,13 @@ public class a_running_ante : Specification
 
     protected virtual ILegalDocumentSource? LegalDocuments => default;
 
+    protected virtual bool AttestedExchange => false;
+
     protected virtual bool UseLegalInbox => false;
 
     protected virtual Func<IServiceProvider, ILegalDocumentSource>? LegalDocumentFactory => null;
+
+    protected virtual Func<IServiceProvider, IInvitationAcceptanceFence>? AcceptanceFenceFactory => null;
 
     protected string LegalDocumentSetId => $"legal-documents-{Suffix}";
 
@@ -50,8 +55,10 @@ public class a_running_ante : Specification
             AnteStoreName,
             HostStoreNames,
             LegalDocuments,
+            AttestedExchange,
             UseLegalInbox ? LegalDocumentSetId : null,
-            LegalDocumentFactory);
+            LegalDocumentFactory,
+            AcceptanceFenceFactory);
 
         // Startup registers the runtime inbox reactors and subscriptions; readiness includes their kernel state.
         using var client = Ante.CreateClient();

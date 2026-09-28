@@ -17,6 +17,7 @@
   <data name="AttemptAlreadySubmitted" xml:space="preserve"><value>Dette oppsettet er allerede sendt inn.</value></data>
   <data name="ConcurrentChange" xml:space="preserve"><value>Noe ble endret mens du sendte inn, for eksempel vilkårene. Se over siden og send inn på nytt.</value></data>
   <data name="RegisterIdentityRequired" xml:space="preserve"><value>Du må være logget inn med en identitet og en identitetsleverandør for å registrere en organisasjon.</value></data>
+  <data name="RegistrationOwnedByAnotherSignIn" xml:space="preserve"><value>Denne registreringen tilhører en annen innlogging.</value></data>
   <data name="SetupIdentityRequired" xml:space="preserve"><value>Du må være logget inn med en identitet og en identitetsleverandør for å opprette en organisasjon.</value></data>
   <data name="AcceptIdentityRequired" xml:space="preserve"><value>Du må være logget inn med en identitet og en identitetsleverandør for å godta invitasjonen.</value></data>
   <data name="LoginAlreadyAssociated" xml:space="preserve"><value>Denne innloggingen tilhører allerede en bruker i organisasjonen. Logg inn med den i stedet for å godta invitasjonen.</value></data>

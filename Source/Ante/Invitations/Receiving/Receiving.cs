@@ -8,6 +8,7 @@ using Ante.Legal.Receiving;
 using Ante.Outbox;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Chronicle.Reactors;
+using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
 namespace Ante.Invitations.Receiving;
@@ -55,9 +56,10 @@ public record InvitationSourceInboxEventRecorded(EventSequenceNumber InboxSequen
 /// </summary>
 /// <param name="eventStore">Ante's event store for recording receipts and publishing rejections.</param>
 /// <param name="logger">The warning logger for invalid invitation ids.</param>
+/// <param name="exchange">The selected exchange mode.</param>
 /// <param name="sourceStore">The host store whose inbox delivered this event.</param>
 /// <param name="legalReceiver">The optional legal-set receiver for configured inbox deliveries.</param>
-public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, string sourceStore = InboxSourceStore.Name, LegalDocumentSetReceiver? legalReceiver = null)
+public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name, LegalDocumentSetReceiver? legalReceiver = null)
 {
     static readonly EventType[] _decisionEventTypes =
     [
@@ -83,10 +85,11 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             return null;
         }
 
-        var scope = await ScopeForNewInvitation(context);
+        var receipt = new JoinTenantInvitationReceived(@event.Email, @event.TenantName, @event.Roles);
+        var scope = await ScopeForNewInvitation(context, receipt);
         return scope is null ? null : new EventsWithConcurrencyScopes(
             [
-                new(context.EventSourceId, new JoinTenantInvitationReceived(@event.Email, @event.TenantName, @event.Roles)) { Subject = context.Subject },
+                new(context.EventSourceId, receipt) { Subject = context.Subject },
                 new(context.EventSourceId, ReceiptMarker(context)),
             ],
             [new(context.EventSourceId, scope)]);
@@ -105,10 +108,11 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             return null;
         }
 
-        var scope = await ScopeForNewInvitation(context);
+        var receipt = new CreateTenantInvitationReceived(@event.Email, @event.Roles);
+        var scope = await ScopeForNewInvitation(context, receipt);
         return scope is null ? null : new EventsWithConcurrencyScopes(
             [
-                new(context.EventSourceId, new CreateTenantInvitationReceived(@event.Email, @event.Roles)) { Subject = context.Subject },
+                new(context.EventSourceId, receipt) { Subject = context.Subject },
                 new(context.EventSourceId, ReceiptMarker(context)),
             ],
             [new(context.EventSourceId, scope)]);
@@ -179,6 +183,15 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         }
     }
 
+    static bool SameReceipt(object existing, object incoming) => (existing, incoming) switch
+    {
+        (JoinTenantInvitationReceived first, JoinTenantInvitationReceived second) =>
+            first.Email == second.Email && first.TenantName == second.TenantName && first.Roles.SequenceEqual(second.Roles),
+        (CreateTenantInvitationReceived first, CreateTenantInvitationReceived second) =>
+            first.Email == second.Email && first.Roles.SequenceEqual(second.Roles),
+        _ => false,
+    };
+
     async Task AppendReceipt(EventsWithConcurrencyScopes? receipt, EventContext context)
     {
         if (receipt is null)
@@ -200,7 +213,7 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         ? new InvitationInboxEventRecorded(context.SequenceNumber)
         : new InvitationSourceInboxEventRecorded(context.SequenceNumber, sourceStore);
 
-    async Task<ConcurrencyScope?> ScopeForNewInvitation(EventContext context)
+    async Task<ConcurrencyScope?> ScopeForNewInvitation(EventContext context, object receipt)
     {
         // The local event log is authoritative even while the pending-invitation projection lags.
         // Read exactly the types in the optimistic scope: if an acceptance arrives before the
@@ -260,6 +273,21 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             return null;
         }
 
+        if (exchange.Value.Mode == InvitationExchangeMode.Attested)
+        {
+            var receipts = history.Select(entry => entry.Content)
+                .Where(content => content is JoinTenantInvitationReceived or CreateTenantInvitationReceived).ToArray();
+            if (receipts.Length > 0)
+            {
+                if (receipts.Length != 1 || !SameReceipt(receipts[0], receipt))
+                {
+                    await Reject(context, InvitationRejectionReason.InvitationIdReused);
+                }
+
+                return null; // An identical pending redelivery cannot issue a second token.
+            }
+        }
+
         var tail = history.Count > 0 ? history[^1].Context.SequenceNumber : EventSequenceNumber.BeforeFirst;
         return new(tail, context.EventSourceId, EventTypes: _decisionEventTypes);
     }
@@ -288,8 +316,13 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
 /// <param name="tokenIssuer">The canonical invitation token issuer.</param>
 /// <param name="eventStore">The event store.</param>
 /// <param name="logger">The warning logger for invalid invitation ids.</param>
+/// <param name="exchange">The selected exchange mode.</param>
 [Reactor]
-public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, IEventStore eventStore, ILogger<InvitationTokenIssuingReactor> logger) : IReactor
+public class InvitationTokenIssuingReactor(
+    IInvitationTokenIssuer tokenIssuer,
+    IEventStore eventStore,
+    ILogger<InvitationTokenIssuingReactor> logger,
+    IOptions<InvitationExchangeConfig>? exchange = null) : IReactor
 {
     /// <summary>
     /// Issues a join-tenant token and forwards it to the outbox.
@@ -304,7 +337,13 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
             return;
         }
 
-        var token = tokenIssuer.IssueJoinTenantInvitation(invitationId);
+        if (exchange?.Value.Mode == InvitationExchangeMode.Attested && !AttestedInvitationRecipient.IsValid(@event.Email))
+        {
+            await eventStore.PublishToOutbox(context, new InvitationRejected(InvitationRejectionReason.InvalidRecipient), []);
+            return;
+        }
+
+        var token = tokenIssuer.IssueJoinTenantInvitation(invitationId, @event.Email);
         await eventStore.PublishToOutbox(context, new InvitationTokenIssued(InvitationFlowType.JoinTenant, token.Token, token.ExpiresAt), []);
     }
 
@@ -321,7 +360,13 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
             return;
         }
 
-        var token = tokenIssuer.IssueCreateTenantInvitation(invitationId);
+        if (exchange?.Value.Mode == InvitationExchangeMode.Attested && !AttestedInvitationRecipient.IsValid(@event.Email))
+        {
+            await eventStore.PublishToOutbox(context, new InvitationRejected(InvitationRejectionReason.InvalidRecipient), []);
+            return;
+        }
+
+        var token = tokenIssuer.IssueCreateTenantInvitation(invitationId, @event.Email);
         await eventStore.PublishToOutbox(context, new InvitationTokenIssued(InvitationFlowType.CreateTenant, token.Token, token.ExpiresAt), []);
     }
 

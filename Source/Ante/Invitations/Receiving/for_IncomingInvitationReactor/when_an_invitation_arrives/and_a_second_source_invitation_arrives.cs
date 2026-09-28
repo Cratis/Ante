@@ -11,7 +11,7 @@ public class and_a_second_source_invitation_arrives : a_local_invitation_history
 {
     EventsWithConcurrencyScopes? _result;
 
-    void Establish() => Reactor = new(Store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, "StudioAdmin");
+    void Establish() => Reactor = new(Store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy, "StudioAdmin");
 
     async Task Because() => _result = await Reactor.On(
         new UserInvitedToCreateTenant("creator@example.com", ["Owner"]),

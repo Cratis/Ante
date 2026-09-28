@@ -33,6 +33,13 @@ public class and_accepts_the_current_legal_terms : a_running_ante
 
     async Task Because()
     {
+        var started = await Ante.Execute(
+            "/api/organization/registration/start", new { registrationId = _registrationId }, _subject, _email);
+        if (!IsSuccess(started))
+        {
+            throw new InvalidOperationException($"Registration start did not succeed: {started.RootElement}");
+        }
+
         _result = await ExecuteOnceProjected(
             "/api/organization/registration",
             new { registrationId = _registrationId, organizationName = _organization, firstName = "Grace", lastName = "Hopper", acceptedLegalTerms = true, acceptedLegalVersion = CurrentLegalDocuments.Version.Value },

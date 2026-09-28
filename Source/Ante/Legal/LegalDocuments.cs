@@ -244,17 +244,24 @@ public static class LegalAcceptanceEvidence
     /// <param name="id">The onboarding event source.</param>
     /// <param name="events">The onboarding and acceptance facts.</param>
     /// <param name="legal">The legal snapshot read for this command.</param>
-    /// <returns>The atomic append, rejected if the activated legal set changes before it commits.</returns>
+    /// <param name="invitationScope">The authoritative invitation receipt/revocation scope for invited acceptance; null for self-service registration.</param>
+    /// <returns>The atomic append, rejected if either the invitation or activated legal set changes before it commits.</returns>
     public static async Task<EventsWithConcurrencyScopes> ForAppend(
         IEventStore store,
         EventSourceId id,
         IEnumerable<object> events,
-        LegalAcceptanceSnapshot legal)
+        LegalAcceptanceSnapshot legal,
+        ConcurrencyScope? invitationScope = null)
     {
-        var tail = await store.EventLog.GetTailSequenceNumber(id);
+        var scope = invitationScope;
+        if (scope is null)
+        {
+            var tail = await store.EventLog.GetTailSequenceNumber(id);
+            scope = new(tail.IsActualValue ? tail : EventSequenceNumber.BeforeFirst, id);
+        }
         var scopes = new List<KeyValuePair<EventSourceId, ConcurrencyScope>>
         {
-            new(id, new(tail.IsActualValue ? tail : EventSequenceNumber.BeforeFirst, id)),
+            new(id, scope),
         };
         if (legal.Scope is not null)
         {

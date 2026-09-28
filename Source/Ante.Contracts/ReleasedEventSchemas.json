@@ -1,10 +1,12 @@
 [
   "InvitationRejected:1",
+  "InvitationRejected:2",
   "InvitationRevoked:1",
   "InvitationToCreateTenantAccepted:1",
   "InvitationToJoinTenantAccepted:1",
   "InvitationTokenIssued:1",
   "InvitationTokenIssued:2",
+  "InvitationTokenIssued:3",
   "LegalDocumentSetActivated:1",
   "LegalDocumentSetPublished:1",
   "LegalTermsAccepted:1",

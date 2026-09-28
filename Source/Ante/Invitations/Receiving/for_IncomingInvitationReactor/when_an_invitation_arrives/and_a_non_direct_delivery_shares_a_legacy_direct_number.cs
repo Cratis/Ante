@@ -12,7 +12,7 @@ public class and_a_non_direct_delivery_shares_a_legacy_direct_number : a_local_i
 
     void Establish()
     {
-        Reactor = new(Store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, "Studio");
+        Reactor = new(Store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy, "Studio");
         AlreadyRecorded(new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]), 1);
         AlreadyRecorded(new InvitationRevocationReceived());
     }

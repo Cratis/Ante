@@ -3,11 +3,13 @@
 
 #if DEBUG
 using System.Collections.Immutable;
+using Ante.Invitations.Accepting;
 using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Chronicle.Reactors;
 using Cratis.Execution;
+using Microsoft.Extensions.Options;
 
 namespace Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_an_invitation_arrives.given;
 
@@ -41,7 +43,7 @@ public class a_local_invitation_history : Specification
             Arg.Any<DateTimeOffset?>(),
             Arg.Any<Cratis.Chronicle.Subject>())
             .Returns(AppendResult.Success(CorrelationId.New(), 1));
-        Reactor = new(Store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance);
+        Reactor = new(Store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy);
     }
 
     protected void AlreadyRecorded(object @event, EventSequenceNumber? inboxNumber = null, string? inboxSequence = null)
@@ -76,6 +78,11 @@ public class a_local_invitation_history : Specification
         var types = filter.ToHashSet();
         return events.Where(entry => types.Count == 0 || types.Contains(entry.Content.GetType().GetEventType())).ToImmutableList();
     }
+
+    protected void UseAttestedExchange() => Reactor = new(
+        Store,
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance,
+        exchange: Options.Create(new InvitationExchangeConfig { Mode = InvitationExchangeMode.Attested }));
 
     protected void ShouldRejectReusedId() => Assert.IsType<InvitationRejected>(Assert.Single(Outbox.ReceivedCalls()).GetArguments()[1])
         .Reason.ShouldEqual(InvitationRejectionReason.InvitationIdReused);

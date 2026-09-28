@@ -14,5 +14,5 @@ namespace Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_an_invit
 /// <param name="store">The substituted event store.</param>
 /// <param name="logger">The handler logger.</param>
 public class IncomingInvitationScenarioReactor<TMarker>(IEventStore store, ILogger<IncomingInvitationReactor> logger)
-    : IncomingInvitationReactor(store, logger), IReactor;
+    : IncomingInvitationReactor(store, logger, IncomingInvitationTestOptions.Legacy), IReactor;
 #endif

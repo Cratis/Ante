@@ -21,7 +21,8 @@ public class and_a_non_owner_requests_it : Specification
             Substitute.For<ISignedInIdentity>(),
             subscriptions,
             _recorded,
-            Substitute.For<IMongoCollection<JoinTenantAcceptancePublished>>())).Value;
+            Substitute.For<IMongoCollection<JoinTenantAcceptancePublished>>(),
+            Substitute.For<IEventStore>())).Value;
     }
 
     [Fact] void should_look_unknown() => Assert.Equal(UserSetupAcceptanceStatus.Pending, _result.Status);

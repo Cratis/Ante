@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Ante.Invitations.Accepting;
 using Ante.Legal;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -22,21 +23,35 @@ namespace Ante.Integration.given;
 /// <param name="eventStore">Ante's event store name (<c>Ante:EventStore</c>).</param>
 /// <param name="hostStores">The trusted host stores (<c>Ante:HostStores</c>).</param>
 /// <param name="legalDocuments">Optional legal document source, standing in for a host-provided one.</param>
+/// <param name="attestedExchange">Whether to configure the real host in attested exchange mode.</param>
 /// <param name="legalDocumentSetId">When set, selects the first host's inbox legal stream.</param>
 /// <param name="legalDocumentFactory">Optional scoped test source wrapping the inbox implementation.</param>
+/// <param name="acceptanceFenceFactory">Optional scoped test fence for a deterministic revocation race.</param>
+/// <param name="chronicleConnectionString">Optional endpoint override to exercise an unavailable Chronicle.</param>
 public sealed class AnteApplication(
     ChronicleInfrastructure infrastructure,
     string eventStore,
     IReadOnlyList<string> hostStores,
     ILegalDocumentSource? legalDocuments = default,
+    bool attestedExchange = false,
     string? legalDocumentSetId = default,
-    Func<IServiceProvider, ILegalDocumentSource>? legalDocumentFactory = default) : WebApplicationFactory<Program>
+    Func<IServiceProvider, ILegalDocumentSource>? legalDocumentFactory = default,
+    Func<IServiceProvider, IInvitationAcceptanceFence>? acceptanceFenceFactory = default,
+    string? chronicleConnectionString = default) : WebApplicationFactory<Program>
 {
     public const string IdentityProvider = "integration-idp";
 
     static readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
-
     public string EventStore { get; } = eventStore;
+
+    /// <summary>The private test key corresponding to the attestation verifier's pinned public key.</summary>
+    public string AttestationPrivateKeyPem { get; } = CreateSigningKey();
+
+    static string CreateSigningKey()
+    {
+        using var key = RSA.Create(2048);
+        return key.ExportPkcs8PrivateKeyPem();
+    }
 
     /// <summary>
     /// Posts a command the way the wizard does, behind the authentication proxy's forwarded identity. Pass the
@@ -47,7 +62,7 @@ public sealed class AnteApplication(
         using var request = new HttpRequestMessage(HttpMethod.Post, route) { Content = JsonContent.Create(command, options: _json) };
         if (subject is not null)
         {
-            AddForwardedIdentity(request, subject, email ?? subject);
+            AddForwardedIdentity(request, subject, email ?? subject, attestedExchange);
         }
 
         using var response = await CreateClient().SendAsync(request);
@@ -59,7 +74,7 @@ public sealed class AnteApplication(
     public async Task<JsonDocument> RegistrationStatus(Guid registrationId, string subject)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/invitations/organization-setup/status-for-registration?registrationId={registrationId:D}");
-        AddForwardedIdentity(request, subject, subject);
+        AddForwardedIdentity(request, subject, subject, attestedExchange);
         using var response = await CreateClient().SendAsync(request);
         response.EnsureSuccessStatusCode();
         return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -81,16 +96,32 @@ public sealed class AnteApplication(
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // Integration runs the real Program with isolated host stores, kernel and MongoDB.
-        using var signingKey = RSA.Create(2048);
+        using var signingKey = RSA.Create();
+        signingKey.ImportFromPem(AttestationPrivateKeyPem);
         builder
             .UseEnvironment("Integration")
-            .UseSetting("Ante:Invitations:Token:PrivateKeyPem", signingKey.ExportPkcs8PrivateKeyPem())
+            .UseSetting("Ante:Invitations:Token:PrivateKeyPem", AttestationPrivateKeyPem)
             .UseSetting("Ante:Invitations:Token:PublicKeyPem", signingKey.ExportSubjectPublicKeyInfoPem())
-            .UseSetting("Cratis:Chronicle:ConnectionString", infrastructure.ChronicleConnectionString)
+            .UseSetting("Cratis:Chronicle:ConnectionString", chronicleConnectionString ?? infrastructure.ChronicleConnectionString)
             .UseSetting("Cratis:MongoDB:Server", infrastructure.MongoDBServer)
             .UseSetting("Cratis:MongoDB:Database", EventStore)
             .UseSetting("Ante:EventStore", EventStore)
             .UseSetting("IdentityProviders:Providers:0:Name", IdentityProvider);
+        if (attestedExchange)
+        {
+            builder
+                .UseSetting("Ante:Invitations:Token:Issuer", "integration-ante")
+                .UseSetting("Ante:Invitations:Token:Audience", "integration-lobby")
+                .UseSetting("Ante:Invitations:Exchange:Mode", "Attested")
+                .UseSetting("Ante:Invitations:Exchange:Attestation:Issuer", "integration-proxy")
+                .UseSetting("Ante:Invitations:Exchange:Attestation:Audience", "integration-lobby")
+                .UseSetting("Ante:Invitations:Exchange:Attestation:LobbyScope", "integration-lobby")
+                .UseSetting("Ante:Invitations:Exchange:Attestation:PublicKeys:0:KeyId", "integration-key")
+                .UseSetting("Ante:Invitations:Exchange:Attestation:PublicKeys:0:PublicKeyPem", signingKey.ExportSubjectPublicKeyInfoPem())
+                .UseSetting("Ante:Invitations:Exchange:Attestation:Providers:0:Key", "integration-provider")
+                .UseSetting("Ante:Invitations:Exchange:Attestation:Providers:0:Issuer", "https://integration.example")
+                .UseSetting("Ante:Invitations:Exchange:Attestation:Providers:0:AcceptableAssurances:0", "oidc");
+        }
         if (legalDocumentSetId is not null)
         {
             builder.UseSetting("Ante:Legal:Source", "Inbox")
@@ -117,18 +148,27 @@ public sealed class AnteApplication(
         {
             builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Scoped(legalDocumentFactory)));
         }
+        if (acceptanceFenceFactory is not null)
+        {
+            builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Scoped(acceptanceFenceFactory)));
+        }
     }
 
     // The Microsoft identity platform header contract the authentication proxy forwards.
-    static void AddForwardedIdentity(HttpRequestMessage request, string subject, string name)
+    static void AddForwardedIdentity(HttpRequestMessage request, string subject, string name, bool attested = false)
     {
         var principal = new
         {
-            identityProvider = IdentityProvider,
+            identityProvider = attested ? "integration-provider" : IdentityProvider,
             userId = subject,
             userDetails = name,
             userRoles = new[] { "authenticated" },
-            claims = Array.Empty<object>(),
+            claims = attested ? new[]
+            {
+                new { typ = "urn:cratis:identity:subject", val = subject },
+                new { typ = "urn:cratis:identity:provider-key", val = "integration-provider" },
+                new { typ = "urn:cratis:identity:issuer", val = "https://integration.example" },
+            } : [],
         };
         request.Headers.Add("x-ms-client-principal-id", subject);
         request.Headers.Add("x-ms-client-principal-name", name);

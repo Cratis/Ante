@@ -5,6 +5,7 @@ using System.Security.Claims;
 using Ante.IdentityProviders;
 using Ante.Invitations.Issuing;
 using Cratis.Arc.Identity;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using MongoDB.Driver;
 
@@ -211,6 +212,56 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
 }
 
 /// <summary>
+/// Handles only attested invitation routes on the dedicated pipeline branch. Chronicle-dependent
+/// collaborators are not resolved for liveness, readiness, or other application routes.
+/// </summary>
+/// <param name="next">The next middleware in the branch.</param>
+public class AttestedInviteExchangeMiddleware(RequestDelegate next)
+{
+    /// <summary>
+    /// Handles a stage or completion request.
+    /// </summary>
+    /// <param name="context">The HTTP context.</param>
+    /// <param name="staging">The attested invitation staging service.</param>
+    /// <param name="completion">The attested invitation completion service.</param>
+    public async Task InvokeAsync(HttpContext context, AttestedInvitationStaging staging, AttestedInvitationCompletion completion)
+    {
+        if (context.Request.Path.Equals("/_invite/stage", StringComparison.OrdinalIgnoreCase))
+        {
+            var stage = await InvitationStageRequestBody.Read(context);
+            if (stage is null)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            context.Response.StatusCode = await staging.TryStage(context.Request.Headers.Authorization.ToString(), stage)
+                ? StatusCodes.Status200OK
+                : StatusCodes.Status404NotFound;
+            return;
+        }
+
+        if (context.Request.Path.Equals("/_invite/exchange", StringComparison.OrdinalIgnoreCase))
+        {
+            // Never pass an attested request through the legacy processor, even during rollout.
+            var request = await InvitationCompletionRequestBody.Read(context);
+            if (request is null)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            context.Response.StatusCode = await completion.TryComplete(context.Request.Headers.Authorization.ToString(), request)
+                ? StatusCodes.Status200OK
+                : StatusCodes.Status400BadRequest;
+            return;
+        }
+
+        await next(context);
+    }
+}
+
+/// <summary>
 /// Fallback controller-based invite-exchange endpoint, reached when the bypass middleware is not in the
 /// pipeline (for example in specs that exercise the controller directly).
 /// </summary>
@@ -218,13 +269,15 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
 /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
 /// <param name="tokenValidator">The invitation token verifier.</param>
 /// <param name="logger">Logger for rejected unresolved provider evidence.</param>
+/// <param name="exchangeConfig">The selected exchange protocol.</param>
 [Route("_invite/exchange")]
 [ApiController]
 public class InviteExchangeController(
     IMongoCollection<AcceptedInvitation> acceptedInvitations,
     IIdentityProviderResolver identityProviderResolver,
     IInvitationTokenValidator tokenValidator,
-    ILogger<InviteExchangeBypassMiddleware> logger) : ControllerBase
+    ILogger<InviteExchangeBypassMiddleware> logger,
+    IOptions<InvitationExchangeConfig>? exchangeConfig = null) : ControllerBase
 {
     /// <summary>
     /// Exchanges an invitation token for a recorded acceptance session.
@@ -234,6 +287,11 @@ public class InviteExchangeController(
     [HttpPost]
     public async Task<IActionResult> Exchange([FromBody] ExchangeInviteRequest? request)
     {
+        if (exchangeConfig?.Value.Mode == InvitationExchangeMode.Attested)
+        {
+            return BadRequest();
+        }
+
         if (request is null)
         {
             return BadRequest();
@@ -266,13 +324,37 @@ public record InvitationIdentityDetails(InvitationId InvitationId, InvitationFlo
 /// </summary>
 /// <param name="acceptedInvitations">Collection used to resolve accepted invitation sessions for fallback identity resolution.</param>
 /// <param name="identityProviderResolver">Resolver for the forwarded request's identity provider.</param>
+/// <param name="exchangeConfig">The exchange mode.</param>
+/// <param name="attestedSessions">The attested session collection.</param>
 public class InvitationIdentityProvider(
     IMongoCollection<AcceptedInvitation> acceptedInvitations,
-    IIdentityProviderResolver identityProviderResolver) : IProvideIdentityDetails<InvitationIdentityDetails>
+    IIdentityProviderResolver identityProviderResolver,
+    IOptions<InvitationExchangeConfig>? exchangeConfig = null,
+    IMongoCollection<AttestedInvitationSession>? attestedSessions = null) : IProvideIdentityDetails<InvitationIdentityDetails>
 {
     /// <inheritdoc/>
     public async Task<IdentityDetails> Provide(IdentityProviderContext context)
     {
+        if (exchangeConfig?.Value.Mode == InvitationExchangeMode.Attested)
+        {
+            var report = AuthProxySignInReport.FromClaims(context.Claims);
+            var attestedSubject = context.Claims.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:subject").Value;
+            var scope = exchangeConfig.Value.Attestation.LobbyScope;
+            if (attestedSessions is null || string.IsNullOrWhiteSpace(scope) || string.IsNullOrWhiteSpace(attestedSubject) ||
+                string.IsNullOrWhiteSpace(report.ProviderKey) || string.IsNullOrWhiteSpace(report.Issuer))
+            {
+                return new IdentityDetails(true, new InvitationIdentityDetails(InvitationId.NotSet, InvitationFlowType.JoinTenant));
+            }
+
+            var candidates = await attestedSessions.Find(Builders<AttestedInvitationSession>.Filter.Eq(row => row.ProviderSubject, attestedSubject)).ToListAsync();
+            var claimed = context.Claims.FirstOrDefault(claim => claim.Key == JwtRegisteredClaimNames.Jti).Value;
+            var id = Guid.TryParse(claimed, out var guid) ? (InvitationId)guid : InvitationId.NotSet;
+            var session = SignedInIdentity.SelectAttestedSession(candidates, scope, id, report.ProviderKey, report.Issuer, attestedSubject, DateTime.UtcNow);
+            return session is null
+                ? new IdentityDetails(true, new InvitationIdentityDetails(InvitationId.NotSet, InvitationFlowType.JoinTenant))
+                : new IdentityDetails(true, new InvitationIdentityDetails(session.InvitationId, session.FlowType));
+        }
+
         var jtiValue = context.Claims
             .FirstOrDefault(c => c.Key == JwtRegisteredClaimNames.Jti).Value;
 

@@ -164,21 +164,31 @@ public record HostOutcomeView(InvitationId AttemptId, bool IsConfigured, HostOut
     /// <param name="signedInIdentity">The identity the current request is signed in with.</param>
     /// <param name="options">The Ante options carrying whether the host outcome adapter is configured.</param>
     /// <param name="backchannel">The backchannel used to ask the host for the outcome.</param>
+    /// <param name="eventStore">The scoped store used to release the committed owner's identity.</param>
     /// <returns>The host-reported outcome, safely defaulted when it is not visible to the caller.</returns>
     public static async Task<HostOutcomeView> ForAttempt(
         InvitationId attemptId,
         ISignedInIdentity signedInIdentity,
         IOptions<AnteOptions> options,
-        IHostOutcomeBackchannel backchannel)
+        IHostOutcomeBackchannel backchannel,
+        IEventStore eventStore)
     {
         var isConfigured = !string.IsNullOrWhiteSpace(options.Value.HostOutcomeUrl);
 
-        if (!isConfigured || !signedInIdentity.IsVerifiedOwnerOf(attemptId))
+        if (!isConfigured || !signedInIdentity.IsVerifiedRecoveryOwnerOf(attemptId, eventStore))
         {
             return new(attemptId, isConfigured, HostOutcomeStatus.Unknown, string.Empty);
         }
 
         var (status, reasonCode) = await backchannel.GetOutcome(attemptId);
+
+        // Acceptance may commit while the host is answering. Only the current committed owner can
+        // receive the answer, even if this caller was the owner before the backchannel request.
+        if (!signedInIdentity.IsVerifiedRecoveryOwnerOf(attemptId, eventStore))
+        {
+            return new(attemptId, isConfigured, HostOutcomeStatus.Unknown, string.Empty);
+        }
+
         return new(attemptId, isConfigured, status, reasonCode);
     }
 }

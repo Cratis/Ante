@@ -18,7 +18,8 @@ public static class LocalizedConstraintResponses
         ["UniqueOrganizationName"] = "OrganizationNameExists",
         ["OneUseJoinTenantInvitation"] = "InvitationAlreadyAccepted",
         ["OneUseCreateTenantInvitation"] = "InvitationAlreadyAccepted",
-        ["OneUseOnboardingAttempt"] = "AttemptAlreadySubmitted"
+        ["OneUseOnboardingAttempt"] = "AttemptAlreadySubmitted",
+        ["OneRegistrationStart"] = "RegistrationOwnedByAnotherSignIn"
     };
 
     /// <summary>

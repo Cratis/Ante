@@ -49,7 +49,7 @@ public class and_subscription_fails_after_reactor_registration : Specification
                 : Task.CompletedTask);
         var client = Substitute.For<IChronicleClient>();
         client.GetEventStore(_options.EventStore, _options.Namespace).Returns(Task.FromResult(store));
-        _routing = new(client, Substitute.For<IServiceScopeFactory>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance);
+        _routing = new(client, Substitute.For<IServiceScopeFactory>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy);
     }
 
     async Task Because()

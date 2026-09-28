@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Ante.Invitations;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Configurations;
 using DotNet.Testcontainers.Containers;
@@ -59,6 +60,8 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        // Client-only Mongo tests run before any Ante host starts; use the same concept map.
+        InvitationMongoSerialization.EnsureConfigured();
         _container = new ContainerBuilder(Image)
             .WithPortBinding(ChroniclePort, assignRandomHostPort: true)
             .WithPortBinding(HttpPort, assignRandomHostPort: true)

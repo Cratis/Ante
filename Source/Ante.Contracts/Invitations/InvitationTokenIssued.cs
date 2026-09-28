@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Text.Json.Serialization;
+using Cratis.Chronicle.Compliance.GDPR;
 
 namespace Ante.Contracts.Invitations;
 
@@ -12,7 +13,7 @@ namespace Ante.Contracts.Invitations;
 /// </summary>
 /// A missing expiry from a generation-1 payload becomes <see cref="DateTimeOffset.UnixEpoch"/>:
 /// the historical expiration is unknown, and hosts must not treat that sentinel as a usable expiry.
-[EventType(generation: 2)]
+[EventType(generation: 3)]
 public record InvitationTokenIssued
 {
     /// <summary>
@@ -49,6 +50,7 @@ public record InvitationTokenIssued
     /// <summary>
     /// Gets the signed JWT.
     /// </summary>
+    [PII]
     public string Token { get; init; }
 
     /// <summary>
@@ -75,6 +77,13 @@ public record InvitationTokenIssued
     public void Deconstruct(out InvitationFlowType FlowType, out string Token) =>
         (FlowType, Token) = (this.FlowType, this.Token);
 }
+
+/// <summary>The generation-2 publication shape, before capability tokens carried recipient email.</summary>
+/// <param name="FlowType">The invitation flow.</param>
+/// <param name="Token">The signed JWT.</param>
+/// <param name="ExpiresAt">The JWT expiration.</param>
+[EventTypeGenerationFor<InvitationTokenIssued>(2)]
+public record InvitationTokenIssuedV2(InvitationFlowType FlowType, string Token, DateTimeOffset ExpiresAt);
 
 /// <summary>The original token publication shape retained for replay and older consumers.</summary>
 /// <param name="FlowType">The invitation flow.</param>

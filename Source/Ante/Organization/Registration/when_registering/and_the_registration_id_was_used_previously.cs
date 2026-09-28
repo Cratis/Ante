@@ -21,9 +21,11 @@ public class and_the_registration_id_was_used_previously : Specification
     readonly CommandScenario<RegisterOrganization> _scenario = new();
     CommandResult _result = null!;
 
-    void Establish()
+    async Task Establish()
     {
         _scenario.Given.ForEventSource(_id).Events(new OrganizationRegistrationCompleted(
+            "Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
+        await _scenario.EventScenario.Given.ForEventSource(_id).Events(new OrganizationRegistrationCompleted(
             "Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
         var names = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
         names.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);

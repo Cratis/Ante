@@ -4,6 +4,7 @@
 using System.Globalization;
 using Ante;
 using Ante.IdentityProviders;
+using Ante.Invitations;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.HostOutcome;
 using Ante.Invitations.Issuing;
@@ -21,6 +22,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
+InvitationMongoSerialization.EnsureConfigured();
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Non-negotiable: routing comes from configuration, never a literal in this file. A second Ante instance
@@ -35,6 +38,8 @@ LegalOptions.Validate(anteOptions);
 var localizationOptions = LocaleNegotiation.CreateOptions(anteOptions);
 var invitationTokenOptions = builder.Configuration.GetSection("Ante:Invitations:Token").Get<InvitationTokenConfig>() ?? new InvitationTokenConfig();
 InvitationTokenConfigurationValidator.Validate(invitationTokenOptions);
+var invitationExchangeOptions = builder.Configuration.GetSection("Ante:Invitations:Exchange").Get<InvitationExchangeConfig>() ?? new InvitationExchangeConfig();
+InvitationExchangeConfigurationValidator.Validate(invitationExchangeOptions, invitationTokenOptions);
 
 builder.AddCratis(
     options =>
@@ -63,11 +68,17 @@ builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(anteOp
 builder.Services.AddSingleton<IncomingInvitationSubscriptions>();
 builder.Services.AddHostedService<IncomingInvitationRegistration>();
 builder.Services.Configure<InvitationTokenConfig>(builder.Configuration.GetSection("Ante:Invitations:Token"));
+builder.Services.Configure<InvitationExchangeConfig>(builder.Configuration.GetSection("Ante:Invitations:Exchange"));
 builder.Services.Configure<IdentityProviderOptions>(builder.Configuration.GetSection(IdentityProviderOptions.ConfigurationSection));
 
 builder.Services.AddSingleton<IIdentityProviderResolver, IdentityProviderResolver>();
 builder.Services.AddSingleton<IInvitationTokenIssuer, InvitationTokenIssuer>();
 builder.Services.AddSingleton<IInvitationTokenValidator, InvitationTokenValidator>();
+builder.Services.AddSingleton<InvitationAttestationVerifier>();
+builder.Services.AddScoped<AttestedInvitationStaging>();
+builder.Services.AddScoped<AttestedInvitationCompletion>();
+builder.Services.AddScoped<IAttestedInvitationSessions, AttestedInvitationSessions>();
+builder.Services.AddScoped<IInvitationAcceptanceFence, InvitationAcceptanceFence>();
 builder.Services.AddScoped<ISignedInIdentity, SignedInIdentity>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient<IIdentityBackchannel, IdentityBackchannel>();
@@ -113,6 +124,11 @@ IdentityProviderConfigurationWarnings.WarnForUnattributableSignIns(
 await using (var startupScope = app.Services.CreateAsyncScope())
 {
     await AcceptedInvitationIndexes.EnsureCreated(startupScope.ServiceProvider.GetRequiredService<IMongoCollection<AcceptedInvitation>>());
+    if (invitationExchangeOptions.Mode == InvitationExchangeMode.Attested)
+    {
+        await StagedInvitationTransactionIndexes.EnsureCreated(startupScope.ServiceProvider.GetRequiredService<IMongoCollection<StagedInvitationTransaction>>());
+        await AttestedInvitationSessionIndexes.EnsureCreated(startupScope.ServiceProvider.GetRequiredService<IMongoCollection<AttestedInvitationSession>>());
+    }
 }
 
 app.UseWebSockets();
@@ -131,6 +147,17 @@ app.UseAuthorization();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+// Branch before the legacy exchange middleware so the attested handlers (which depend on Chronicle)
+// are resolved only for attested stage and completion POSTs, never for health or ordinary routes.
+if (invitationExchangeOptions.Mode == InvitationExchangeMode.Attested)
+{
+    app.MapWhen(
+        context => HttpMethods.IsPost(context.Request.Method) &&
+            (context.Request.Path.Equals("/_invite/stage", StringComparison.OrdinalIgnoreCase) ||
+             context.Request.Path.Equals("/_invite/exchange", StringComparison.OrdinalIgnoreCase)),
+        branch => branch.UseMiddleware<AttestedInviteExchangeMiddleware>());
+}
 
 app.UseMiddleware<InviteExchangeBypassMiddleware>();
 app.MapControllers();

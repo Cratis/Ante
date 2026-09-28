@@ -58,7 +58,7 @@ public class and_two_sources_are_configured : Specification
             });
         var client = Substitute.For<IChronicleClient>();
         client.GetEventStore("StudioLobby", "Default").Returns(Task.FromResult(_store));
-        _routing = new(client, Substitute.For<IServiceScopeFactory>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance);
+        _routing = new(client, Substitute.For<IServiceScopeFactory>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy);
     }
 
     async Task Because()

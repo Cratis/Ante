@@ -9,6 +9,7 @@ using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.Receiving;
 using Ante.Invitations.UserSetup;
 using Ante.Legal;
+using Ante.Organization.Registration.Start;
 using Ante.Outbox;
 using Ante.Resources;
 using Cratis.Arc.Validation;
@@ -67,6 +68,11 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
             .Must(_ => RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver) is { } owner &&
                 !string.IsNullOrWhiteSpace(owner.Provider.Value))
             .WithMessage(_ => Messages.Get("RegisterIdentityRequired"));
+
+        RuleFor(c => c.RegistrationId)
+            .MustAsync(async (id, _) => await RegistrationStartHistory.BelongsTo(
+                id, RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver), eventStore))
+            .WithMessage(_ => Messages.Get("RegistrationOwnedByAnotherSignIn"));
 
         RuleFor(c => c.RegistrationId)
             .MustAsync(async (id, _) => await RegistrationSourceAvailability.IsAvailable(id, eventStore))
@@ -145,6 +151,13 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             return ValidationResult.Error(Messages.Get("AttemptAlreadySubmitted"), reasonDetail: OnboardingAttemptConstraintNames.OneUseAttempt);
         }
 
+        // Recheck the authoritative start at submission, not merely during /validate. A registration
+        // id is browser-generated and therefore cannot establish ownership without this local fact.
+        if (!await RegistrationStartHistory.BelongsTo(RegistrationId, owner, eventStore))
+        {
+            return ValidationResult.Error(Messages.Get("RegistrationOwnedByAnotherSignIn"));
+        }
+
         var subject = owner.Subject.Value;
         var identityProviderValue = owner.Provider;
         var legalResolution = await LegalAcceptanceEvidence.ResolveWithScope(
@@ -184,15 +197,24 @@ public static class RegistrationSourceAvailability
     /// Checks whether the event source can start a self-service registration.
     /// </summary>
     /// <param name="registrationId">The proposed registration id.</param>
-    /// <param name="eventStore">The scoped event store providing the current read models.</param>
-    /// <returns>True if no prior invitation or registration read model claims this id.</returns>
+    /// <param name="eventStore">The authoritative local event store.</param>
+    /// <returns>True if no prior invitation, submission, or completed registration claims this id.</returns>
     public static async Task<bool> IsAvailable(InvitationId registrationId, IEventStore eventStore)
     {
-        var key = registrationId.Value;
-        return await eventStore.ReadModels.GetInstanceById<PendingInvitationToJoin>(key) is null &&
-            await eventStore.ReadModels.GetInstanceById<PendingInvitationToCreateOrganization>(key) is null &&
-            await eventStore.ReadModels.GetInstanceById<UserSetupProgress>(key) is null &&
-            await eventStore.ReadModels.GetInstanceById<OrganizationSetupProgress>(key) is null;
+        // A RegistrationStarted must not make the id unavailable. Inspect facts, not read-model
+        // existence: registration begins before submission, and projections may lag either write.
+        var events = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(
+            (EventSourceId)registrationId.Value.ToString("D"),
+            [
+                typeof(JoinTenantInvitationReceived).GetEventType(),
+                typeof(CreateTenantInvitationReceived).GetEventType(),
+                typeof(InvitationToJoinTenantAccepted).GetEventType(),
+                typeof(InvitationToCreateTenantAccepted).GetEventType(),
+                typeof(OnboardingAttemptClaimed).GetEventType(),
+                typeof(OrganizationRegistrationCompleted).GetEventType(),
+                typeof(RegistrationOwnerRecorded).GetEventType(),
+            ]);
+        return !events.Any();
     }
 }
 

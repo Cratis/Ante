@@ -11,6 +11,7 @@ using Ante.Organization;
 using Ante.Organization.Registration;
 using Ante.Outbox;
 using Ante.Resources;
+using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Chronicle.Keys;
 using Cratis.Types;
 using MongoDB.Driver;
@@ -224,7 +225,8 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
     /// <param name="signedInIdentity">The identity the user is signed in with for this request.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
-    /// <param name="eventStore">The local event store for the acceptance concurrency boundary.</param>
+    /// <param name="acceptanceFence">The authoritative invitation revision used to fence revocation.</param>
+    /// <param name="eventStore">The local event store for composing the atomic append.</param>
     /// <returns>
     /// A <see cref="Result{T0, T1}"/> containing either a failed <see cref="ValidationResult"/> or the
     /// compliance subject and events to append.
@@ -243,6 +245,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
         ISignedInIdentity signedInIdentity,
         ILegalDocumentSource legalDocumentSource,
+        IInvitationAcceptanceFence acceptanceFence,
         IEventStore eventStore)
     {
         // Re-read rather than trust the validator: the name can be claimed between the two, and this is
@@ -279,7 +282,16 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
             return legalError;
         }
 
-        httpContextAccessor.HttpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
+        if (!signedInIdentity.IsVerifiedOwnerOf(InvitationId))
+        {
+            return ValidationResult.Error(Messages.Get("SetupNotPending"));
+        }
+
+        var owner = signedInIdentity.AttestedOwnerOf(InvitationId);
+        if (signedInIdentity.IsAttestedExchange && owner is null)
+        {
+            return ValidationResult.Error(Messages.Get("SetupNotPending"));
+        }
 
         var events = new List<object>
         {
@@ -294,9 +306,22 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
                 pendingInvitation.Email,
                 pendingInvitation.Roles),
         };
+        if (owner is not null)
+        {
+            events.Add(owner);
+        }
+
         events.AddRange(legalEvidence.Events);
 
-        return (complianceSubject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence));
+        var scope = await acceptanceFence.For(InvitationId, InvitationFlowType.CreateTenant);
+        if (scope is null)
+        {
+            return ValidationResult.Error(Messages.Get("SetupNotPending"));
+        }
+
+        httpContextAccessor.HttpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
+
+        return (complianceSubject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence, scope));
     }
 }
 
@@ -326,26 +351,38 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
     /// <param name="subscriptions">The subscription tracker.</param>
     /// <param name="recordedCollection">The durable setup-record collection.</param>
     /// <param name="publishedCollection">The durable outbox-publication collection.</param>
+    /// <param name="eventStore">The scoped store used to release the committed owner's identity.</param>
     /// <returns>An observable status stream for the invitation.</returns>
     public static ISubject<OrganizationSetupAcceptanceStatusView> StatusForInvitation(
         InvitationId invitationId,
         ISignedInIdentity signedInIdentity,
         OrganizationSetupStatusSubscriptions subscriptions,
         IMongoCollection<OrganizationSetupProgress> recordedCollection,
-        IMongoCollection<OrganizationSetupPublished> publishedCollection)
+        IMongoCollection<OrganizationSetupPublished> publishedCollection,
+        IEventStore eventStore)
     {
-        if (!signedInIdentity.IsVerifiedOwnerOf(invitationId))
+        if (!signedInIdentity.IsVerifiedRecoveryOwnerOf(invitationId, eventStore))
         {
             return new BehaviorSubject<OrganizationSetupAcceptanceStatusView>(new(invitationId, OrganizationSetupAcceptanceStatus.Pending, TenantName.NotSet));
         }
 
         var recorded = recordedCollection.Find(Builders<OrganizationSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
         var published = publishedCollection.Find(Builders<OrganizationSetupPublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
-        return subscriptions.GetStatus(
+        var status = subscriptions.GetStatus(
             invitationId,
             recorded?.OrganizationName,
             isRecorded: recorded is not null,
             isFullyPublished: OrganizationSetupPublication.IsFullyPublished(recorded, published));
+        if (!signedInIdentity.IsAttestedExchange)
+        {
+            return status;
+        }
+
+        var actor = signedInIdentity.CaptureRecoveryActor();
+        return actor is null
+            ? new BehaviorSubject<OrganizationSetupAcceptanceStatusView>(new(invitationId, OrganizationSetupAcceptanceStatus.Pending, TenantName.NotSet))
+            : new InvitationStatusOwnerFilter<OrganizationSetupAcceptanceStatusView>(
+                status, invitationId, actor, eventStore, view => view.Status == OrganizationSetupAcceptanceStatus.Pending);
     }
 
     /// <summary>

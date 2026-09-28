@@ -20,7 +20,8 @@ public class and_the_caller_is_anonymous : Specification
             _id,
             Substitute.For<ISignedInIdentity>(),
             Options.Create(new AnteOptions { HostOutcomeUrl = "https://host.example.com/onboarding" }),
-            _backchannel);
+            _backchannel,
+            Substitute.For<IEventStore>());
     }
 
     [Fact] void should_report_unknown() => Assert.Equal(HostOutcomeStatus.Unknown, _result.Status);

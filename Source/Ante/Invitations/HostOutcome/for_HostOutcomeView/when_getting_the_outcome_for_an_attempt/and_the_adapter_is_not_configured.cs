@@ -25,11 +25,11 @@ public class and_the_adapter_is_not_configured : Specification
         _backchannel = Substitute.For<IHostOutcomeBackchannel>();
 
         _signedInIdentity = Substitute.For<ISignedInIdentity>();
-        _signedInIdentity.IsVerifiedOwnerOf(_attemptId).Returns(true);
+        _signedInIdentity.IsVerifiedRecoveryOwnerOf(_attemptId, Arg.Any<IEventStore>()).Returns(true);
     }
 
     async Task Because() =>
-        _result = await HostOutcomeView.ForAttempt(_attemptId, _signedInIdentity, Options.Create(new AnteOptions { HostOutcomeUrl = string.Empty }), _backchannel);
+        _result = await HostOutcomeView.ForAttempt(_attemptId, _signedInIdentity, Options.Create(new AnteOptions { HostOutcomeUrl = string.Empty }), _backchannel, Substitute.For<IEventStore>());
 
     [Fact] void should_report_not_configured() => Assert.False(_result.IsConfigured);
     [Fact] void should_be_unknown() => Assert.Equal(HostOutcomeStatus.Unknown, _result.Status);

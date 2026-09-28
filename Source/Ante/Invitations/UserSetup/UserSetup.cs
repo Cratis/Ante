@@ -10,6 +10,7 @@ using Ante.Legal;
 using Ante.Outbox;
 using Ante.Resources;
 using Cratis.Arc.Validation;
+using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Types;
 using MongoDB.Driver;
 
@@ -172,8 +173,10 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// <param name="pendingInvitation">The current state of the pending invitation, resolved from the Chronicle projection.</param>
     /// <param name="existingSetup">Durable organization setup evidence from a reused id predating the one-use marker.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
-    /// <param name="eventStore">The local event store for the acceptance concurrency boundary.</param>
-    /// <returns>The compliance subject the events are appended under, and the events to append.</returns>
+    /// <param name="acceptanceFence">The authoritative invitation revision used to fence revocation.</param>
+    /// <param name="signedInIdentity">The actor whose live attested session owns this acceptance.</param>
+    /// <param name="eventStore">The local event store for composing the atomic append.</param>
+    /// <returns>The compliance subject and events fenced against revocation and legal activation.</returns>
     /// <remarks>
     /// Does not mark the invitation as accepted here - that would be a pre-append success signal, visible
     /// to a polling client before the event this method returns has even been appended, let alone
@@ -185,6 +188,8 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
         PendingInvitationToJoin? pendingInvitation,
         OrganizationSetupProgress? existingSetup,
         ILegalDocumentSource legalDocumentSource,
+        IInvitationAcceptanceFence acceptanceFence,
+        ISignedInIdentity signedInIdentity,
         IEventStore eventStore)
     {
         if (pendingInvitation is null || existingSetup is not null)
@@ -208,6 +213,17 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
             return legalError;
         }
 
+        if (!signedInIdentity.IsVerifiedOwnerOf(InvitationId))
+        {
+            return ValidationResult.Error(Messages.Get("AcceptNotPending"));
+        }
+
+        var owner = signedInIdentity.AttestedOwnerOf(InvitationId);
+        if (signedInIdentity.IsAttestedExchange && owner is null)
+        {
+            return ValidationResult.Error(Messages.Get("AcceptNotPending"));
+        }
+
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
@@ -221,9 +237,20 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
                 pendingInvitation.Email,
                 pendingInvitation.Roles),
         };
+        if (owner is not null)
+        {
+            events.Add(owner);
+        }
+
         events.AddRange(legalEvidence.Events);
 
-        return (identity.Subject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence));
+        var scope = await acceptanceFence.For(InvitationId, InvitationFlowType.JoinTenant);
+        if (scope is null)
+        {
+            return ValidationResult.Error(Messages.Get("AcceptNotPending"));
+        }
+
+        return (identity.Subject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence, scope));
     }
 }
 
@@ -252,25 +279,37 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
     /// <param name="subscriptions">The subscription tracker.</param>
     /// <param name="recordedCollection">The durable acceptance-record collection.</param>
     /// <param name="publishedCollection">The durable outbox-publication collection.</param>
+    /// <param name="eventStore">The scoped store used to release the committed owner's identity.</param>
     /// <returns>An observable status stream for the invitation.</returns>
     public static ISubject<UserSetupAcceptanceStatusView> StatusForInvitation(
         InvitationId invitationId,
         ISignedInIdentity signedInIdentity,
         UserSetupStatusSubscriptions subscriptions,
         IMongoCollection<UserSetupProgress> recordedCollection,
-        IMongoCollection<JoinTenantAcceptancePublished> publishedCollection)
+        IMongoCollection<JoinTenantAcceptancePublished> publishedCollection,
+        IEventStore eventStore)
     {
-        if (!signedInIdentity.IsVerifiedOwnerOf(invitationId))
+        if (!signedInIdentity.IsVerifiedRecoveryOwnerOf(invitationId, eventStore))
         {
             return new BehaviorSubject<UserSetupAcceptanceStatusView>(new(invitationId, UserSetupAcceptanceStatus.Pending));
         }
 
         var recorded = recordedCollection.Find(Builders<UserSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
         var published = publishedCollection.Find(Builders<JoinTenantAcceptancePublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
-        return subscriptions.GetStatus(
+        var status = subscriptions.GetStatus(
             invitationId,
             isRecorded: recorded is not null,
             isFullyPublished: JoinTenantPublication.IsFullyPublished(recorded, published));
+        if (!signedInIdentity.IsAttestedExchange)
+        {
+            return status;
+        }
+
+        var actor = signedInIdentity.CaptureRecoveryActor();
+        return actor is null
+            ? new BehaviorSubject<UserSetupAcceptanceStatusView>(new(invitationId, UserSetupAcceptanceStatus.Pending))
+            : new InvitationStatusOwnerFilter<UserSetupAcceptanceStatusView>(
+                status, invitationId, actor, eventStore, view => view.Status == UserSetupAcceptanceStatus.Pending);
     }
 }
 

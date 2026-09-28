@@ -20,7 +20,12 @@
 
     <ItemGroup>
         <Compile Include="../Source/SharedSpecificationInstance.cs" Link="SharedSpecificationInstance.cs" />
+        <Compile Remove="LegacyConsumer/**/*.cs" />
     </ItemGroup>
+
+    <Target Name="BuildIsolatedLegacyConsumer" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true'">
+        <Exec Command="dotnet build &quot;$(MSBuildProjectDirectory)/LegacyConsumer/LegacyConsumer.csproj&quot; --configuration $(Configuration) -nologo -v q" />
+    </Target>
 
     <ItemGroup>
         <ProjectReference Include="../Source/Ante/Ante.csproj" />

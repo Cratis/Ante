@@ -15,7 +15,7 @@ public class and_the_generation_is_unknown : Specification
     void Establish()
     {
         _serializer = Substitute.For<IEventSerializer>();
-        _handler = new(Substitute.For<IEventStore>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance);
+        _handler = new(Substitute.For<IEventStore>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy);
     }
 
     async Task Because() => _failure = await Record.ExceptionAsync(() => _handler.Handle(

@@ -17,6 +17,7 @@
   <data name="AttemptAlreadySubmitted" xml:space="preserve"><value>This onboarding attempt has already been submitted.</value></data>
   <data name="ConcurrentChange" xml:space="preserve"><value>Something changed while you were submitting, for example the terms and conditions. Review the page and submit again.</value></data>
   <data name="RegisterIdentityRequired" xml:space="preserve"><value>A signed-in subject and provider are required to register an organization.</value></data>
+  <data name="RegistrationOwnedByAnotherSignIn" xml:space="preserve"><value>This registration belongs to another sign-in.</value></data>
   <data name="SetupIdentityRequired" xml:space="preserve"><value>A signed-in subject and provider are required to set up an organization.</value></data>
   <data name="AcceptIdentityRequired" xml:space="preserve"><value>A signed-in subject and provider are required to accept this invitation.</value></data>
   <data name="LoginAlreadyAssociated" xml:space="preserve"><value>This login is already associated with a user in the organization. Sign in with it instead of accepting this invitation.</value></data>

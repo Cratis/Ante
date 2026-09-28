@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Ante.Contracts.Legal;
+using Ante.Invitations.Accepting;
 using Ante.Legal.Receiving;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventStoreSubscriptions;
@@ -20,10 +21,12 @@ namespace Ante.Invitations.Receiving;
 /// <param name="client">The Chronicle client for Ante's configured event store.</param>
 /// <param name="scopeFactory">Creates a scope per delivery for Chronicle's event serializer.</param>
 /// <param name="logger">The incoming handler's logger.</param>
+/// <param name="exchange">The selected invitation exchange mode.</param>
 public class IncomingInvitationSubscriptions(
     IChronicleClient client,
     IServiceScopeFactory scopeFactory,
-    ILogger<IncomingInvitationReactor> logger)
+    ILogger<IncomingInvitationReactor> logger,
+    IOptions<InvitationExchangeConfig> exchange)
 {
     const string LegacyReactorId = "Ante.Invitations.Receiving.IncomingInvitationReactor";
     readonly HashSet<string> _registeredReactors = new(StringComparer.Ordinal);
@@ -87,6 +90,7 @@ public class IncomingInvitationSubscriptions(
                 var handler = new IncomingInvitationReactor(
                     store,
                     logger,
+                    exchange,
                     source,
                     new LegalDocumentSetReceiver(store, Options.Create(options)));
                 var receivesLegal = options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore;

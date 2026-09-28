@@ -37,7 +37,7 @@ public class a_registered_inbox : Specification
             .Returns(Task.CompletedTask);
         var client = Substitute.For<IChronicleClient>();
         client.GetEventStore(_options.EventStore, _options.Namespace).Returns(Task.FromResult(store));
-        _routing = new(client, Substitute.For<IServiceScopeFactory>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance);
+        _routing = new(client, Substitute.For<IServiceScopeFactory>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy);
         await _routing.Initialize(_options);
     }
 

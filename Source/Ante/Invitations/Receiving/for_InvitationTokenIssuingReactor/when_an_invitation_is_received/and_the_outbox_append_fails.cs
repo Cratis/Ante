@@ -35,7 +35,7 @@ public class and_the_outbox_append_fails : Specification
             Arg.Any<Cratis.Chronicle.Subject>())
             .Returns(AppendResult.Failed(CorrelationId.New(), [new AppendError("transient failure")]));
         var issuer = Substitute.For<IInvitationTokenIssuer>();
-        issuer.IssueCreateTenantInvitation(Arg.Any<Guid>()).Returns(new IssuedInvitationToken("signed-token", DateTimeOffset.UnixEpoch));
+        issuer.IssueCreateTenantInvitation(Arg.Any<Guid>(), Arg.Any<Email>()).Returns(new IssuedInvitationToken("signed-token", DateTimeOffset.UnixEpoch));
         _scenario = new(new ServiceCollection().AddSingleton(eventStore).AddSingleton(issuer).AddLogging().BuildServiceProvider());
     }
 

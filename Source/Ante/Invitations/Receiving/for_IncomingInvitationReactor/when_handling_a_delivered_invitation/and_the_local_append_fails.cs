@@ -29,7 +29,7 @@ public class and_the_local_append_fails : Specification
         _serializer = Substitute.For<IEventSerializer>();
         _serializer.Deserialize(typeof(UserInvitedToJoinTenant), Arg.Any<JsonObject>())
             .Returns(Task.FromResult<object>(new UserInvitedToJoinTenant("person@example.com", "Acme", ["Member"])));
-        _handler = new(store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance);
+        _handler = new(store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy);
     }
 
     async Task Because() => _failure = await Record.ExceptionAsync(() => _handler.Handle(

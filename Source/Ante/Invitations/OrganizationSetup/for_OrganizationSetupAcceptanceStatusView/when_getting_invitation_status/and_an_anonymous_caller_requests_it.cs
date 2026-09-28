@@ -19,7 +19,8 @@ public class and_an_anonymous_caller_requests_it : Specification
             Substitute.For<ISignedInIdentity>(),
             subscriptions,
             Substitute.For<IMongoCollection<OrganizationSetupProgress>>(),
-            Substitute.For<IMongoCollection<OrganizationSetupPublished>>())).Value;
+            Substitute.For<IMongoCollection<OrganizationSetupPublished>>(),
+            Substitute.For<IEventStore>())).Value;
     }
 
     [Fact] void should_look_unknown() => Assert.Equal(OrganizationSetupAcceptanceStatus.Pending, _result.Status);

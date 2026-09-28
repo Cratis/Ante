@@ -36,7 +36,7 @@ public class when_upcasting_a_historical_token : Specification
     {
         Assert.Equal(1u, _migration.From.Value);
         Assert.Equal(2u, _migration.To.Value);
-        Assert.Equal(typeof(InvitationTokenIssued).GetEventType().Id, typeof(InvitationTokenIssuedV1).GetEventType().Id);
+        Assert.Equal(typeof(InvitationTokenIssuedV2).GetEventType().Id, typeof(InvitationTokenIssuedV1).GetEventType().Id);
     }
 
     [Fact]
