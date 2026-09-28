@@ -55,6 +55,16 @@ The `-e` flag without a value forwards that variable from the invoking environme
 2. Use `GET /healthz` as a **liveness** probe; it runs zero checks. Use `GET /healthz/ready` as **readiness**; it pings MongoDB with a three-second per-check bound (200 healthy, 503 unhealthy). The response is a status word, without connection diagnostics. Readiness says nothing about Chronicle, outbox forwarding, proxy, or host provisioning.
 3. Observe a GUID-sourced invitation from host outbox through Ante inbox to `InvitationTokenIssued` in Ante outbox. Then check an acceptance and any legal fact in the outbox before calling the handoff healthy; verify provisioning independently in the host. See [Diagnose onboarding](./operations.md) for stalled stages.
 
+## Upgrade from a release without working outbox forwarding
+
+Releases v0.5.0 through v0.10.0 never forwarded acceptances, legal acceptance, organization setup or self-registration to the outbox ([Ante #72](https://github.com/Cratis/Ante/issues/72)). Releases v0.4.x and earlier forwarded them when the store was named `Ante`, and need no second restart. The forwarding reactors had been registered as empty projections under the same observer ids. After upgrading:
+
+1. Start the new version once. The Chronicle kernel retires the stray projections on this start, which disconnects the reactors that now own those observer ids.
+2. Restart Ante a second time. The forwarding reactors become active.
+3. Expect a backlog. The reactors publish every historical `InvitationToJoinTenantAccepted`, `InvitationToCreateTenantAccepted`, `OrganizationRegistrationCompleted` and `LegalTermsAccepted` from the start of Ante's event log, including facts an earlier release (v0.4.x or before) already forwarded. Tell your hosts before the upgrade. Hosts must consume these idempotently, and should decide how to treat acceptances older than the upgrade (for example, grant membership, or ask the user to be invited again).
+
+Check the observers in Chronicle after the second start: the forwarding reactors must be active and advancing, and no projection may exist under their ids.
+
 ## Cut over or roll back routing
 
 For another lobby on the same infrastructure, give it its own Ante instance, store/namespace and MongoDB database as appropriate; for example set `Ante__EventStore=DirectLobby` and `Ante__Namespace=Default`. This renames **Ante's own** store, not the compiled incoming host store `Direct`. Before a live rename, rehearse observer registrations and read-model catch-up against the destination (which may already hold history); point host observers to the destination **before** switching Ante. Changing `Ante:EventStore` or `Ante:Namespace` does not migrate events. Rollback selects the earlier routing again; facts written to the destination during the cutover are not copied back. Plan their reconciliation, rather than assuming rollback retains them.

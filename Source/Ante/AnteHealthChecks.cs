@@ -55,7 +55,7 @@ public static class AnteHealthChecks
     /// <returns>The <see cref="IHealthChecksBuilder"/>, for further registration.</returns>
     public static IHealthChecksBuilder AddAnteHealthChecks(this IServiceCollection services)
     {
-        services.AddSingleton<IMongoConnectivityProbe, MongoConnectivityProbe>();
+        services.AddScoped<IMongoConnectivityProbe, MongoConnectivityProbe>();
         return services.AddHealthChecks()
             .AddCheck<MongoDbHealthCheck>("mongodb", tags: [ReadyTag], timeout: DependencyTimeout);
     }
