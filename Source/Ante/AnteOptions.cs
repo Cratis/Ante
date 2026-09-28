@@ -77,4 +77,14 @@ public class AnteOptions
     /// <see href="https://github.com/Cratis/Ante/issues/22">Cratis/Ante#22</see>.
     /// </summary>
     public string HostOutcomeUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the default language for visitors without a recognized preference.
+    /// </summary>
+    public string DefaultLocale { get; set; } = "en";
+
+    /// <summary>
+    /// Gets or sets the deployment's allowlist of shipped locales. Unknown locales fail startup.
+    /// </summary>
+    public string[]? SupportedLocales { get; set; }
 }

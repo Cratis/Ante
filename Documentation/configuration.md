@@ -18,6 +18,8 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 | `Ante:CustomCssUrl` | string | empty | empty / empty | Optional CSS URL; same-origin HTTP(S) or cross-origin HTTPS only. See [Customization](./customization.md). |
 | `Ante:IdentityBackchannelUrl` | string | empty | empty / unset | Optional host base URL for join-invitation `/in-use` GET. |
 | `Ante:HostOutcomeUrl` | string | empty | unset / unset | Optional host base URL for invited-flow `/outcome` GET. |
+| `Ante:DefaultLocale` | string | `en` | unset / unset | Default when no stored preference, allowed link hint, or browser language matches. `en`, `nb-NO` (also `nb` or `no` aliases); must be in the allowlist. |
+| `Ante:SupportedLocales` | string array | `en`, `nb-NO` when unset | unset / unset | Deployment allowlist, restricted to the bundled languages; nonempty, distinct. Set only `Ante__SupportedLocales__0=en` for an English-only deployment; configured entries replace the fallback rather than extending it. Unknown entries or a default outside the list fail startup. See [Customization](./customization.md#choose-the-lobby-language). |
 
 ## Signing options (`Ante:Invitations:Token`)
 
@@ -48,7 +50,7 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 | `ASPNETCORE_ENVIRONMENT` | environment name | host-dependent | unset / unset | `Development` exposes OpenAPI and loads Development settings; do not use for production. |
 | `ANTE_PRIMEUI_LICENSE` | frontend build environment string | absent | supplied as CI build secret | PrimeReact license read by Vite at frontend build; manage as a build input, not an `Ante:*` runtime option. |
 
-`Cratis` also reads other framework settings (including Chronicle connectivity); this table covers the keys defined by Ante's checked-in settings, not the entire Arc/Chronicle configuration surface. No `Ante:Locale` option exists.
+`Cratis` also reads other framework settings (including Chronicle connectivity); this table covers the keys defined by Ante's checked-in settings, not the entire Arc/Chronicle configuration surface. Locale options are `Ante:DefaultLocale` and `Ante:SupportedLocales`; neither changes which translations are bundled into the image.
 
 ## Routing limits and cutover
 

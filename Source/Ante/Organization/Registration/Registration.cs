@@ -10,6 +10,7 @@ using Ante.Invitations.Receiving;
 using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Outbox;
+using Ante.Resources;
 using Cratis.Arc.Validation;
 using Cratis.Types;
 using Microsoft.AspNetCore.Http;
@@ -46,7 +47,7 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
         // owns the field instead of only surfacing once the final submit has already failed.
         RuleFor(c => (string)c.OrganizationName)
             .MustAsync(async (organizationName, _) => !await ClaimedOrganizationNames.Contains(acceptedOrganizationNames, organizationName))
-            .WithMessage("An organization with this name already exists.");
+            .WithMessage(_ => Messages.Get("OrganizationNameExists"));
 
         RuleFor(c => (string)c.FirstName).MustBeARequiredName("First name");
         RuleFor(c => (string)c.LastName).MustBeARequiredName("Last name");
@@ -65,11 +66,11 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
         RuleFor(c => c)
             .Must(_ => RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver) is { } owner &&
                 !string.IsNullOrWhiteSpace(owner.Provider.Value))
-            .WithMessage("A signed-in subject and provider are required to register an organization.");
+            .WithMessage(_ => Messages.Get("RegisterIdentityRequired"));
 
         RuleFor(c => c.RegistrationId)
             .MustAsync(async (id, _) => await RegistrationSourceAvailability.IsAvailable(id, eventStore))
-            .WithMessage("This onboarding attempt has already been submitted.")
+            .WithMessage(_ => Messages.Get("AttemptAlreadySubmitted"))
             .WithState(_ => OnboardingAttemptConstraintNames.OneUseAttempt);
     }
 }
@@ -131,17 +132,17 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
         // the field.
         if (await ClaimedOrganizationNames.Contains(acceptedOrganizationNames, OrganizationName))
         {
-            return ValidationResult.Error("Organization name is already in use.", ["organizationName"]);
+            return ValidationResult.Error(Messages.Get("OrganizationNameInUse"), ["organizationName"]);
         }
 
         if (owner is null || string.IsNullOrWhiteSpace(owner.Provider.Value))
         {
-            return ValidationResult.Error("A signed-in subject and provider are required to register an organization.");
+            return ValidationResult.Error(Messages.Get("RegisterIdentityRequired"));
         }
 
         if (!await RegistrationSourceAvailability.IsAvailable(RegistrationId, eventStore))
         {
-            return ValidationResult.Error("This onboarding attempt has already been submitted.", reasonDetail: OnboardingAttemptConstraintNames.OneUseAttempt);
+            return ValidationResult.Error(Messages.Get("AttemptAlreadySubmitted"), reasonDetail: OnboardingAttemptConstraintNames.OneUseAttempt);
         }
 
         var subject = owner.Subject.Value;

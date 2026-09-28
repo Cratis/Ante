@@ -1,0 +1,126 @@
+{
+    "branding": {
+        "wordmark": "Ante"
+    },
+    "components": {
+        "paginator": { "navigation": "Sideinndeling", "first": "Første side", "previous": "Forrige side", "next": "Neste side", "last": "Siste side" },
+        "datePicker": { "today": "I dag", "clear": "Tøm", "openCalendar": "Åpne kalender", "previousMonth": "Forrige måned", "nextMonth": "Neste måned", "label": "Dato" },
+        "dropdown": { "showOptions": "Vis alternativer", "clearSelection": "Fjern valg" },
+        "dialog": { "ok": "OK", "cancel": "Avbryt", "yes": "Ja", "no": "Nei", "close": "Lukk" },
+        "stepper": { "next": "Neste", "previous": "Forrige", "submit": "Send inn" },
+        "notifications": { "dismiss": "Lukk varsel", "region": "Varsler" },
+        "dataTable": { "selectRow": "Velg rad", "search": "Søk …", "searchAriaLabel": "Søk i tabellen" },
+        "columnFilter": { "matchModeAriaLabel": "Søkemåte", "clear": "Tøm", "apply": "Bruk", "true": "Ja", "false": "Nei" },
+        "toolbar": { "label": "Verktøy" }
+    },
+    "onboarding": {
+        "notYetConfirmed": "Dette tar lengre tid enn forventet. Opplysningene dine er lagret – ingenting er gått tapt. Det kan skyldes stor pågang eller et kortvarig brudd i forbindelsen.",
+        "checkAgain": "Sjekk igjen",
+        "contactSupport": "Kontakt brukerstøtte hvis dette fortsetter.",
+        "continueToHost": "Fortsett",
+        "hostOutcomeReference": "Referanse: {reasonCode}"
+    },
+    "accessibility": {
+        "stepAnnouncement": "Trinn {current} av {total}: {label}"
+    },
+    "displayPreferences": {
+        "trigger": "Visningsinnstillinger",
+        "title": "Visningsinnstillinger",
+        "description": "Disse innstillingene endrer hvordan siden vises. De påvirker ikke kontoen din.",
+        "language": "Språk",
+        "english": "Engelsk",
+        "bokmal": "Norsk bokmål",
+        "textSize": {
+            "label": "Tekststørrelse",
+            "default": "Standard",
+            "large": "Stor",
+            "largest": "Størst"
+        },
+        "contrast": {
+            "label": "Kontrast",
+            "default": "Standard",
+            "high": "Høy kontrast"
+        },
+        "spacing": {
+            "label": "Avstand",
+            "default": "Standard",
+            "relaxed": "Romslig"
+        },
+        "controlSize": {
+            "label": "Kontrollstørrelse",
+            "default": "Standard",
+            "large": "Stor"
+        },
+        "motion": {
+            "label": "Bevegelse",
+            "system": "Følg systeminnstillingen",
+            "reduced": "Redusert bevegelse"
+        },
+        "reset": "Tilbakestill",
+        "close": "Ferdig"
+    },
+    "renderRecovery": {
+        "title": "Noe gikk galt",
+        "message": "Det oppstod et problem på denne siden som ikke kunne løses automatisk. Det hjelper som regel å laste siden på nytt.",
+        "reload": "Last siden på nytt"
+    },
+    "legal": {
+        "acceptance": "Jeg har lest og godtar {termsAndConditions} og {privacyPolicy}.",
+        "documents": {
+            "termsAndConditions": "vilkårene",
+            "privacyPolicy": "personvernerklæringen"
+        },
+        "close": "Lukk"
+    },
+    "nameValidation": {
+        "required": "{field} er påkrevd.",
+        "length": "{field} kan ikke være lengre enn {maximum} tegn."
+    },
+    "registration": {
+        "subtitle": "Registrer organisasjonen din",
+        "organizationName": "Organisasjonsnavn",
+        "organizationNamePlaceholder": "EksempelAS",
+        "register": "Registrer organisasjon",
+        "hostAppUrlUnavailable": "Organisasjonen er registrert, men vi finner ikke ut hvor vi skal sende deg videre. Kontakt brukerstøtte.",
+        "startNewRegistration": "Registrer en annen organisasjon"
+    },
+    "organizationSetup": {
+        "subtitle": "Opprett organisasjonen din",
+        "stepOrganization": "Organisasjon",
+        "stepUserInformation": "Opplysninger om deg",
+        "stepTermsConditions": "Vilkår og personvern",
+        "organizationName": "Organisasjonsnavn",
+        "organizationNamePlaceholder": "EksempelAS",
+        "nameValidationUnavailable": "Vi kunne ikke sjekke navnet nå. Prøv igjen.",
+        "firstName": "Fornavn",
+        "firstNamePlaceholder": "Skriv inn fornavnet ditt",
+        "middleName": "Mellomnavn",
+        "middleNamePlaceholder": "Skriv inn mellomnavnet ditt (valgfritt)",
+        "lastName": "Etternavn",
+        "lastNamePlaceholder": "Skriv inn etternavnet ditt",
+        "setupOrganization": "Opprett organisasjon",
+        "settingUp": "Oppretter organisasjonen din …",
+        "hostAppUrlUnavailable": "Organisasjonen ble opprettet, men vi finner ikke ut hvor vi skal sende deg videre. Kontakt brukerstøtte.",
+        "hostOutcomePending": "Organisasjonen er opprettet. Vi fullfører fortsatt oppsettet i tjenesten.",
+        "hostOutcomeSucceeded": "Organisasjonen er opprettet, og tjenesten har bekreftet at alt er klart.",
+        "hostOutcomeFailed": "Organisasjonen er opprettet, men tjenesten meldte om et problem under oppsettet."
+    },
+    "userSetup": {
+        "subtitle": "Fullfør profilen din",
+        "stepUserInformation": "Opplysninger om deg",
+        "stepTermsConditions": "Vilkår og personvern",
+        "firstName": "Fornavn",
+        "firstNamePlaceholder": "Skriv inn fornavnet ditt",
+        "middleName": "Mellomnavn",
+        "middleNamePlaceholder": "Skriv inn mellomnavnet ditt (valgfritt)",
+        "lastName": "Etternavn",
+        "lastNamePlaceholder": "Skriv inn etternavnet ditt",
+        "acceptInvitation": "Godta invitasjon",
+        "setting": "Setter opp kontoen din …",
+        "hostAppUrlUnavailable": "Kontoen din ble opprettet, men vi finner ikke ut hvor vi skal sende deg videre. Kontakt brukerstøtte.",
+        "acceptanceFailed": "Vi kunne ikke fullføre kontooppsettet. Kontakt brukerstøtte.",
+        "hostOutcomePending": "Kontoen din er opprettet. Vi fullfører fortsatt oppsettet i tjenesten.",
+        "hostOutcomeSucceeded": "Kontoen din er opprettet, og tjenesten har bekreftet at alt er klart.",
+        "hostOutcomeFailed": "Kontoen din er opprettet, men tjenesten meldte om et problem under oppsettet."
+    }
+}

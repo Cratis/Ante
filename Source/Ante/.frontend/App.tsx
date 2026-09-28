@@ -4,12 +4,15 @@
 import { OrganizationSetupPage } from '../Invitations/OrganizationSetup/OrganizationSetupPage';
 import { UserSetupPage } from '../Invitations/UserSetup/UserSetupPage';
 import { RegistrationPage } from '../Organization/Registration/RegistrationPage';
-import { Arc } from '@cratis/arc.react';
+import { useContext, useEffect, useRef } from 'react';
+import { Arc, ArcContext } from '@cratis/arc.react';
 import { useIdentity } from '@cratis/arc.react/identity';
 import { InvitationIdentityDetails } from '../Invitations/Accepting/Accepting';
 import { InvitationFlowType } from '../Contracts/Invitations/InvitationFlowType';
 import { getFlowTypeFromInvitationToken, getInvitationToken, normalizeFlowType } from '../Invitations/Accepting/invitationToken';
 import '@cratis/components/styles';
+import { localeHttpHeaders } from '../Locale/localeHttpHeaders';
+import { useLocale } from '../Locale/LocaleContext';
 
 function InvitationRouter() {
     const identity = useIdentity(InvitationIdentityDetails);
@@ -25,11 +28,24 @@ function InvitationRouter() {
         : <UserSetupPage invitationToken={invitationToken} />;
 }
 
+function LocaleTransportReconnect() {
+    const locale = useLocale();
+    const { reconnectQueries } = useContext(ArcContext);
+    const previousLocale = useRef(locale);
+    useEffect(() => {
+        if (previousLocale.current !== locale) {
+            previousLocale.current = locale;
+            reconnectQueries?.();
+        }
+    }, [locale, reconnectQueries]);
+    return null;
+}
+
 function App() {
     const isRegistrationPath = window.location.pathname === '/register' || window.location.pathname.startsWith('/register/');
-
     return (
-        <Arc queryDirectMode={true}>
+        <Arc queryDirectMode={true} httpHeadersCallback={localeHttpHeaders}>
+            <LocaleTransportReconnect />
             {isRegistrationPath ? <RegistrationPage /> : <InvitationRouter />}
         </Arc>
     );
