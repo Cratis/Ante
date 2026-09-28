@@ -82,6 +82,8 @@ public sealed class AnteApplication(
             .UseEnvironment("Integration")
             .UseSetting("Ante:Invitations:Token:PrivateKeyPem", signingKey.ExportPkcs8PrivateKeyPem())
             .UseSetting("Ante:Invitations:Token:PublicKeyPem", signingKey.ExportSubjectPublicKeyInfoPem())
+            .UseSetting("Ante:Invitations:Token:Issuer", "ante-integration")
+            .UseSetting("Ante:Invitations:Token:Audience", "ante-integration-lobby")
             .UseSetting("Cratis:Chronicle:ConnectionString", infrastructure.ChronicleConnectionString)
             .UseSetting("Cratis:MongoDB:Server", infrastructure.MongoDBServer)
             .UseSetting("Cratis:MongoDB:Database", EventStore)

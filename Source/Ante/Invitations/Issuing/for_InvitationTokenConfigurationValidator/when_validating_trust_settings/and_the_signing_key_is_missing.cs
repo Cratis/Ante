@@ -14,7 +14,7 @@ public class and_the_signing_key_is_missing : Specification
     {
         using var rsa = RSA.Create(2048);
         var config = new InvitationTokenConfig { PublicKeyPem = rsa.ExportSubjectPublicKeyInfoPem() };
-        InvitationTokenConfigurationValidator.Validate(config);
+        InvitationTokenConfigurationValidator.Validate(config, isDevelopment: true);
         var signingConfig = new InvitationTokenConfig { PrivateKeyPem = rsa.ExportPkcs8PrivateKeyPem() };
         var issuer = new InvitationTokenIssuer(Options.Create(signingConfig));
         var token = issuer.IssueJoinTenantInvitation(Guid.NewGuid()).Token;

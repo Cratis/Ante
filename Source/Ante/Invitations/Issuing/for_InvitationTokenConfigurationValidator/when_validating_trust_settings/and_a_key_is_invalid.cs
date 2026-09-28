@@ -9,13 +9,9 @@ namespace Ante.Invitations.Issuing.for_InvitationTokenConfigurationValidator.whe
 public class and_a_key_is_invalid : Specification
 {
     [Fact]
-    void should_allow_a_missing_private_key_for_existing_deployments() =>
-        InvitationTokenConfigurationValidator.Validate(new InvitationTokenConfig());
-
-    [Fact]
     void should_reject_a_malformed_private_key() =>
         Assert.Contains("PrivateKeyPem", Assert.Throws<InvitationTokenConfigurationInvalid>(() =>
-            InvitationTokenConfigurationValidator.Validate(new InvitationTokenConfig { PrivateKeyPem = "not PEM" })).Message);
+            InvitationTokenConfigurationValidator.Validate(new InvitationTokenConfig { PrivateKeyPem = "not PEM" }, isDevelopment: true)).Message);
 
     [Fact]
     void should_reject_a_public_key_in_the_private_key_setting()
@@ -23,7 +19,7 @@ public class and_a_key_is_invalid : Specification
         using var rsa = RSA.Create(2048);
         var config = new InvitationTokenConfig { PrivateKeyPem = rsa.ExportSubjectPublicKeyInfoPem() };
         Assert.Contains("PrivateKeyPem", Assert.Throws<InvitationTokenConfigurationInvalid>(() =>
-            InvitationTokenConfigurationValidator.Validate(config)).Message);
+            InvitationTokenConfigurationValidator.Validate(config, isDevelopment: true)).Message);
     }
 
     [Fact]
@@ -32,7 +28,7 @@ public class and_a_key_is_invalid : Specification
         using var rsa = RSA.Create(2048);
         var config = new InvitationTokenConfig { PrivateKeyPem = rsa.ExportPkcs8PrivateKeyPem(), PublicKeyPem = "not PEM" };
         Assert.Contains("PublicKeyPem", Assert.Throws<InvitationTokenConfigurationInvalid>(() =>
-            InvitationTokenConfigurationValidator.Validate(config)).Message);
+            InvitationTokenConfigurationValidator.Validate(config, isDevelopment: true)).Message);
     }
 }
 #endif

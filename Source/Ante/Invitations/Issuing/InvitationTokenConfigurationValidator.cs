@@ -8,15 +8,21 @@ namespace Ante.Invitations.Issuing;
 /// <summary>
 /// Ensures invitation signing and verification keys are usable before the application accepts traffic.
 /// </summary>
-public sealed class InvitationTokenConfigurationValidator
+public static class InvitationTokenConfigurationValidator
 {
     /// <summary>
-    /// Checks the signing and additional verification keys.
+    /// Checks required production trust settings and validates configured RSA keys.
     /// </summary>
     /// <param name="config">The token configuration to validate.</param>
-    /// <exception cref="InvitationTokenConfigurationInvalid">Thrown for an unusable key configuration.</exception>
-    public static void Validate(InvitationTokenConfig config)
+    /// <param name="isDevelopment">Whether the application runs in Development.</param>
+    /// <exception cref="InvitationTokenConfigurationInvalid">Thrown for missing production trust settings or unusable RSA keys.</exception>
+    public static void Validate(InvitationTokenConfig config, bool isDevelopment)
     {
+        if (!isDevelopment && string.IsNullOrWhiteSpace(config.PrivateKeyPem))
+        {
+            throw new InvitationTokenConfigurationInvalid(nameof(config.PrivateKeyPem), "is required outside Development and must contain a valid RSA private key");
+        }
+
         if (!string.IsNullOrWhiteSpace(config.PrivateKeyPem))
         {
             ValidateKey(config.PrivateKeyPem, nameof(config.PrivateKeyPem), requiresPrivateKey: true);
@@ -25,34 +31,14 @@ public sealed class InvitationTokenConfigurationValidator
         {
             ValidateKey(config.PublicKeyPem, nameof(config.PublicKeyPem), requiresPrivateKey: false);
         }
-    }
 
-    /// <summary>
-    /// Warns operators when the signing key or optional claim checks are absent.
-    /// </summary>
-    /// <param name="config">The token configuration.</param>
-    /// <param name="isDevelopment">Whether the application runs in Development.</param>
-    /// <param name="logger">The startup logger.</param>
-    public static void WarnForMissingClaims(InvitationTokenConfig config, bool isDevelopment, ILogger<InvitationTokenConfigurationValidator> logger)
-    {
-        if (string.IsNullOrWhiteSpace(config.PrivateKeyPem))
+        if (!isDevelopment && string.IsNullOrWhiteSpace(config.Issuer))
         {
-            logger.LogPrivateKeyNotConfigured();
+            throw new InvitationTokenConfigurationInvalid(nameof(config.Issuer), "is required outside Development");
         }
-
-        if (isDevelopment)
+        if (!isDevelopment && string.IsNullOrWhiteSpace(config.Audience))
         {
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(config.Issuer))
-        {
-            logger.LogIssuerNotConfigured();
-        }
-
-        if (string.IsNullOrWhiteSpace(config.Audience))
-        {
-            logger.LogAudienceNotConfigured();
+            throw new InvitationTokenConfigurationInvalid(nameof(config.Audience), "is required outside Development");
         }
     }
 
@@ -80,9 +66,15 @@ public sealed class InvitationTokenConfigurationValidator
 }
 
 /// <summary>
-/// The exception that is thrown when invitation token verification cannot be configured safely.
+/// The exception that is thrown when invitation token issuance or verification cannot be configured safely.
 /// </summary>
 /// <param name="setting">The invalid setting name; never the value.</param>
 /// <param name="reason">The reason the setting is invalid.</param>
 public class InvitationTokenConfigurationInvalid(string setting, string reason) : Exception(
-    $"Ante:Invitations:Token:{setting} {reason}.");
+    $"Ante:Invitations:Token:{setting} {reason}.")
+{
+    /// <summary>
+    /// Gets the name of the missing or invalid setting without exposing its value.
+    /// </summary>
+    public string Setting { get; } = setting;
+}

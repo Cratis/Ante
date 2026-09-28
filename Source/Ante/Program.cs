@@ -32,7 +32,7 @@ var anteOptions = anteConfiguration.Get<AnteOptions>() ?? new AnteOptions();
 AnteRoutingValidator.Validate(anteOptions, anteConfiguration);
 var localizationOptions = LocaleNegotiation.CreateOptions(anteOptions);
 var invitationTokenOptions = builder.Configuration.GetSection("Ante:Invitations:Token").Get<InvitationTokenConfig>() ?? new InvitationTokenConfig();
-InvitationTokenConfigurationValidator.Validate(invitationTokenOptions);
+InvitationTokenConfigurationValidator.Validate(invitationTokenOptions, builder.Environment.IsDevelopment());
 
 builder.AddCratis(
     options =>
@@ -88,10 +88,6 @@ builder.Services.AddAnteHealthChecks()
     .AddCheck<IncomingRoutingHealthCheck>("host-routing", tags: [AnteHealthChecks.ReadyTag], timeout: AnteHealthChecks.DependencyTimeout);
 
 var app = builder.Build();
-InvitationTokenConfigurationValidator.WarnForMissingClaims(
-    invitationTokenOptions,
-    app.Environment.IsDevelopment(),
-    app.Services.GetRequiredService<ILogger<InvitationTokenConfigurationValidator>>());
 IdentityProviderConfigurationWarnings.WarnForUnattributableSignIns(
     app.Services.GetRequiredService<IOptions<IdentityProviderOptions>>().Value,
     app.Services.GetRequiredService<ILogger<IdentityProviderOptions>>());

@@ -63,12 +63,12 @@ public class InvitationTokenConfig
     public string PublicKeyPem { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the issuer recorded on issued tokens. Left empty, no <c language="csharp">iss</c> claim is validated.
+    /// Gets or sets the issuer recorded on issued tokens and required outside Development.
     /// </summary>
     public string Issuer { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the audience recorded on issued tokens. Left empty, no <c language="csharp">aud</c> claim is validated.
+    /// Gets or sets the audience recorded on issued tokens and required outside Development.
     /// </summary>
     public string Audience { get; set; } = string.Empty;
 
@@ -121,8 +121,7 @@ public class InvitationTokenIssuer(IOptions<InvitationTokenConfig> config) : IIn
         var now = DateTimeOffset.UtcNow;
         var expiresAt = DateTimeOffset.FromUnixTimeSeconds((now + options.Expiry).ToUnixTimeSeconds());
 
-        // Issuer and Audience are intentionally nullable: when left empty, a verifier configured to
-        // skip those claims can accept the token, which is useful in development scenarios.
+        // Development may omit these claims; startup requires both outside Development.
         var descriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
