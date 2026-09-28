@@ -25,16 +25,11 @@ export type OrganizationSetupHandoffOptions = {
     /** True when this registration id was persisted before the current page load. */
     recoveringRegistration?: boolean;
     /**
-     * Opts into the optional host-outcome completion screen once accepted, in place of today's
-     * unconditional automatic redirect - only when this deployment also has a host outcome backchannel
-     * configured (`Ante:HostOutcomeUrl`). Defaults to `false`.
-     *
-     * Only an invitation-bound wizard can safely pass `true`: the host outcome lookup is authenticated
-     * through `ISignedInIdentity.IsVerifiedOwnerOf`, which requires a genuine accepted-invitation
-     * session. Self-service registration (`RegistrationPage`) has no such session for its
-     * client-generated registration id - `IsVerifiedOwnerOf` would never verify it - so it must never
-     * pass `true` here: doing so would not show a host outcome, it would just replace registration's
-     * always-reliable automatic redirect with a screen that can never leave its pending state.
+     * Opts into the optional host-outcome completion screen once accepted, in place of the unconditional
+     * automatic redirect - only when this deployment also has a host outcome backchannel configured
+     * (`Ante:HostOutcomeUrl`). Defaults to `false`. The server only answers the verified owner of the
+     * attempt: the invitation session for an invited wizard, or the owner recorded with a self-service
+     * registration.
      */
     supportsHostOutcome?: boolean;
 };
@@ -119,7 +114,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
 
     // Never looked up before Ante's own onboarding has actually published - a host has nothing to report
     // on an attempt it has not been notified of yet - and never looked up at all for a caller that has
-    // not opted in, so a registration id (which IsVerifiedOwnerOf can never verify) is never even sent.
+    // not opted in.
     const hostOutcome = useHostOutcome(supportsHostOutcome && recovery.isAccepted ? invitationId : Guid.empty);
     const gate = resolveHostOutcomeGate(recovery.isAccepted, supportsHostOutcome && hostOutcome.isConfigured);
 

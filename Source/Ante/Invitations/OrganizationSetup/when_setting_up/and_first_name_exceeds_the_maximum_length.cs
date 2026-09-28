@@ -5,6 +5,7 @@
 using Ante.Contracts.Legal;
 using Ante.Invitations.Accepting;
 using Ante.Legal;
+using Ante.Organization.Names;
 using MongoDB.Driver;
 
 namespace Ante.Invitations.OrganizationSetup.when_setting_up;
@@ -19,13 +20,13 @@ public class and_first_name_exceeds_the_maximum_length : Specification
     {
         var invitationId = InvitationId.New();
 
-        var acceptedNames = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
-        acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var acceptedNames = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
+        acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
 
         var signedInIdentity = Substitute.For<ISignedInIdentity>();
         signedInIdentity.IsVerifiedOwnerOf(invitationId).Returns(true);
 
-        var validator = new SetupOrganizationValidator(new NoLegalDocumentSource(), acceptedNames, signedInIdentity);
+        var validator = new SetupOrganizationValidator(new NoLegalDocumentSource(), acceptedNames, signedInIdentity, Microsoft.Extensions.Options.Options.Create(new AnteOptions()));
         _result = await validator.ValidateAsync(new SetupOrganization(invitationId, "Acme", _tooLongFirstName, null, "Doe", false, LegalVersion.NotSet));
     }
 

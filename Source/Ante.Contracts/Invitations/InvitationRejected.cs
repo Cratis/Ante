@@ -14,6 +14,25 @@ public enum InvitationRejectionReason
 
     /// <summary>The host recipient cannot be bound to an attested invitation capability.</summary>
     InvalidRecipient = 2,
+
+    /// <summary>
+    /// The host asked Ante to reissue a token for an invitation that is not pending - it was never
+    /// received, or it has already been revoked or accepted. Create a new invitation instead.
+    /// </summary>
+    InvitationNotPending = 3,
+}
+
+/// <summary>The rejection reasons released with generation 2, retained for historical events.</summary>
+public enum InvitationRejectionReasonV2
+{
+    /// <summary>The host used a non-GUID event source id for an invitation.</summary>
+    InvalidInvitationId = 0,
+
+    /// <summary>The invitation id was already revoked or accepted and cannot be used again.</summary>
+    InvitationIdReused = 1,
+
+    /// <summary>The host recipient cannot be bound to an attested invitation capability.</summary>
+    InvalidRecipient = 2,
 }
 
 /// <summary>The previously released rejection reasons, retained for historical events.</summary>
@@ -31,8 +50,13 @@ public enum InvitationRejectionReasonV1
 /// cannot be accepted. No token is minted for a rejected invitation.
 /// </summary>
 /// <param name="Reason">Why the invitation was rejected.</param>
-[EventType(generation: 2)]
+[EventType(generation: 3)]
 public record InvitationRejected(InvitationRejectionReason Reason);
+
+/// <summary>The immutable, released second generation of the rejection contract.</summary>
+/// <param name="Reason">The rejection reason as released with generation 2.</param>
+[EventTypeGenerationFor<InvitationRejected>(2)]
+public record InvitationRejectedV2(InvitationRejectionReasonV2 Reason);
 
 /// <summary>The immutable, released first generation of the rejection contract.</summary>
 /// <param name="Reason">The original rejection reason.</param>

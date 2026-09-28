@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Ante.Contracts.Legal;
+using Ante.Contracts.Organization;
 using Ante.Invitations.Accepting;
 using Ante.Legal.Receiving;
 using Cratis.Chronicle.Events;
@@ -101,7 +102,10 @@ public class IncomingInvitationSubscriptions(
                         var configured = definition.OnEventSequence(InboxFor(source))
                             .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToJoinTenant)))
                             .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToCreateTenant)))
-                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationRevoked)));
+                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationRevoked)))
+                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationReissueRequested)))
+                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReserved)))
+                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReleased)));
                         if (receivesLegal)
                         {
                             configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(LegalDocumentSetPublished)));
@@ -133,7 +137,10 @@ public class IncomingInvitationSubscriptions(
                 {
                     definition.WithEventType<UserInvitedToJoinTenant>()
                         .WithEventType<UserInvitedToCreateTenant>()
-                        .WithEventType<InvitationRevoked>();
+                        .WithEventType<InvitationRevoked>()
+                        .WithEventType<InvitationReissueRequested>()
+                        .WithEventType<OrganizationNameReserved>()
+                        .WithEventType<OrganizationNameReleased>();
                     if (options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore)
                     {
                         definition.WithEventType<LegalDocumentSetPublished>();

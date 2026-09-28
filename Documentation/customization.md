@@ -11,6 +11,29 @@ Ante has URL-based branding, two legal-document sources, and two bundled languag
 2. Load the lobby through your actual ingress and check the browser's asset responses and Content-Security-Policy. The CSS loader accepts same-origin HTTP(S) or cross-origin **HTTPS**; it rejects malformed URLs, other schemes and cross-origin plain HTTP. A failed CSS load removes the link; a failed logo load displays the wordmark.
 3. Check keyboard focus, contrast and layout after applying custom CSS. The URL check does **not** sanitize CSS; the operator controls trusted assets and any CSP `style-src` restrictions.
 
+## Describe the registration offer
+
+Set `Ante:Registration:Content:{locale}` to explain a self-service signup on `/register`, for example:
+
+```json
+"Ante": {
+  "Registration": {
+    "Content": {
+      "en": {
+        "Title": "Start your 14-day free trial",
+        "Intro": "Create your organization and try everything for 14 days. No credit card required.",
+        "Highlights": [ "Invite your team after choosing a plan", "Cancel any time" ],
+        "PricingUrl": "https://example.com/pricing",
+        "LoginUrl": "https://app.example.com/",
+        "CompletionMessage": "Setting up your organization..."
+      }
+    }
+  }
+}
+```
+
+Every value is plain text; markup is shown literally. Links must be https URLs or same-origin paths, otherwise startup fails. Ante picks the entry for the visitor's locale (`nb-NO`, then `nb`), then `en`; with no entry the page looks as it does without the setting. `Title` replaces the subtitle and `CompletionMessage` replaces the waiting and success text.
+
 ## Supply legal documents
 
 Choose one source for the deployment:

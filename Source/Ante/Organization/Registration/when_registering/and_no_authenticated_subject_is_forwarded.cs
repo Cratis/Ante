@@ -7,6 +7,7 @@ using Ante.IdentityProviders;
 using Ante.Invitations;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Legal;
+using Ante.Organization.Names;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
@@ -20,8 +21,8 @@ public class and_no_authenticated_subject_is_forwarded : Specification
 
     void Establish()
     {
-        var names = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
-        names.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var names = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
+        names.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
         _scenario.Services.AddSingleton(names);
         _scenario.Services.AddSingleton(Substitute.For<IHttpContextAccessor>());
         _scenario.Services.AddSingleton(Substitute.For<IIdentityProviderResolver>());

@@ -8,6 +8,7 @@ using Ante.IdentityProviders;
 using Ante.Invitations;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Legal;
+using Ante.Organization.Names;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
@@ -21,8 +22,8 @@ public class and_the_provider_is_unresolved : Specification
 
     void Establish()
     {
-        var names = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
-        names.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var names = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
+        names.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
         var accessor = Substitute.For<IHttpContextAccessor>();
         accessor.HttpContext.Returns(new DefaultHttpContext
         {

@@ -8,6 +8,7 @@ using Ante.Invitations.Receiving;
 using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Organization;
+using Ante.Organization.Names;
 using Ante.Organization.Registration;
 using Ante.Outbox;
 using Ante.Resources;
@@ -71,10 +72,12 @@ public class SetupOrganizationValidator : CommandValidator<SetupOrganization>
     /// <param name="legalDocumentSource">The legal document source the onboarding user has to accept, when the host has configured one.</param>
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
     /// <param name="signedInIdentity">The identity the user is signed in with for this request.</param>
+    /// <param name="options">The deployment's options, holding the reserved organization names.</param>
     public SetupOrganizationValidator(
         ILegalDocumentSource legalDocumentSource,
-        IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
-        ISignedInIdentity signedInIdentity)
+        IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
+        ISignedInIdentity signedInIdentity,
+        IOptions<AnteOptions> options)
     {
         // The invitation id travels in the open - a URL, a token, an invite link - so knowing it must
         // never be enough to act on it. Only a caller who has verifiably exchanged this exact invitation
@@ -86,6 +89,10 @@ public class SetupOrganizationValidator : CommandValidator<SetupOrganization>
 
         RuleFor(c => (string)c.OrganizationName)
             .MustBeAValidOrganizationName();
+
+        RuleFor(c => (string)c.OrganizationName)
+            .Must(organizationName => !ReservedOrganizationNames.IsReserved(options.Value, organizationName))
+            .WithMessage(_ => Messages.Get("OrganizationNameReserved"));
 
         // Expressed as a rule rather than only as a handler check so the wizard's eager server
         // validation reaches it: the validator is what the /validate endpoint runs, and a failure it
@@ -117,7 +124,7 @@ public class SetupOrganizationValidator : CommandValidator<SetupOrganization>
 /// </summary>
 /// <remarks>
 /// The validator and the command handler both reject a duplicate by reading
-/// <see cref="AcceptedOrganizationName"/>, which produces the friendly message users see. This
+/// <see cref="OrganizationNameClaim"/>, which produces the friendly message users see. This
 /// constraint is the race-safe backstop for those checks: two invitations - or an invitation and a
 /// self-service registration - can be accepted concurrently with the same organization name, and both
 /// would read no match. Both events are declared under one constraint name, so an invited creation and
@@ -132,6 +139,9 @@ public class UniqueOrganizationNameConstraint : IConstraint
             .WithName(OrganizationSetupConstraintNames.UniqueOrganizationName)
             .On<InvitationToCreateTenantAccepted>(@event => @event.TenantName)
             .On<OrganizationRegistrationCompleted>(@event => @event.TenantName)
+            .On<OrganizationNameReservationReceived>(@event => @event.TenantName)
+            .RemovedWith<OrganizationNameReleaseReceived>()
+            .IgnoreCasing()
             .WithMessage("An organization with this name already exists."));
 }
 
@@ -153,51 +163,6 @@ public class OneUseCreateTenantInvitationConstraint : IConstraint
         .Unique<InvitationToCreateTenantAccepted>(
             "This invitation has already been accepted.",
             OrganizationSetupConstraintNames.OneUseInvitation);
-}
-
-/// <summary>
-/// Read model tracking every organization name claimed by an accepted invitation or self-service
-/// registration.
-/// </summary>
-/// <param name="TenantName">The claimed name.</param>
-/// <remarks>
-/// Pinned to the local event log for the same reason as <see cref="OrganizationSetupProgress"/>: the contract
-/// events' <c language="csharp">[EventStore("Ante")]</c> would otherwise route a renamed store to <c language="csharp">inbox-Ante</c>.
-/// </remarks>
-[ReadModel]
-[EventLog]
-[FromEvent<InvitationToCreateTenantAccepted>]
-[FromEvent<OrganizationRegistrationCompleted>]
-public record AcceptedOrganizationName([Key] TenantName TenantName);
-
-/// <summary>
-/// Reads whether an organization name has already been claimed by an accepted invitation.
-/// </summary>
-/// <remarks>
-/// Asking whether a <em>name</em> is taken is a search across every claim, not a lookup of one: the
-/// model is keyed by the invitation the accepting event was appended to, and the name is a field on it.
-/// So it is counted with a filter, rather than injected - Arc injects a read model only when it
-/// resolves for the command's own event source id, and a command that named an organization would then
-/// get the claim belonging to its own invitation.
-/// <para>
-/// It lives here rather than as a static method on <see cref="AcceptedOrganizationName"/> because every
-/// static method on a <c language="csharp">[ReadModel]</c> is discovered as a query and published as a proxy, and this is
-/// command-side only.
-/// </para>
-/// </remarks>
-public static class ClaimedOrganizationNames
-{
-    /// <summary>
-    /// Determines whether an organization name has already been claimed.
-    /// </summary>
-    /// <param name="acceptedOrganizationNames">The claimed organization names to search.</param>
-    /// <param name="organizationName">The organization name to look for.</param>
-    /// <returns>True when the name is already claimed; otherwise false.</returns>
-    public static async Task<bool> Contains(IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames, string organizationName) =>
-        !string.IsNullOrEmpty(organizationName) &&
-        await acceptedOrganizationNames.CountDocumentsAsync(
-            Builders<AcceptedOrganizationName>.Filter.Eq(accepted => accepted.TenantName, (TenantName)organizationName),
-            cancellationToken: default) > 0;
 }
 
 /// <summary>
@@ -242,7 +207,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         PendingInvitationToCreateOrganization? pendingInvitation,
         OrganizationSetupProgress? existingSetup,
         UserSetupProgress? existingJoin,
-        IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
+        IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
         ISignedInIdentity signedInIdentity,
         ILegalDocumentSource legalDocumentSource,
         IInvitationAcceptanceFence acceptanceFence,

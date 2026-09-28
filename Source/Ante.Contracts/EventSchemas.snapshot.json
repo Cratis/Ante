@@ -1,5 +1,9 @@
 {
-  "InvitationRejected:2": {
+  "InvitationReissueRequested:1": {
+    "type": "object",
+    "title": "InvitationReissueRequested"
+  },
+  "InvitationRejected:3": {
     "type": "object",
     "properties": {
       "reason": {
@@ -7,12 +11,14 @@
         "enum": [
           0,
           1,
-          2
+          2,
+          3
         ],
         "x-enumNames": [
           "InvalidInvitationId",
           "InvitationIdReused",
-          "InvalidRecipient"
+          "InvalidRecipient",
+          "InvitationNotPending"
         ]
       }
     },
@@ -33,6 +39,28 @@
         "x-enumNames": [
           "InvalidInvitationId",
           "InvitationIdReused"
+        ]
+      }
+    },
+    "required": [
+      "reason"
+    ],
+    "title": "InvitationRejected"
+  },
+  "InvitationRejected:2": {
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "integer",
+        "enum": [
+          0,
+          1,
+          2
+        ],
+        "x-enumNames": [
+          "InvalidInvitationId",
+          "InvitationIdReused",
+          "InvalidRecipient"
         ]
       }
     },
@@ -386,6 +414,113 @@
       "version"
     ],
     "title": "LegalTermsAccepted"
+  },
+  "OrganizationNameReleased:1": {
+    "type": "object",
+    "properties": {
+      "tenantName": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "tenantName"
+    ],
+    "title": "OrganizationNameReleased"
+  },
+  "OrganizationNameReserved:1": {
+    "type": "object",
+    "properties": {
+      "tenantName": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "tenantName"
+    ],
+    "title": "OrganizationNameReserved"
+  },
+  "OrganizationRegistrationCompleted:2": {
+    "type": "object",
+    "properties": {
+      "tenantName": {
+        "type": "string"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "identityProvider": {
+        "type": "string"
+      },
+      "firstName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "middleName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "lastName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "email": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "signupContext": {
+        "type": [
+          "array",
+          "null"
+        ],
+        "items": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "key",
+            "value"
+          ],
+          "title": "SignupContextEntry"
+        }
+      }
+    },
+    "required": [
+      "tenantName",
+      "subject",
+      "identityProvider",
+      "firstName",
+      "middleName",
+      "lastName",
+      "email",
+      "signupContext"
+    ],
+    "title": "OrganizationRegistrationCompleted"
   },
   "OrganizationRegistrationCompleted:1": {
     "type": "object",

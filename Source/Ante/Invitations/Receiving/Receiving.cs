@@ -2,9 +2,12 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Ante.Contracts.Legal;
+using Ante.Contracts.Organization;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.Issuing;
+using Ante.Invitations.OrganizationSetup;
 using Ante.Legal.Receiving;
+using Ante.Organization.Names;
 using Ante.Outbox;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Chronicle.Reactors;
@@ -35,6 +38,14 @@ public record CreateTenantInvitationReceived(Email Email, IReadOnlyList<RoleName
 /// </summary>
 [EventType]
 public record InvitationRevocationReceived;
+
+/// <summary>
+/// Event appended locally when the host asks for a fresh token for a pending invitation.
+/// </summary>
+/// <param name="InboxSequenceNumber">The sequence number of the host's request in its source inbox, so a redelivery is not mistaken for a second request.</param>
+/// <param name="SourceStore">The source store whose inbox delivered the request.</param>
+[EventType]
+public record InvitationReissueReceived(EventSequenceNumber InboxSequenceNumber, string SourceStore);
 
 /// <summary>
 /// Identifies the host inbox event that created a local invitation receipt, so a retry of the same
@@ -145,6 +156,12 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
                 await serializer.Deserialize(typeof(UserInvitedToCreateTenant), delivery.Content),
             var type when type == typeof(InvitationRevoked).GetEventType() =>
                 await serializer.Deserialize(typeof(InvitationRevoked), delivery.Content),
+            var type when type == typeof(InvitationReissueRequested).GetEventType() =>
+                await serializer.Deserialize(typeof(InvitationReissueRequested), delivery.Content),
+            var type when type == typeof(OrganizationNameReserved).GetEventType() =>
+                await serializer.Deserialize(typeof(OrganizationNameReserved), delivery.Content),
+            var type when type == typeof(OrganizationNameReleased).GetEventType() =>
+                await serializer.Deserialize(typeof(OrganizationNameReleased), delivery.Content),
             var type when type == typeof(LegalDocumentSetPublished).GetEventType() =>
                 await serializer.Deserialize(typeof(LegalDocumentSetPublished), delivery.Content),
             _ => throw new InvalidOperationException($"Unexpected incoming invitation event type {context.EventType}."),
@@ -164,6 +181,15 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
                 break;
             case UserInvitedToCreateTenant create:
                 await AppendReceipt(await On(create, context), context);
+                break;
+            case InvitationReissueRequested:
+                await Reissue(context);
+                break;
+            case OrganizationNameReserved reserved:
+                await Reserve(reserved, context);
+                break;
+            case OrganizationNameReleased released:
+                await Release(released, context);
                 break;
             case InvitationRevoked revoked:
                 if (On(revoked, context) is { } receipt)
@@ -206,6 +232,88 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         if (!result.IsSuccess)
         {
             throw new InvalidOperationException($"Failed to record invitation from {sourceStore} for {context.EventSourceId}.");
+        }
+    }
+
+    async Task Reissue(EventContext context)
+    {
+        if (!InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out _))
+        {
+            await Reject(context, InvitationRejectionReason.InvalidInvitationId);
+            return;
+        }
+
+        var history = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(
+            context.EventSourceId,
+            [.. _decisionEventTypes, typeof(InvitationReissueReceived).GetEventType()]);
+        if (history.Any(entry => entry.Content is InvitationReissueReceived received &&
+            received.SourceStore == sourceStore && received.InboxSequenceNumber == context.SequenceNumber))
+        {
+            return; // A redelivery of a request that was already honored.
+        }
+
+        var isPending = history.Any(entry => entry.Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived) &&
+            !history.Any(entry => entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted);
+        if (!isPending)
+        {
+            await Reject(context, InvitationRejectionReason.InvitationNotPending);
+            return;
+        }
+
+        var tail = history[^1].Context.SequenceNumber;
+        var result = await eventStore.EventLog.Append(
+            context.EventSourceId,
+            new InvitationReissueReceived(context.SequenceNumber, sourceStore),
+            correlationId: context.CorrelationId,
+            concurrencyScope: new(tail, context.EventSourceId, EventTypes: [.. _decisionEventTypes, typeof(InvitationReissueReceived).GetEventType()]));
+        if (!result.IsSuccess)
+        {
+            throw new InvalidOperationException($"Failed to record invitation reissue from {sourceStore} for {context.EventSourceId}.");
+        }
+    }
+
+    async Task Reserve(OrganizationNameReserved reserved, EventContext context)
+    {
+        if (string.IsNullOrWhiteSpace(reserved.TenantName?.Value))
+        {
+            return;
+        }
+
+        var result = await eventStore.EventLog.Append(
+            ClaimedOrganizationNames.ReservationSourceFor(reserved.TenantName.Value),
+            new OrganizationNameReservationReceived(reserved.TenantName),
+            correlationId: context.CorrelationId);
+
+        // The name being held already - by an onboarding or an earlier reservation - is exactly what the
+        // host is telling us, so the uniqueness rejection is the expected outcome, not a failure.
+        if (!result.IsSuccess && !(result.HasConstraintViolations && !result.HasErrors && !result.HasConcurrencyViolations &&
+            result.ConstraintViolations.All(violation => violation.ConstraintName == OrganizationSetupConstraintNames.UniqueOrganizationName)))
+        {
+            throw new InvalidOperationException($"Failed to record organization name reservation from {sourceStore}.");
+        }
+    }
+
+    async Task Release(OrganizationNameReleased released, EventContext context)
+    {
+        if (string.IsNullOrWhiteSpace(released.TenantName?.Value))
+        {
+            return;
+        }
+
+        var name = released.TenantName.Value.Trim();
+        var claims = (await eventStore.ReadModels.GetInstances<OrganizationNameClaim>())
+            .Where(claim => string.Equals(claim.TenantName.Value.Trim(), name, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        foreach (var claim in claims)
+        {
+            var result = await eventStore.EventLog.Append(
+                claim.Id,
+                new OrganizationNameReleaseReceived(claim.TenantName),
+                correlationId: context.CorrelationId);
+            if (!result.IsSuccess)
+            {
+                throw new InvalidOperationException($"Failed to release organization name from {sourceStore}.");
+            }
         }
     }
 
@@ -368,6 +476,34 @@ public class InvitationTokenIssuingReactor(
 
         var token = tokenIssuer.IssueCreateTenantInvitation(invitationId, @event.Email);
         await eventStore.PublishToOutbox(context, new InvitationTokenIssued(InvitationFlowType.CreateTenant, token.Token, token.ExpiresAt), []);
+    }
+
+    /// <summary>
+    /// Issues a fresh token for a pending invitation the host asked to reissue, for the same flow and
+    /// recipient as the original receipt.
+    /// </summary>
+    /// <param name="event">The event.</param>
+    /// <param name="context">The event context.</param>
+    public async Task On(InvitationReissueReceived @event, EventContext context)
+    {
+        if (!InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out _))
+        {
+            await Reject(context);
+            return;
+        }
+
+        var receipts = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(
+            context.EventSourceId,
+            [typeof(JoinTenantInvitationReceived).GetEventType(), typeof(CreateTenantInvitationReceived).GetEventType()]);
+        switch (receipts.Count > 0 ? receipts[^1].Content : null)
+        {
+            case JoinTenantInvitationReceived join:
+                await On(join, context);
+                break;
+            case CreateTenantInvitationReceived create:
+                await On(create, context);
+                break;
+        }
     }
 
     async Task Reject(EventContext context)

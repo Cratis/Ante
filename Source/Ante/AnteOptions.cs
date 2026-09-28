@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Ante.Legal;
+using Ante.Organization;
+using Ante.Organization.Registration;
 
 namespace Ante;
 
@@ -43,6 +45,16 @@ public class AnteOptions
     /// existing ILegalDocumentSource integration; Inbox requires both publisher and set id.
     /// </summary>
     public LegalOptions Legal { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets how self-service registration behaves for this deployment.
+    /// </summary>
+    public RegistrationOptions Registration { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the organization-name rules for this deployment.
+    /// </summary>
+    public OrganizationOptions Organization { get; set; } = new();
 
     /// <summary>
     /// Gets or sets the base URL of the host application. Once an invitation is accepted or a

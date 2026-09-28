@@ -7,6 +7,7 @@ using Ante.Contracts.Organization;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
+using Ante.Organization.Names;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
@@ -24,8 +25,8 @@ public class and_a_registration_already_used_the_invitation_id : Specification
         _scenario.Given.ForEventSource(_id).Events(new OrganizationRegistrationCompleted(
             "Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
         _scenario.Given.ForEventSource(_id).ReadModel(new PendingInvitationToCreateOrganization(_id, Guid.NewGuid(), "jane@example.com", ["Owner"]));
-        var names = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
-        names.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var names = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
+        names.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
         var identity = Substitute.For<ISignedInIdentity>();
         identity.IsVerifiedOwnerOf(_id).Returns(true);
         _scenario.Services.AddSingleton(names);

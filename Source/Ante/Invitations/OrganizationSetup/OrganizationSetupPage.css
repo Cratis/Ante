@@ -111,6 +111,28 @@
     justify-content: center;
 }
 
+/* Host-authored registration introduction */
+.registration-intro {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.registration-intro__text,
+.registration-intro__links {
+    margin: 0;
+}
+
+.registration-intro__highlights {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.registration-closed {
+    text-align: center;
+}
+
 /* Error state */
 .organization-setup-errors {
     display: flex;

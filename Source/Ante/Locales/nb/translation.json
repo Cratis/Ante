@@ -85,6 +85,11 @@
         "register": "Registrer organisasjon",
         "hostAppUrlUnavailable": "Organisasjonen er registrert, men vi finner ikke ut hvor vi skal sende deg videre. Kontakt brukerstøtte.",
         "startNewRegistration": "Registrer en annen organisasjon",
+        "closed": "Registrering er ikke tilgjengelig akkurat nå.",
+        "closedLink": "Les mer",
+        "pricingLink": "Se priser",
+        "loginLink": "Har du allerede en konto? Logg inn",
+        "loading": "Laster...",
         "startUnavailable": "Vi kunne ikke starte denne registreringen. Prøv igjen, eller logg inn med kontoen som startet den.",
         "starting": "Forbereder registreringen din …"
     },

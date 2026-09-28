@@ -25,4 +25,7 @@
   <data name="MustAcceptMessage" xml:space="preserve"><value>You must accept the terms and conditions and the privacy policy to proceed.</value></data>
   <data name="StaleVersionMessage" xml:space="preserve"><value>The terms and conditions and privacy policy have changed. Reload the page and accept the current version.</value></data>
   <data name="UnsolicitedAcceptanceMessage" xml:space="preserve"><value>There are no terms and conditions to accept right now. Reload the page and continue.</value></data>
+  <data name="RegistrationClosed" xml:space="preserve"><value>Sign-up is not available right now.</value></data>
+  <data name="RegistrationLimitReached" xml:space="preserve"><value>This sign-in has registered as many organizations as it can for now. Please try again later or contact support.</value></data>
+  <data name="OrganizationNameReserved" xml:space="preserve"><value>This organization name is reserved. Please choose another name.</value></data>
 </root>

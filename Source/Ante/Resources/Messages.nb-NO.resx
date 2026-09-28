@@ -25,4 +25,7 @@
   <data name="MustAcceptMessage" xml:space="preserve"><value>Du må godta vilkårene og personvernerklæringen for å fortsette.</value></data>
   <data name="StaleVersionMessage" xml:space="preserve"><value>Vilkårene og personvernerklæringen er endret. Last siden på nytt og godta den gjeldende versjonen.</value></data>
   <data name="UnsolicitedAcceptanceMessage" xml:space="preserve"><value>Det finnes ingen vilkår å godta nå. Last siden på nytt og fortsett.</value></data>
+  <data name="RegistrationClosed" xml:space="preserve"><value>Registrering er ikke tilgjengelig akkurat nå.</value></data>
+  <data name="RegistrationLimitReached" xml:space="preserve"><value>Denne innloggingen har registrert så mange organisasjoner som den kan for øyeblikket. Prøv igjen senere eller kontakt kundestøtte.</value></data>
+  <data name="OrganizationNameReserved" xml:space="preserve"><value>Dette organisasjonsnavnet er reservert. Velg et annet navn.</value></data>
 </root>

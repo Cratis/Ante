@@ -17,7 +17,7 @@ import { initialOrganizationSetupValues } from '../initialOnboardingValues';
 import { validateChangedName } from '../NameFieldValidation';
 import { localeHttpHeaders } from '../../Locale/localeHttpHeaders';
 import { useLocale } from '../../Locale/LocaleContext';
-import { HostOutcomeStatus } from '../HostOutcome/HostOutcomeStatus';
+import { HostOutcomeCompletion } from './HostOutcomeCompletion';
 import { useFreshLegalDocuments } from '../../Legal/useFreshLegalDocuments';
 import { OrganizationSetupFrame } from './OrganizationSetupFrame';
 import { InvitationIdentityDetails } from '../Accepting/Accepting';
@@ -147,29 +147,10 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
     // this point regardless of what (if anything) is shown here; a failed or still-pending host outcome
     // never blocks the Continue action below.
     if (handoff.phase === 'hostOutcome') {
-        const message = handoff.hostOutcomeStatus === HostOutcomeStatus.succeeded
-            ? strings.organizationSetup.hostOutcomeSucceeded
-            : handoff.hostOutcomeStatus === HostOutcomeStatus.failed
-                ? strings.organizationSetup.hostOutcomeFailed
-                : strings.organizationSetup.hostOutcomePending;
-
         return (
             <OrganizationSetupFrame>
                 <div className='organization-setup-card__content'>
-                    <div className='organization-setup-waiting' role='status' aria-live='polite'>
-                        <p className='organization-setup-waiting__message'>{message}</p>
-                        {handoff.hostOutcomeStatus === HostOutcomeStatus.failed && handoff.hostOutcomeReasonCode && (
-                            <p className='organization-setup-waiting__message'>
-                                {strings.onboarding.hostOutcomeReference.replace('{reasonCode}', handoff.hostOutcomeReasonCode)}
-                            </p>
-                        )}
-                        <div className='organization-setup-host-outcome__actions'>
-                            <Button label={strings.onboarding.continueToHost} onClick={handoff.continueToHost} />
-                            {handoff.hostOutcomeStatus !== HostOutcomeStatus.succeeded && (
-                                <Button label={strings.onboarding.checkAgain} variant='ghost' onClick={handoff.checkHostOutcomeAgain} />
-                            )}
-                        </div>
-                    </div>
+                    <HostOutcomeCompletion handoff={handoff} />
                 </div>
             </OrganizationSetupFrame>
         );

@@ -5,6 +5,7 @@
 using System.Reflection;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.UserSetup;
+using Ante.Organization.Names;
 using Cratis.Chronicle.Projections.ModelBound;
 
 namespace Ante.for_ReadModels.when_resolving_their_event_sequence;
@@ -36,7 +37,7 @@ public class and_they_project_events_declared_for_the_contracts_store : Specific
 
     [Fact]
     void should_find_the_local_setup_read_models() => Assert.Superset(
-        new HashSet<Type> { typeof(OrganizationSetupProgress), typeof(AcceptedOrganizationName), typeof(UserSetupProgress) },
+        new HashSet<Type> { typeof(OrganizationSetupProgress), typeof(OrganizationNameClaim), typeof(UserSetupProgress) },
         _readModelsProjectingContractEvents.ToHashSet());
 
     [Fact] void should_pin_every_one_of_them_to_an_explicit_event_sequence() => Assert.Empty(_unpinned);
@@ -47,7 +48,7 @@ public class and_they_project_events_declared_for_the_contracts_store : Specific
 
     [Fact]
     void should_read_accepted_organization_names_from_the_local_event_log() =>
-        Assert.Equal(EventSequenceId.Log, typeof(AcceptedOrganizationName).GetCustomAttribute<EventSequenceAttribute>()?.Sequence);
+        Assert.Equal(EventSequenceId.Log, typeof(OrganizationNameClaim).GetCustomAttribute<EventSequenceAttribute>()?.Sequence);
 
     [Fact]
     void should_read_user_setup_progress_from_the_local_event_log() =>
