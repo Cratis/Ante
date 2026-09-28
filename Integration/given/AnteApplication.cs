@@ -40,8 +40,16 @@ public sealed class AnteApplication(
     public const string IdentityProvider = "integration-idp";
 
     static readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
-
     public string EventStore { get; } = eventStore;
+
+    /// <summary>The private test key corresponding to the attestation verifier's pinned public key.</summary>
+    public string AttestationPrivateKeyPem { get; } = CreateSigningKey();
+
+    static string CreateSigningKey()
+    {
+        using var key = RSA.Create(2048);
+        return key.ExportPkcs8PrivateKeyPem();
+    }
 
     /// <summary>
     /// Posts a command the way the wizard does, behind the authentication proxy's forwarded identity. Pass the
@@ -52,7 +60,7 @@ public sealed class AnteApplication(
         using var request = new HttpRequestMessage(HttpMethod.Post, route) { Content = JsonContent.Create(command, options: _json) };
         if (subject is not null)
         {
-            AddForwardedIdentity(request, subject, email ?? subject);
+            AddForwardedIdentity(request, subject, email ?? subject, attestedExchange);
         }
 
         using var response = await CreateClient().SendAsync(request);
@@ -64,7 +72,7 @@ public sealed class AnteApplication(
     public async Task<JsonDocument> RegistrationStatus(Guid registrationId, string subject)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/invitations/organization-setup/status-for-registration?registrationId={registrationId:D}");
-        AddForwardedIdentity(request, subject, subject);
+        AddForwardedIdentity(request, subject, subject, attestedExchange);
         using var response = await CreateClient().SendAsync(request);
         response.EnsureSuccessStatusCode();
         return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -86,10 +94,11 @@ public sealed class AnteApplication(
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // Integration runs the real Program with isolated host stores, kernel and MongoDB.
-        using var signingKey = RSA.Create(2048);
+        using var signingKey = RSA.Create();
+        signingKey.ImportFromPem(AttestationPrivateKeyPem);
         builder
             .UseEnvironment("Integration")
-            .UseSetting("Ante:Invitations:Token:PrivateKeyPem", signingKey.ExportPkcs8PrivateKeyPem())
+            .UseSetting("Ante:Invitations:Token:PrivateKeyPem", AttestationPrivateKeyPem)
             .UseSetting("Ante:Invitations:Token:PublicKeyPem", signingKey.ExportSubjectPublicKeyInfoPem())
             .UseSetting("Cratis:Chronicle:ConnectionString", infrastructure.ChronicleConnectionString)
             .UseSetting("Cratis:MongoDB:Server", infrastructure.MongoDBServer)
@@ -144,15 +153,20 @@ public sealed class AnteApplication(
     }
 
     // The Microsoft identity platform header contract the authentication proxy forwards.
-    static void AddForwardedIdentity(HttpRequestMessage request, string subject, string name)
+    static void AddForwardedIdentity(HttpRequestMessage request, string subject, string name, bool attested = false)
     {
         var principal = new
         {
-            identityProvider = IdentityProvider,
+            identityProvider = attested ? "integration-provider" : IdentityProvider,
             userId = subject,
             userDetails = name,
             userRoles = new[] { "authenticated" },
-            claims = Array.Empty<object>(),
+            claims = attested ? new[]
+            {
+                new { typ = "urn:cratis:identity:subject", val = subject },
+                new { typ = "urn:cratis:identity:provider-key", val = "integration-provider" },
+                new { typ = "urn:cratis:identity:issuer", val = "https://integration.example" },
+            } : [],
         };
         request.Headers.Add("x-ms-client-principal-id", subject);
         request.Headers.Add("x-ms-client-principal-name", name);
