@@ -18,7 +18,6 @@ namespace Ante.Contracts.Organization;
 [EventType(generation: 2)]
 public record OrganizationRegistrationCompleted
 {
-
     /// <summary>
     /// Initializes a new instance of the <see cref="OrganizationRegistrationCompleted"/> class.
     /// </summary>
