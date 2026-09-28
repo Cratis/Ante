@@ -82,42 +82,6 @@ public class LegalDocumentSetReceiver(IEventStore store, IOptions<AnteOptions> o
     public static IReadOnlyList<EventType> DecisionEventTypes => _eventTypes;
 
     /// <summary>
-    /// Applies an inbox publication, or records an invalid/conflicting revision for operators.
-    /// </summary>
-    /// <param name="published">The full host snapshot.</param>
-    /// <param name="context">The authenticated inbox delivery context.</param>
-    /// <param name="sourceStore">The source store assigned to this runtime reactor.</param>
-    /// <exception cref="LegalReceiptFailed">A local append did not commit; Chronicle must retry.</exception>
-    public async Task Receive(LegalDocumentSetPublished published, EventContext context, string sourceStore)
-    {
-        var config = options.Value.Legal;
-        if (config.Source != "Inbox" || sourceStore != config.PublisherStore || context.EventSourceId.Value != config.DocumentSetId)
-        {
-            return;
-        }
-
-        var history = await store.EventLog.GetForEventSourceIdAndEventTypes(context.EventSourceId, _eventTypes);
-        var activated = history.Select(entry => entry.Content).OfType<LegalDocumentSetReceived>().ToArray();
-        var rejected = history.Select(entry => entry.Content).OfType<LegalDocumentSetRejected>();
-        var fact = Decide(activated, rejected, published, context.SequenceNumber);
-        if (fact is null)
-        {
-            return;
-        }
-
-        var tail = history.Count == 0 ? EventSequenceNumber.BeforeFirst : history[^1].Context.SequenceNumber;
-        var scope = new ConcurrencyScope(tail, context.EventSourceId, EventTypes: _eventTypes);
-        var result = await store.EventLog.AppendMany(
-            [new(context.EventSourceId, fact)],
-            correlationId: context.CorrelationId,
-            concurrencyScopes: new Dictionary<EventSourceId, ConcurrencyScope> { [context.EventSourceId] = scope });
-        if (!result.IsSuccess)
-        {
-            throw new LegalReceiptFailed(context.EventSourceId);
-        }
-    }
-
-    /// <summary>
     /// Decides the next fact from the local activation history; old deliveries and exact duplicates are no-ops.
     /// </summary>
     /// <param name="activated">All previously activated snapshots for this set.</param>
@@ -162,11 +126,47 @@ public class LegalDocumentSetReceiver(IEventStore store, IOptions<AnteOptions> o
         return latest is null || published.Revision.Value > latest.Revision.Value
             ? new LegalDocumentSetReceived(published.Revision, published.Version, published.TermsAndConditions, published.PrivacyPolicy)
             : null; // A previously unseen older revision never rolls back the current set.
+
+        static bool Matches(LegalDocumentSetReceived existing, LegalDocumentSetPublished incoming) =>
+            existing.Revision == incoming.Revision && existing.Version == incoming.Version &&
+            existing.TermsAndConditions == incoming.TermsAndConditions && existing.PrivacyPolicy == incoming.PrivacyPolicy;
     }
 
-    static bool Matches(LegalDocumentSetReceived existing, LegalDocumentSetPublished incoming) =>
-        existing.Revision == incoming.Revision && existing.Version == incoming.Version &&
-        existing.TermsAndConditions == incoming.TermsAndConditions && existing.PrivacyPolicy == incoming.PrivacyPolicy;
+    /// <summary>
+    /// Applies an inbox publication, or records an invalid/conflicting revision for operators.
+    /// </summary>
+    /// <param name="published">The full host snapshot.</param>
+    /// <param name="context">The authenticated inbox delivery context.</param>
+    /// <param name="sourceStore">The source store assigned to this runtime reactor.</param>
+    /// <exception cref="LegalReceiptFailed">A local append did not commit; Chronicle must retry.</exception>
+    public async Task Receive(LegalDocumentSetPublished published, EventContext context, string sourceStore)
+    {
+        var config = options.Value.Legal;
+        if (config.Source != "Inbox" || sourceStore != config.PublisherStore || context.EventSourceId.Value != config.DocumentSetId)
+        {
+            return;
+        }
+
+        var history = await store.EventLog.GetForEventSourceIdAndEventTypes(context.EventSourceId, _eventTypes);
+        var activated = history.Select(entry => entry.Content).OfType<LegalDocumentSetReceived>().ToArray();
+        var rejected = history.Select(entry => entry.Content).OfType<LegalDocumentSetRejected>();
+        var fact = Decide(activated, rejected, published, context.SequenceNumber);
+        if (fact is null)
+        {
+            return;
+        }
+
+        var tail = history.Count == 0 ? EventSequenceNumber.BeforeFirst : history[^1].Context.SequenceNumber;
+        var scope = new ConcurrencyScope(tail, context.EventSourceId, EventTypes: _eventTypes);
+        var result = await store.EventLog.AppendMany(
+            [new(context.EventSourceId, fact)],
+            correlationId: context.CorrelationId,
+            concurrencyScopes: new Dictionary<EventSourceId, ConcurrencyScope> { [context.EventSourceId] = scope });
+        if (!result.IsSuccess)
+        {
+            throw new LegalReceiptFailed(context.EventSourceId);
+        }
+    }
 }
 
 /// <summary>
