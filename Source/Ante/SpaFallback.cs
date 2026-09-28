@@ -24,12 +24,19 @@ public static class SpaFallback
     public const string ShellFile = "index.html";
 
     /// <summary>
+    /// The invitation link route: exactly one path segment shaped like a JWT - three base64url parts
+    /// separated by dots - so a missing file under <c language="csharp">/invite</c> (for example <c language="csharp">/invite/app.js</c>) still
+    /// answers 404 instead of the shell.
+    /// </summary>
+    public const string InvitationLinkPattern = @"invite/{token:regex(^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$)}";
+
+    /// <summary>
     /// Maps the invitation link route and the general SPA fallback to <see cref="ShellFile"/>.
     /// </summary>
     /// <param name="endpoints">The endpoint route builder to map on.</param>
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapFallbackToFile("invite/{**token}", ShellFile);
+        endpoints.MapFallbackToFile(InvitationLinkPattern, ShellFile);
         endpoints.MapFallbackToFile(ShellFile);
     }
 }

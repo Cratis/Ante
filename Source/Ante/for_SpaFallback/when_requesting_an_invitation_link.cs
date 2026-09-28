@@ -57,6 +57,13 @@ public class when_requesting_an_invitation_link : Specification
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    async Task should_not_serve_the_shell_for_a_missing_file_under_the_invitation_path()
+    {
+        var response = await _client.GetAsync(new Uri("/invite/missing.js", UriKind.Relative));
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     async Task Destroy()
     {
         await _app.DisposeAsync();
