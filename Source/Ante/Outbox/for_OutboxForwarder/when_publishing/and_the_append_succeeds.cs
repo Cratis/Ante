@@ -78,6 +78,20 @@ public class and_the_append_succeeds : Specification
             Arg.Any<Cratis.Chronicle.Subject>());
 
     [Fact]
+    void should_not_require_an_outbox_sequence_number() =>
+        _outbox.Received(1).Append(
+            Arg.Any<EventSourceId>(),
+            Arg.Any<object>(),
+            Arg.Any<EventStreamType>(),
+            Arg.Any<EventStreamId>(),
+            Arg.Any<EventSourceType>(),
+            Arg.Any<CorrelationId>(),
+            Arg.Any<IEnumerable<string>>(),
+            Arg.Is<ConcurrencyScope>(scope => scope == ConcurrencyScope.None),
+            Arg.Any<DateTimeOffset?>(),
+            Arg.Any<Cratis.Chronicle.Subject>());
+
+    [Fact]
     void should_preserve_the_original_correlation_id() =>
         _outbox.Received(1).Append(
             Arg.Any<EventSourceId>(),
