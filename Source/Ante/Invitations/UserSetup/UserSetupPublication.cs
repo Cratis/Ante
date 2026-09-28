@@ -18,7 +18,13 @@ namespace Ante.Invitations.UserSetup;
 /// <param name="Id">The invitation identifier.</param>
 /// <param name="AcceptanceRecorded">Whether the acceptance itself was recorded.</param>
 /// <param name="LegalRecorded">Whether a <see cref="LegalTermsAccepted"/> fact was recorded alongside the acceptance.</param>
+/// <remarks>
+/// Pinned to the local event log: its events are declared in <c language="csharp">Cratis.Ante.Contracts</c>, whose
+/// assembly-level <c language="csharp">[EventStore("Ante")]</c> would otherwise make Chronicle read it from
+/// <c language="csharp">inbox-Ante</c> whenever <see cref="AnteOptions.EventStore"/> is not the literal "Ante".
+/// </remarks>
 [ReadModel]
+[EventLog]
 [FromEvent<InvitationToJoinTenantAccepted>]
 [FromEvent<LegalTermsAccepted>]
 public record UserSetupProgress(

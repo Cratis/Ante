@@ -16,7 +16,7 @@ public class and_an_anonymous_caller_requests_it : Specification
     async Task Because()
     {
         var id = InvitationId.New();
-        var store = QueryCollections.ReadModelStoreWith(new OrganizationSetupProgress(id, "Acme", OwnerSubject: (RegistrationOwnerSubject)"sub-1", OwnerProvider: "github"));
+        var store = QueryCollections.ReadModelStoreWith(new OrganizationSetupProgress(id, "Acme") { OwnerSubject = (RegistrationOwnerSubject)"sub-1", OwnerProvider = "github" });
         using var subscriptions = new OrganizationSetupStatusSubscriptions();
         _result = await OrganizationSetupAcceptanceStatusView.StatusForRegistration(id, Substitute.For<ISignedInIdentity>(), subscriptions, store, Substitute.For<IMongoCollection<OrganizationSetupPublished>>());
     }
