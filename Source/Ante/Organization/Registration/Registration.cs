@@ -112,7 +112,7 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
     /// forwarded to the outbox. <see cref="OrganizationRegistrationOutbox"/> marks it once registration is
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
-    public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
+    public async Task<Result<ValidationResult, EventsWithConcurrencyScopes>> Handle(
         IHttpContextAccessor httpContextAccessor,
         IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
         IIdentityProviderResolver identityProviderResolver,
@@ -169,8 +169,7 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
         };
         events.AddRange(legalEvidence.Events);
 
-        return (new Cratis.Chronicle.Subject(subject),
-            await LegalAcceptanceEvidence.ForAppend(eventStore, RegistrationId, events, legalEvidence));
+        return await LegalAcceptanceEvidence.ForAppend(eventStore, RegistrationId, events, legalEvidence);
     }
 }
 

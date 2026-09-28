@@ -106,26 +106,35 @@ public static class LegalTermsRules
         Expression<Func<TCommand, bool>> accepted,
         Expression<Func<TCommand, LegalVersion>> version)
     {
-        validator.RuleFor(accepted)
-            .MustAsync(async (_, _) => await legalDocumentSource.GetCurrent() is not null)
-            .WithMessage(UnavailableMessage)
-            .When(_ => legalDocumentSource is ILegalDocumentAvailability { RequiresDocuments: true });
+        var isAccepted = accepted.Compile();
+        var acceptedVersion = version.Compile();
+        var acceptedProperty = ((MemberExpression)accepted.Body).Member.Name;
+        var versionProperty = ((MemberExpression)version.Body).Member.Name;
+        validator.RuleFor(command => command).CustomAsync(async (command, context, _) =>
+        {
+            var current = await legalDocumentSource.GetCurrent();
+            if (current is null)
+            {
+                if (legalDocumentSource is ILegalDocumentAvailability { RequiresDocuments: true })
+                {
+                    context.AddFailure(acceptedProperty, UnavailableMessage);
+                }
+                else if (isAccepted(command))
+                {
+                    context.AddFailure(acceptedProperty, UnsolicitedAcceptanceMessage);
+                }
+                return;
+            }
 
-        validator.RuleFor(accepted)
-            .Equal(true)
-            .WithMessage(MustAcceptMessage)
-            .WhenAsync(async (_, _) => await legalDocumentSource.GetCurrent() is not null);
-
-        validator.RuleFor(accepted)
-            .Equal(false)
-            .WithMessage(UnsolicitedAcceptanceMessage)
-            .WhenAsync(async (_, _) => await legalDocumentSource.GetCurrent() is null &&
-                legalDocumentSource is not ILegalDocumentAvailability { RequiresDocuments: true });
-
-        validator.RuleFor(version)
-            .MustAsync(async (accepted, _) => accepted is not null && accepted == (await legalDocumentSource.GetCurrent())?.Version)
-            .WithMessage(StaleVersionMessage)
-            .WhenAsync(async (_, _) => await legalDocumentSource.GetCurrent() is not null);
+            if (!isAccepted(command))
+            {
+                context.AddFailure(acceptedProperty, MustAcceptMessage);
+            }
+            if (acceptedVersion(command) != current.Version)
+            {
+                context.AddFailure(versionProperty, StaleVersionMessage);
+            }
+        });
     }
 }
 

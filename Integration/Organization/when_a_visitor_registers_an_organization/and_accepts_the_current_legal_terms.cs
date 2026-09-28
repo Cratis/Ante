@@ -5,6 +5,7 @@ using System.Text.Json;
 using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
 using Ante.Integration.given;
+using Ante.Invitations;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Legal;
 using Ante.Organization.Registration;
@@ -23,6 +24,7 @@ public class and_accepts_the_current_legal_terms : a_running_ante
     OrganizationRegistrationCompleted _completed;
     LegalTermsAccepted _legal;
     RegistrationOwnerRecorded _owner;
+    bool _eventsUseRegistrationSubject;
     OrganizationSetupProgress _progress;
     JsonDocument _ownerStatus;
     JsonDocument _strangerStatus;
@@ -48,6 +50,15 @@ public class and_accepts_the_current_legal_terms : a_running_ante
             return entries.Select(entry => entry.Content).OfType<RegistrationOwnerRecorded>().FirstOrDefault();
         },
         what: "persisted registration owner event");
+        await using (var scope = Ante.Services.CreateAsyncScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredService<IEventStore>();
+            var entries = await store.EventLog.GetForEventSourceIdAndEventTypes(
+                _registrationId.ToString("D"),
+                [typeof(OnboardingAttemptClaimed).GetEventType(), typeof(OrganizationRegistrationCompleted).GetEventType(),
+                    typeof(RegistrationOwnerRecorded).GetEventType(), typeof(LegalTermsAccepted).GetEventType()]);
+            _eventsUseRegistrationSubject = entries.Count == 4 && entries.All(entry => entry.Context.SubjectIsEventSourceId);
+        }
         _progress = await Eventually.Get<OrganizationSetupProgress>(async () =>
         {
             await using var scope = Ante.Services.CreateAsyncScope();
@@ -69,6 +80,7 @@ public class and_accepts_the_current_legal_terms : a_running_ante
     [Fact] void should_deliver_the_signed_in_email_decrypted() => _completed.Email.Value.ShouldEqual(_email);
     [Fact] void should_publish_legal_acceptance() => _legal.Version.ShouldEqual(CurrentLegalDocuments.Version);
     [Fact] void should_persist_the_owner_event() => _owner.OwnerProvider.Value.ShouldEqual(AnteApplication.IdentityProvider);
+    [Fact] void should_not_override_the_registration_id_as_compliance_subject() => _eventsUseRegistrationSubject.ShouldBeTrue();
     [Fact] void should_release_the_projected_owner_subject() => _progress.OwnerSubject!.Value.ShouldEqual(_subject);
     [Fact] void should_return_status_to_the_recorded_owner() => _ownerStatus.RootElement.GetProperty("data").GetProperty("organizationName").GetString().ShouldEqual(_organization);
     [Fact] void should_hide_the_registration_from_another_identity() => _strangerStatus.RootElement.GetProperty("data").GetProperty("organizationName").GetString().ShouldEqual(string.Empty);

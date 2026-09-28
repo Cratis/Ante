@@ -7,8 +7,8 @@ using Cratis.Chronicle.EventSequences.Concurrency;
 namespace Ante.Legal.Receiving;
 
 /// <summary>
-/// Reads the most recently activated set directly from the local event log, without waiting for the
-/// projection to catch up. A missing set in Inbox mode must not be interpreted as no legal requirement.
+/// Reads the activated set from the read model for display and preflight validation. Command execution
+/// reads the event log instead to fence its append against a concurrent activation.
 /// </summary>
 /// <param name="store">Ante's configured event store.</param>
 /// <param name="options">The validated source and document set identity.</param>
@@ -18,7 +18,11 @@ public class InboxLegalDocumentSource(IEventStore store, IOptions<AnteOptions> o
     public bool RequiresDocuments => true;
 
     /// <inheritdoc/>
-    public async Task<LegalDocumentSet?> GetCurrent() => (await GetActivated()).Documents;
+    public async Task<LegalDocumentSet?> GetCurrent()
+    {
+        var active = await store.ReadModels.GetInstanceById<ActivatedLegalDocumentSet>(new EventSourceId(options.Value.Legal.DocumentSetId!));
+        return active is null ? null : new(active.TermsAndConditions, active.PrivacyPolicy, active.Version);
+    }
 
     /// <summary>
     /// Reads the document content and exact legal stream tail in one operation for append-time fencing.

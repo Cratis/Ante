@@ -4,8 +4,8 @@
 using System.Text.Json;
 using Ante.Contracts.Legal;
 using Ante.Integration.given;
+using Ante.Legal;
 using Ante.Legal.Receiving;
-using Cratis.Chronicle.EventSequences.Concurrency;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Ante.Integration.Invitations.when_a_host_publishes_legal_documents;
@@ -54,26 +54,23 @@ public class and_an_invitee_accepts_the_activated_set : a_running_ante
             _subject);
         _accepted = await Host.WaitForFromAnte<LegalTermsAccepted>(_invitationId.ToString());
 
-        // Capture the scope a command reading version 2 would have included in its append.
-        // Advance the legal stream before attempting that append: the kernel must reject it even
-        // though this new acceptance would target a different invitation's event source.
-        var legalTail = await store.EventLog.GetTailSequenceNumber(
-            LegalDocumentSetId,
-            filterEventTypes: LegalDocumentSetReceiver.DecisionEventTypes);
-        var staleScope = new ConcurrencyScope(
-            legalTail,
-            LegalDocumentSetId,
-            EventTypes: LegalDocumentSetReceiver.DecisionEventTypes);
+        // Resolve the same evidence and append envelope as an onboarding command. Advance the
+        // legal stream after resolution but before committing that envelope.
+        await using var scope = Ante.Services.CreateAsyncScope();
+        var scopedStore = scope.ServiceProvider.GetRequiredService<IEventStore>();
+        var source = scope.ServiceProvider.GetRequiredService<ILegalDocumentSource>();
+        var resolved = await LegalAcceptanceEvidence.ResolveWithScope(
+            source, true, "2026-02", "Acme", AnteApplication.IdentityProvider, _subject);
+        Assert.True(resolved.TryGetResult(out var evidence));
+        var otherInvitation = NewInvitationId().ToString();
+        var commandAppend = await LegalAcceptanceEvidence.ForAppend(scopedStore, otherInvitation, evidence.Events, evidence);
         await Host.Publish(LegalDocumentSetId, new LegalDocumentSetPublished(3, "2026-03", "Terms three", "Privacy three"));
         await Eventually.Until(async () =>
             (await store.EventLog.GetForEventSourceIdAndEventTypes(LegalDocumentSetId,
                 [typeof(LegalDocumentSetReceived).GetEventType()]))
                 .Select(entry => entry.Content).OfType<LegalDocumentSetReceived>().LastOrDefault()?.Revision.Value == 3,
             what: "third legal revision activation");
-        var otherInvitation = NewInvitationId().ToString();
-        var staleAppend = await store.EventLog.AppendMany(
-            [new EventForEventSourceId(otherInvitation, new LegalTermsAccepted("Acme", AnteApplication.IdentityProvider, _subject, "2026-02"))],
-            concurrencyScopes: new Dictionary<EventSourceId, ConcurrencyScope> { [LegalDocumentSetId] = staleScope });
+        var staleAppend = await scopedStore.EventLog.AppendMany(commandAppend.Events, concurrencyScopes: commandAppend.ConcurrencyScopes.ToDictionary());
         _staleAcceptanceRejected = staleAppend.HasConcurrencyViolations;
     }
 
