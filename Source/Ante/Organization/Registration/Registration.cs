@@ -1,15 +1,15 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Security.Claims;
 using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
 using Ante.IdentityProviders;
 using Ante.Invitations;
 using Ante.Invitations.OrganizationSetup;
+using Ante.Invitations.Receiving;
+using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Outbox;
-using Cratis.Arc.Identity;
 using Cratis.Arc.Validation;
 using Cratis.Types;
 using Microsoft.AspNetCore.Http;
@@ -27,7 +27,15 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
     /// </summary>
     /// <param name="legalDocumentSource">The legal document source the registering user has to accept, when the host has configured one.</param>
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
-    public RegisterOrganizationValidator(ILegalDocumentSource legalDocumentSource, IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames)
+    /// <param name="httpContextAccessor">Accessor for the current sign-in.</param>
+    /// <param name="identityProviderResolver">Resolver of the current sign-in provider.</param>
+    /// <param name="eventStore">The current namespace's read models for checking prior use of the registration id.</param>
+    public RegisterOrganizationValidator(
+        ILegalDocumentSource legalDocumentSource,
+        IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
+        IHttpContextAccessor httpContextAccessor,
+        IIdentityProviderResolver identityProviderResolver,
+        IEventStore eventStore)
     {
         RuleFor(c => (string)c.OrganizationName)
             .MustBeAValidOrganizationName();
@@ -53,6 +61,16 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
             .OverridePropertyName(nameof(RegisterOrganization.MiddleName));
 
         LegalTermsRules.Apply(this, legalDocumentSource, c => c.AcceptedLegalTerms, c => c.AcceptedLegalVersion);
+
+        RuleFor(c => c)
+            .Must(_ => RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver) is { } owner &&
+                !string.IsNullOrWhiteSpace(owner.Provider.Value))
+            .WithMessage("A signed-in subject and provider are required to register an organization.");
+
+        RuleFor(c => c.RegistrationId)
+            .MustAsync(async (id, _) => await RegistrationSourceAvailability.IsAvailable(id, eventStore))
+            .WithMessage("This onboarding attempt has already been submitted.")
+            .WithState(_ => OnboardingAttemptConstraintNames.OneUseAttempt);
     }
 }
 
@@ -83,6 +101,7 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
     /// <param name="identityProviderResolver">Resolver used to attribute the sign-in to a configured provider.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
+    /// <param name="eventStore">The event store used to check whether the registration id belongs to an invitation.</param>
     /// <returns>
     /// A <see cref="Result{T0, T1}"/> containing either a failed <see cref="ValidationResult"/> or the
     /// events to append.
@@ -97,15 +116,12 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
         IHttpContextAccessor httpContextAccessor,
         IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
         IIdentityProviderResolver identityProviderResolver,
-        ILegalDocumentSource legalDocumentSource)
+        ILegalDocumentSource legalDocumentSource,
+        IEventStore eventStore)
     {
         var httpContext = httpContextAccessor.HttpContext;
         var user = httpContext?.User;
-        var subject = user?.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? user?.FindFirstValue("sub")
-            ?? httpContext?.Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].FirstOrDefault()
-            ?? string.Empty;
-        var identityProviderValue = identityProviderResolver.Resolve(user?.FindFirstValue("iss"));
+        var owner = RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver);
         var email = SignedInEmail.Resolve(user, httpContext?.Request.Headers);
 
         // Re-read rather than trust the validator: the name can be claimed between the two, and this is
@@ -118,6 +134,18 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             return ValidationResult.Error("Organization name is already in use.", ["organizationName"]);
         }
 
+        if (owner is null || string.IsNullOrWhiteSpace(owner.Provider.Value))
+        {
+            return ValidationResult.Error("A signed-in subject and provider are required to register an organization.");
+        }
+
+        if (!await RegistrationSourceAvailability.IsAvailable(RegistrationId, eventStore))
+        {
+            return ValidationResult.Error("This onboarding attempt has already been submitted.", reasonDetail: OnboardingAttemptConstraintNames.OneUseAttempt);
+        }
+
+        var subject = owner.Subject.Value;
+        var identityProviderValue = owner.Provider;
         var legalResolution = await LegalAcceptanceEvidence.Resolve(
             legalDocumentSource,
             AcceptedLegalTerms,
@@ -135,7 +163,9 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
 
         var events = new List<object>
         {
+            new OnboardingAttemptClaimed(),
             new OrganizationRegistrationCompleted(OrganizationName, subject, identityProviderValue, FirstName, MiddleName ?? Contracts.Invitations.MiddleName.NotSet, LastName, email),
+            new RegistrationOwnerRecorded(owner.Subject, owner.Provider),
         };
         events.AddRange(legalEvents);
 
@@ -144,17 +174,38 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
 }
 
 /// <summary>
+/// Rejects ids already associated with an invitation or an older registration that predates the
+/// shared one-use marker. The append-time marker enforces the same rule for concurrent new writes.
+/// </summary>
+public static class RegistrationSourceAvailability
+{
+    /// <summary>
+    /// Checks whether the event source can start a self-service registration.
+    /// </summary>
+    /// <param name="registrationId">The proposed registration id.</param>
+    /// <param name="eventStore">The scoped event store providing the current read models.</param>
+    /// <returns>True if no prior invitation or registration read model claims this id.</returns>
+    public static async Task<bool> IsAvailable(InvitationId registrationId, IEventStore eventStore)
+    {
+        var key = registrationId.Value;
+        return await eventStore.ReadModels.GetInstanceById<PendingInvitationToJoin>(key) is null &&
+            await eventStore.ReadModels.GetInstanceById<PendingInvitationToCreateOrganization>(key) is null &&
+            await eventStore.ReadModels.GetInstanceById<UserSetupProgress>(key) is null &&
+            await eventStore.ReadModels.GetInstanceById<OrganizationSetupProgress>(key) is null;
+    }
+}
+
+/// <summary>
 /// Forwards <see cref="OrganizationRegistrationCompleted"/> to the outbox so the host can subscribe.
 /// </summary>
 /// <remarks>
-/// Pinned to <see cref="EventLogAttribute"/> deliberately - see the remarks on <c language="csharp">LegalTermsAcceptanceOutbox</c>
+/// Pinned to the event log deliberately - see the remarks on <c language="csharp">LegalTermsAcceptanceOutbox</c>
 /// for why an unattributed reactor handling a <c language="csharp">Cratis.Ante.Contracts</c> event is unsafe to route once a
 /// deployment renames its store away from the compiled "Ante" literal.
 /// </remarks>
 /// <param name="eventStore">The event store.</param>
 /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>, given a chance to accelerate a live status subscription once this fact is durably published.</param>
-[Reactor]
-[EventLog]
+[Reactor(eventSequence: EventSequenceId.LogId)]
 public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers) : IReactor
 {
     /// <summary>

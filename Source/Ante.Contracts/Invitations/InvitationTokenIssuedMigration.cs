@@ -8,6 +8,8 @@ namespace Ante.Contracts.Invitations;
 /// <summary>
 /// Migrates token publications from generation 1, for which the expiry was never recorded.
 /// The Unix epoch marks an unknown expiry and is deliberately not a valid future expiration.
+/// Chronicle 19.4.7 migrates existing event-log rows, not inbox/outbox rows; the current
+/// contract's JSON constructor also supplies the sentinel when the older payload lacks expiresAt.
 /// </summary>
 public class InvitationTokenIssuedMigration : EventTypeMigration<InvitationTokenIssued, InvitationTokenIssuedV1>
 {

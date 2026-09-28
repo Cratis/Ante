@@ -3,7 +3,7 @@ title: Lobby journeys
 description: How the join, invited-creation, and self-registration wizards select a flow and recover from publication delay.
 ---
 
-Ante offers three journeys in one SPA. `/register` and its subpaths select self-service registration; other SPA paths use identity details first, then the token's **unverified** `invite_type` for display, and finally default to the join wizard. The token may come from `/invite/{token}` or `?token=...`. Screen selection is not authorization; see [Security and trust](./security.md).
+Ante offers three journeys in one SPA. `/register` and its subpaths select self-service registration; other SPA paths use identity details first, then the token's **unverified** `invite_type` for display, and finally default to the join wizard. The token may come from `/invite/{token}` or `?token=...`; the browser also uses its unverified `jti` as the invitation id it submits and polls, while the server checks ownership. Screen selection is not authorization; see [Security and trust](./security.md).
 
 ## Join an existing tenant
 

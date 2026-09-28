@@ -1,9 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Ante.Invitations.Accepting;
 using Ante.Invitations.Issuing;
 using Ante.Outbox;
 using Cratis.Chronicle.EventSequences.Concurrency;
+using Cratis.Chronicle.Reactors;
 using MongoDB.Driver;
 
 namespace Ante.Invitations.Receiving;
@@ -216,42 +218,41 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             return null;
         }
 
+        // Before markers existed, the receipt's persisted reactor causation already named its
+        // originating inbox sequence and number. Count-based matching can mistake a later inbox
+        // delivery for a receipt, particularly when a historical delivery was recorded twice.
+        // The first marker follows its receipt in the same append, so that receipt is not legacy.
+        var legacy = history.TakeWhile(entry => entry.Content is not (InvitationInboxEventRecorded or InvitationSourceInboxEventRecorded)).ToArray();
+        if (legacy.Length < history.Count && legacy.Length > 0 &&
+            legacy[^1].Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived)
+        {
+            legacy = legacy[..^1];
+        }
+
+        var receiptType = context.EventType switch
+        {
+            var type when type == typeof(UserInvitedToJoinTenant).GetEventType() => typeof(JoinTenantInvitationReceived).GetEventType(),
+            var type when type == typeof(UserInvitedToCreateTenant).GetEventType() => typeof(CreateTenantInvitationReceived).GetEventType(),
+            _ => EventType.Unknown,
+        };
+        var inboxId = $"{EventSequenceId.InboxPrefix}{sourceStore}";
+        if (legacy.Any(entry => entry.Context.EventType == receiptType && entry.Context.Causation.Any(cause =>
+            cause.Type == ReactorHandler.CausationType &&
+            cause.Properties.TryGetValue(ReactorHandler.CausationEventSequenceIdProperty, out var sequenceId) && sequenceId == inboxId &&
+            cause.Properties.TryGetValue(ReactorHandler.CausationEventSequenceNumberProperty, out var number) && number == context.SequenceNumber.ToString() &&
+            cause.Properties.TryGetValue(ReactorHandler.CausationEventTypeIdProperty, out var eventTypeId) && eventTypeId == context.EventType.Id.ToString())))
+        {
+            return null;
+        }
+
         if (history.Any(entry => entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted))
         {
-            // The first marker partitions old receipts from new ones. Its immediately preceding
-            // receipt was written in the same batch and is not legacy. Each earlier receipt
-            // corresponds to an inbox event of its flow; payload/correlation are not identities.
-            var oldHistory = history.TakeWhile(entry => entry.Content is not (InvitationInboxEventRecorded or InvitationSourceInboxEventRecorded)).ToArray();
-            if (oldHistory.Length < history.Count && oldHistory.Length > 0 &&
-                oldHistory[^1].Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived)
-            {
-                oldHistory = oldHistory[..^1];
-            }
-
-            var legacyCount = context.EventType switch
-            {
-                var type when type == typeof(UserInvitedToJoinTenant).GetEventType() => oldHistory.Count(entry => entry.Content is JoinTenantInvitationReceived),
-                var type when type == typeof(UserInvitedToCreateTenant).GetEventType() => oldHistory.Count(entry => entry.Content is CreateTenantInvitationReceived),
-                _ => 0,
-            };
-            if (sourceStore == InboxSourceStore.Name && legacyCount > 0 && await IsOriginalInboxEvent(context, legacyCount))
-            {
-                return null;
-            }
-
             await Reject(context, InvitationRejectionReason.InvitationIdReused);
             return null;
         }
 
         var tail = history.Count > 0 ? history[^1].Context.SequenceNumber : EventSequenceNumber.BeforeFirst;
         return new(tail, context.EventSourceId, EventTypes: _decisionEventTypes);
-    }
-
-    async Task<bool> IsOriginalInboxEvent(EventContext context, int legacyCount)
-    {
-        var inbox = eventStore.GetEventSequence((EventSequenceId)$"{EventSequenceId.InboxPrefix}{sourceStore}");
-        var invitations = await inbox.GetForEventSourceIdAndEventTypes(context.EventSourceId, [context.EventType]);
-        return invitations.Take(legacyCount).Any(entry => entry.Context.SequenceNumber == context.SequenceNumber);
     }
 
     async Task Reject(EventContext context, InvitationRejectionReason reason)
@@ -261,6 +262,8 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             logger.LogInvalidInvitationId();
         }
 
+        // Deliberately not [OnceOnly]: a rejection lost before the outbox append must be retried on
+        // replay. Replay/redelivery can therefore republish it, and hosts deduplicate (host-integration.md).
         await eventStore.PublishToOutbox(context, new InvitationRejected(reason), []);
     }
 }
@@ -316,6 +319,9 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
     async Task Reject(EventContext context)
     {
         logger.LogInvalidInvitationId();
+
+        // Deliberately not [OnceOnly], like token issuance: replay must be able to recover a lost
+        // publication, so hosts deduplicate republished rejections (host-integration.md).
         await eventStore.PublishToOutbox(context, new InvitationRejected(InvitationRejectionReason.InvalidInvitationId), []);
     }
 }
@@ -334,12 +340,23 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
 public record PendingInvitationToCreateOrganization(InvitationId Id, [SetFromContext<CreateTenantInvitationReceived>("Subject")] Guid Subject, Email Email, IReadOnlyList<RoleName> Roles)
 {
     /// <summary>
-    /// Gets all pending create-organization invitations.
+    /// Gets only the pending create-organization invitation owned by this request.
     /// </summary>
-    /// <param name="collection">The MongoDB collection.</param>
-    /// <returns>Observable of all pending create-organization invitations.</returns>
-    public static ISubject<IEnumerable<PendingInvitationToCreateOrganization>> AllPendingInvitationsToCreateOrganization(IMongoCollection<PendingInvitationToCreateOrganization> collection) =>
-        collection.Observe();
+    /// <param name="eventStore">The scoped event store used to release personal data in the read model.</param>
+    /// <param name="signedInIdentity">The current invitation identity.</param>
+    /// <returns>The caller's invitation, or null when no owned pending invitation exists.</returns>
+    public static async Task<PendingInvitationToCreateOrganization?> PendingCreateOrganizationForCurrentInvitee(
+        IEventStore eventStore,
+        ISignedInIdentity signedInIdentity)
+    {
+        var invitationId = signedInIdentity.CurrentInvitationId();
+        if (!signedInIdentity.IsVerifiedOwnerOf(invitationId))
+        {
+            return null;
+        }
+
+        return await eventStore.ReadModels.GetInstanceById<PendingInvitationToCreateOrganization>(invitationId.Value);
+    }
 }
 
 /// <summary>
@@ -357,10 +374,21 @@ public record PendingInvitationToCreateOrganization(InvitationId Id, [SetFromCon
 public record PendingInvitationToJoin(InvitationId Id, [SetFromContext<JoinTenantInvitationReceived>("Subject")] Guid Subject, Email Email, TenantName TenantName, IReadOnlyList<RoleName> Roles)
 {
     /// <summary>
-    /// Gets all pending join-tenant invitations.
+    /// Gets only the pending join invitation owned by this request.
     /// </summary>
-    /// <param name="collection">The MongoDB collection.</param>
-    /// <returns>Observable of all pending join-tenant invitations.</returns>
-    public static ISubject<IEnumerable<PendingInvitationToJoin>> AllPendingInvitationsToJoin(IMongoCollection<PendingInvitationToJoin> collection) =>
-        collection.Observe();
+    /// <param name="eventStore">The scoped event store used to release personal data in the read model.</param>
+    /// <param name="signedInIdentity">The current invitation identity.</param>
+    /// <returns>The caller's invitation, or null when no owned pending invitation exists.</returns>
+    public static async Task<PendingInvitationToJoin?> PendingJoinForCurrentInvitee(
+        IEventStore eventStore,
+        ISignedInIdentity signedInIdentity)
+    {
+        var invitationId = signedInIdentity.CurrentInvitationId();
+        if (!signedInIdentity.IsVerifiedOwnerOf(invitationId))
+        {
+            return null;
+        }
+
+        return await eventStore.ReadModels.GetInstanceById<PendingInvitationToJoin>(invitationId.Value);
+    }
 }

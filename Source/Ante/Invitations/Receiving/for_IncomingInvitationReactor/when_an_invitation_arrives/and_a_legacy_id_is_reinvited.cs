@@ -14,8 +14,6 @@ public class and_a_legacy_id_is_reinvited : a_local_invitation_history
     {
         AlreadyRecorded(new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]));
         AlreadyRecorded(new InvitationRevocationReceived());
-        InboxHistory.Add(new(EventContext.Empty with { SequenceNumber = 1 }, new UserInvitedToJoinTenant("jane@example.com", "Acme", ["Member"])));
-        InboxHistory.Add(new(EventContext.Empty with { SequenceNumber = 3 }, new UserInvitedToJoinTenant("jane@example.com", "Acme", ["Member"])));
     }
 
     async Task Because() => _produced = await Reactor.On(
