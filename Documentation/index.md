@@ -7,7 +7,7 @@ Ante signs invitation tokens and runs a lobby for joining an existing tenant, cr
 
 ## Integrate a host product
 
-Start with [Host integration](./host-integration.md) to connect Chronicle event stores, handle the token and published facts, and establish the required authentication proxy boundary. Use [Contracts](./contracts.md) for event fields and HTTP shapes, and [Security and trust](./security.md) before exposing the lobby. The current inbox subscription is compiled for a host store named `Direct`; another host store requires an Ante rebuild.
+Start with [Host integration](./host-integration.md) to connect Chronicle event stores, handle the token and published facts, and establish the required authentication proxy boundary. Use [Contracts](./contracts.md) for event fields and HTTP shapes, and [Security and trust](./security.md) before exposing the lobby. Configure one or more trusted host outbox stores with `Ante:HostStores` (`["Direct"]` by default); each has its own inbox subscription without rebuilding Ante.
 
 ## Run an instance
 

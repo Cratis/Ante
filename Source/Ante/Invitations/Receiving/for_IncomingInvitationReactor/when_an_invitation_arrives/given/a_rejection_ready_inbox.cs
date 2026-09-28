@@ -13,7 +13,7 @@ namespace Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_an_invit
 public class a_rejection_ready_inbox : Specification
 {
     protected IEventSequence Outbox = null!;
-    protected ReactorScenario<IncomingInvitationReactor> Scenario = null!;
+    protected ReactorScenario<IncomingInvitationScenarioReactor<object>> Scenario = null!;
 
     void Establish()
     {

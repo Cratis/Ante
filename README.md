@@ -7,7 +7,7 @@ Ante is Cratis's invitation and onboarding lobby: it signs tokens for host-issue
 
 **Status:** The backend and React lobby have source-level specifications, but this repository does not include a verified standalone host, Chronicle, MongoDB and proxy fixture for a first-invitation walkthrough. Read [Security and trust](https://github.com/Cratis/Ante/blob/main/Documentation/security.md) before deployment.
 
-Start with [Documentation](https://github.com/Cratis/Ante/blob/main/Documentation/index.md) for host integration, operations, architecture and configuration. [Local development](https://github.com/Cratis/Ante/blob/main/Documentation/local-development.md) lists the full CI checks.
+Start with [Documentation](https://github.com/Cratis/Ante/blob/main/Documentation/index.md) for host integration, operations, architecture and configuration. Configure incoming host outbox stores with `Ante:HostStores` (defaults to `["Direct"]`); changing the list requires a restart, not a rebuild. [Local development](https://github.com/Cratis/Ante/blob/main/Documentation/local-development.md) lists the full CI checks.
 
 To build the .NET solution with the .NET 10 SDK:
 

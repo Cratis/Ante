@@ -8,6 +8,7 @@ using Ante.Invitations.Accepting;
 using Ante.Invitations.HostOutcome;
 using Ante.Invitations.Issuing;
 using Ante.Invitations.OrganizationSetup;
+using Ante.Invitations.Receiving;
 using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Locale;
@@ -25,11 +26,10 @@ var builder = WebApplication.CreateBuilder(args);
 // in the same cluster (e.g. the "DirectLobby" reference instance for the Direct host) runs against its own
 // store and/or namespace purely by setting Ante:EventStore / Ante:Namespace (Ante__EventStore /
 // Ante__Namespace as environment variables) differently - no code change, no rebuild.
-// AnteRoutingValidator turns a genuine misconfiguration (an empty store/namespace, or an InboxSourceStore
-// that disagrees with the compiled constant) into a loud startup failure instead of a silent misroute -
-// see Documentation/configuration.md.
-var anteOptions = builder.Configuration.GetSection("Ante").Get<AnteOptions>() ?? new AnteOptions();
-AnteRoutingValidator.Validate(anteOptions);
+// Validate and freeze the trusted host sources at startup; no routing hot reload.
+var anteConfiguration = builder.Configuration.GetSection("Ante");
+var anteOptions = anteConfiguration.Get<AnteOptions>() ?? new AnteOptions();
+AnteRoutingValidator.Validate(anteOptions, anteConfiguration);
 var localizationOptions = LocaleNegotiation.CreateOptions(anteOptions);
 var invitationTokenOptions = builder.Configuration.GetSection("Ante:Invitations:Token").Get<InvitationTokenConfig>() ?? new InvitationTokenConfig();
 InvitationTokenConfigurationValidator.Validate(invitationTokenOptions);
@@ -57,7 +57,9 @@ builder.Services.AddMvc();
 builder.Services.AddOpenApi();
 builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o => o.SuppressModelStateInvalidFilter = true);
 
-builder.Services.Configure<AnteOptions>(builder.Configuration.GetSection("Ante"));
+builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(anteOptions));
+builder.Services.AddSingleton<IncomingInvitationSubscriptions>();
+builder.Services.AddHostedService<IncomingInvitationRegistration>();
 builder.Services.Configure<InvitationTokenConfig>(builder.Configuration.GetSection("Ante:Invitations:Token"));
 builder.Services.Configure<IdentityProviderOptions>(builder.Configuration.GetSection(IdentityProviderOptions.ConfigurationSection));
 
@@ -82,7 +84,8 @@ builder.Services.AddAuthorization();
 
 // Bounded, dependency-aware readiness, separate from the unconditional /healthz liveness endpoint
 // mapped below - see AnteHealthChecks and Documentation/deployment.md.
-builder.Services.AddAnteHealthChecks();
+builder.Services.AddAnteHealthChecks()
+    .AddCheck<IncomingRoutingHealthCheck>("host-routing", tags: [AnteHealthChecks.ReadyTag], timeout: AnteHealthChecks.DependencyTimeout);
 
 var app = builder.Build();
 InvitationTokenConfigurationValidator.WarnForMissingClaims(
@@ -103,6 +106,7 @@ await using (var startupScope = app.Services.CreateAsyncScope())
     await AcceptedInvitationIndexes.EnsureCreated(startupScope.ServiceProvider.GetRequiredService<IMongoCollection<AcceptedInvitation>>());
 }
 
+app.UseWebSockets();
 app.UseRequestLocalization(localizationOptions);
 
 // UI messages follow the request; parsing and numeric/identity semantics do not.
@@ -119,12 +123,13 @@ app.UseAuthorization();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.UseWebSockets();
 app.UseMiddleware<InviteExchangeBypassMiddleware>();
 app.MapControllers();
 app.MapOpenApiInDevelopment();
 app.UseCratisArc();
 app.UseCratisChronicle();
+
+// The hosted registration retries off the startup path; waiting here would block readiness and startup.
 app.MapIdentityProvider();
 
 app.MapAnteHealthChecks();
