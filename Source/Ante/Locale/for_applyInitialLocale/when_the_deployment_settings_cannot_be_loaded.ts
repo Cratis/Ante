@@ -26,3 +26,25 @@ describe('when the deployment locale settings cannot be loaded', () => {
     it('should fall back to English only', () => result.settings.supportedLocales.should.deep.equal(['en']));
     it('should render in English even when the visitor prefers Bokmål', () => result.locale.should.equal('en'));
 });
+
+describe('when the deployment locale settings are malformed', () => {
+    let result: Awaited<ReturnType<typeof applyInitialLocale>>;
+
+    beforeEach(async () => {
+        vi.stubGlobal('fetch', sinon.stub().resolves({ ok: true, json: async () => ({ defaultLocale: 42, supportedLocales: 'nb-NO' }) }));
+        vi.stubGlobal('localStorage', { getItem: () => 'nb-NO', setItem: () => {}, removeItem: () => {} });
+        vi.stubGlobal('navigator', { languages: ['nb-NO'], language: 'nb-NO' });
+        vi.stubGlobal('document', { documentElement: { setAttribute: sinon.spy() }, cookie: '' });
+        vi.stubGlobal('window', { location: { search: '', protocol: 'http:' } });
+        result = await applyInitialLocale();
+    });
+
+    afterEach(() => {
+        applySelectedLocale('en');
+        sinon.restore();
+        vi.unstubAllGlobals();
+    });
+
+    it('should keep the English-only fallback', () => result.settings.supportedLocales.should.deep.equal(['en']));
+    it('should render in English', () => result.locale.should.equal('en'));
+});

@@ -12,6 +12,13 @@ let activeLocale: SupportedLocale = DEFAULT_LOCALE;
 /** A stable header callback can read the current locale even on commands created before a switch. */
 export const getActiveLocale = (): SupportedLocale => activeLocale;
 
+const isLocaleSettings = (value: unknown): value is LocaleSettings => {
+    const candidate = value as Partial<LocaleSettings> | null;
+    return typeof candidate?.defaultLocale === 'string'
+        && Array.isArray(candidate.supportedLocales)
+        && candidate.supportedLocales.every(locale => typeof locale === 'string');
+};
+
 /** Resolve before mounting Arc, including its observable connections and validation requests. */
 export const applyInitialLocale = async (): Promise<{ locale: SupportedLocale; settings: LocaleSettings }> => {
     // Without the deployment's policy, only English is safe: an operator may have removed Bokmål from
@@ -19,7 +26,10 @@ export const applyInitialLocale = async (): Promise<{ locale: SupportedLocale; s
     let settings: LocaleSettings = { defaultLocale: 'en', supportedLocales: ['en'] };
     try {
         const response = await fetch('/api/locale-config', { credentials: 'same-origin', signal: AbortSignal.timeout(3000) });
-        if (response.ok) settings = await response.json() as LocaleSettings;
+        if (response.ok) {
+            const loaded: unknown = await response.json();
+            if (isLocaleSettings(loaded)) settings = loaded;
+        }
     } catch {
         // An unreachable policy keeps the English-only fallback above; the cookie aligns event transports.
     }
