@@ -72,6 +72,8 @@ builder.Services.AddSingleton<IInvitationTokenIssuer, InvitationTokenIssuer>();
 builder.Services.AddSingleton<IInvitationTokenValidator, InvitationTokenValidator>();
 builder.Services.AddSingleton<InvitationAttestationVerifier>();
 builder.Services.AddScoped<AttestedInvitationStaging>();
+builder.Services.AddScoped<AttestedInvitationCompletion>();
+builder.Services.AddScoped<IAttestedInvitationSessions, AttestedInvitationSessions>();
 builder.Services.AddScoped<ISignedInIdentity, SignedInIdentity>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient<IIdentityBackchannel, IdentityBackchannel>();
@@ -112,6 +114,7 @@ await using (var startupScope = app.Services.CreateAsyncScope())
     if (invitationExchangeOptions.Mode == InvitationExchangeMode.Attested)
     {
         await StagedInvitationTransactionIndexes.EnsureCreated(startupScope.ServiceProvider.GetRequiredService<IMongoCollection<StagedInvitationTransaction>>());
+        await AttestedInvitationSessionIndexes.EnsureCreated(startupScope.ServiceProvider.GetRequiredService<IMongoCollection<AttestedInvitationSession>>());
     }
 }
 

@@ -168,6 +168,7 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
     /// <param name="logger">Logger for rejected unresolved provider evidence.</param>
     /// <param name="exchangeConfig">The selected exchange protocol.</param>
     /// <param name="staging">The attested invitation staging service.</param>
+    /// <param name="completion">The attested invitation completion service.</param>
     public async Task InvokeAsync(
         HttpContext context,
         IMongoCollection<AcceptedInvitation> acceptedInvitations,
@@ -175,7 +176,8 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
         IInvitationTokenValidator tokenValidator,
         ILogger<InviteExchangeBypassMiddleware> logger,
         IOptions<InvitationExchangeConfig> exchangeConfig,
-        AttestedInvitationStaging staging)
+        AttestedInvitationStaging staging,
+        AttestedInvitationCompletion completion)
     {
         if (HttpMethods.IsPost(context.Request.Method) &&
             context.Request.Path.Equals("/_invite/stage", StringComparison.OrdinalIgnoreCase))
@@ -204,7 +206,16 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
             context.Request.Path.Equals("/_invite/exchange", StringComparison.OrdinalIgnoreCase))
         {
             // Never pass an attested request through the legacy processor, even during rollout.
-            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            var request = await InvitationCompletionRequestBody.Read(context);
+            if (request is null)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            context.Response.StatusCode = await completion.TryComplete(context.Request.Headers.Authorization.ToString(), request)
+                ? StatusCodes.Status200OK
+                : StatusCodes.Status400BadRequest;
             return;
         }
 
