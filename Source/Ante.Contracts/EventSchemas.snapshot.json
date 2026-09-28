@@ -1,4 +1,26 @@
 {
+  "InvitationRejected:2": {
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "integer",
+        "enum": [
+          0,
+          1,
+          2
+        ],
+        "x-enumNames": [
+          "InvalidInvitationId",
+          "InvitationIdReused",
+          "InvalidRecipient"
+        ]
+      }
+    },
+    "required": [
+      "reason"
+    ],
+    "title": "InvitationRejected"
+  },
   "InvitationRejected:1": {
     "type": "object",
     "properties": {
@@ -192,6 +214,30 @@
     ],
     "title": "InvitationTokenIssued"
   },
+  "InvitationTokenIssued:1": {
+    "type": "object",
+    "properties": {
+      "flowType": {
+        "type": "integer",
+        "enum": [
+          0,
+          1
+        ],
+        "x-enumNames": [
+          "JoinTenant",
+          "CreateTenant"
+        ]
+      },
+      "token": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "flowType",
+      "token"
+    ],
+    "title": "InvitationTokenIssued"
+  },
   "InvitationTokenIssued:2": {
     "type": "object",
     "properties": {
@@ -218,30 +264,6 @@
       "flowType",
       "token",
       "expiresAt"
-    ],
-    "title": "InvitationTokenIssued"
-  },
-  "InvitationTokenIssued:1": {
-    "type": "object",
-    "properties": {
-      "flowType": {
-        "type": "integer",
-        "enum": [
-          0,
-          1
-        ],
-        "x-enumNames": [
-          "JoinTenant",
-          "CreateTenant"
-        ]
-      },
-      "token": {
-        "type": "string"
-      }
-    },
-    "required": [
-      "flowType",
-      "token"
     ],
     "title": "InvitationTokenIssued"
   },

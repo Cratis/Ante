@@ -59,6 +59,9 @@ public interface ISignedInIdentity
     /// <returns>True only for the canonical accepting actor.</returns>
     bool IsVerifiedRecoveryOwnerOf(InvitationId invitationId, IEventStore eventStore);
 
+    /// <summary>Captures the canonical actor at subscription creation, independent of later HTTP requests.</summary>
+    InvitedAcceptanceOwnerRecorded? CaptureRecoveryActor();
+
     /// <summary>
     /// Resolves the current registration owner only from the forwarded sign-in identity, never from an invitation session.
     /// </summary>
@@ -215,14 +218,24 @@ public class SignedInIdentity(
             return false;
         }
 
-        var owner = owners[0];
+        return owners[0] == CaptureRecoveryActor();
+    }
+
+    /// <inheritdoc/>
+    public InvitedAcceptanceOwnerRecorded? CaptureRecoveryActor()
+    {
+        if (!IsAttestedExchange)
+        {
+            return null;
+        }
+
         var claims = httpContextAccessor.HttpContext?.User?.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value)).ToArray() ?? [];
         var report = AuthProxySignInReport.FromClaims(claims);
         var subject = claims.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:subject").Value;
-        return !string.IsNullOrWhiteSpace(subject) &&
-            owner.LobbyScope == exchangeConfig?.Value.Attestation.LobbyScope &&
-            owner.ProviderKey == report.ProviderKey && owner.ProviderIssuer == report.Issuer &&
-            owner.OwnerSubject.Value == subject;
+        var scope = exchangeConfig?.Value.Attestation.LobbyScope;
+        return string.IsNullOrWhiteSpace(scope) || string.IsNullOrWhiteSpace(subject) ||
+            string.IsNullOrWhiteSpace(report.ProviderKey) || string.IsNullOrWhiteSpace(report.Issuer)
+            ? null : new InvitedAcceptanceOwnerRecorded(scope, report.ProviderKey, report.Issuer, (RegistrationOwnerSubject)subject);
     }
 
     /// <inheritdoc/>

@@ -296,10 +296,20 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
 
         var recorded = recordedCollection.Find(Builders<UserSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
         var published = publishedCollection.Find(Builders<JoinTenantAcceptancePublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
-        return subscriptions.GetStatus(
+        var status = subscriptions.GetStatus(
             invitationId,
             isRecorded: recorded is not null,
             isFullyPublished: JoinTenantPublication.IsFullyPublished(recorded, published));
+        if (!signedInIdentity.IsAttestedExchange)
+        {
+            return status;
+        }
+
+        var actor = signedInIdentity.CaptureRecoveryActor();
+        return actor is null
+            ? new BehaviorSubject<UserSetupAcceptanceStatusView>(new(invitationId, UserSetupAcceptanceStatus.Pending))
+            : new InvitationStatusOwnerFilter<UserSetupAcceptanceStatusView>(
+                status, invitationId, actor, eventStore, view => view.Status == UserSetupAcceptanceStatus.Pending);
     }
 }
 

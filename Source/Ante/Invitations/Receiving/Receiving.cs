@@ -6,6 +6,7 @@ using Ante.Invitations.Issuing;
 using Ante.Outbox;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Chronicle.Reactors;
+using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
 namespace Ante.Invitations.Receiving;
@@ -276,8 +277,13 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
 /// <param name="tokenIssuer">The canonical invitation token issuer.</param>
 /// <param name="eventStore">The event store.</param>
 /// <param name="logger">The warning logger for invalid invitation ids.</param>
+/// <param name="exchange">The selected exchange mode.</param>
 [Reactor]
-public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, IEventStore eventStore, ILogger<InvitationTokenIssuingReactor> logger) : IReactor
+public class InvitationTokenIssuingReactor(
+    IInvitationTokenIssuer tokenIssuer,
+    IEventStore eventStore,
+    ILogger<InvitationTokenIssuingReactor> logger,
+    IOptions<InvitationExchangeConfig>? exchange = null) : IReactor
 {
     /// <summary>
     /// Issues a join-tenant token and forwards it to the outbox.
@@ -289,6 +295,12 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
         if (!InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out var invitationId))
         {
             await Reject(context);
+            return;
+        }
+
+        if (exchange?.Value.Mode == InvitationExchangeMode.Attested && !AttestedInvitationRecipient.IsValid(@event.Email))
+        {
+            await eventStore.PublishToOutbox(context, new InvitationRejected(InvitationRejectionReason.InvalidRecipient), []);
             return;
         }
 
@@ -306,6 +318,12 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
         if (!InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out var invitationId))
         {
             await Reject(context);
+            return;
+        }
+
+        if (exchange?.Value.Mode == InvitationExchangeMode.Attested && !AttestedInvitationRecipient.IsValid(@event.Email))
+        {
+            await eventStore.PublishToOutbox(context, new InvitationRejected(InvitationRejectionReason.InvalidRecipient), []);
             return;
         }
 

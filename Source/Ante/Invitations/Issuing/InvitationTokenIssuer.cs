@@ -46,6 +46,20 @@ public interface IInvitationTokenIssuer
     IssuedInvitationToken IssueCreateTenantInvitation(Guid invitationId, Email email);
 }
 
+/// <summary>Validates the same host recipient before receipt is used for attested token issuance.</summary>
+public static class AttestedInvitationRecipient
+{
+    /// <summary>Returns whether the recipient can be bound into an attested capability.</summary>
+    /// <param name="email">The recipient supplied by the host.</param>
+    /// <returns>True when the issuer can bind the recipient into the capability.</returns>
+    public static bool IsValid(Email? email)
+    {
+        var recipient = email?.Value;
+        return recipient is { Length: >= 3 and <= 320 } && recipient == recipient.Trim() &&
+            recipient.IndexOf('@', StringComparison.Ordinal) >= 1 && !recipient.EndsWith('@');
+    }
+}
+
 /// <summary>A signed invitation token together with its JWT expiration instant.</summary>
 /// <param name="Token">The signed JWT.</param>
 /// <param name="ExpiresAt">The exact second recorded in the JWT exp claim.</param>
@@ -141,15 +155,12 @@ public class InvitationTokenIssuer(IOptions<InvitationTokenConfig> config, IOpti
         };
         if (exchange?.Value.Mode == InvitationExchangeMode.Attested)
         {
-            var recipient = email?.Value;
-            if (recipient is null || recipient.Length is < 3 or > 320 ||
-                recipient != recipient.Trim() || recipient.IndexOf('@', StringComparison.Ordinal) is < 1 ||
-                recipient.EndsWith('@'))
+            if (!AttestedInvitationRecipient.IsValid(email))
             {
                 throw new ArgumentException("Attested invitation issuance requires a valid host recipient email.", nameof(email));
             }
 
-            claims.Add(new Claim("email", recipient));
+            claims.Add(new Claim("email", email!.Value));
             claims.Add(new Claim("tenant_id", exchange.Value.Attestation.LobbyScope));
         }
 

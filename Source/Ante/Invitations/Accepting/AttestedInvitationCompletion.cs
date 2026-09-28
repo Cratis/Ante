@@ -51,6 +51,11 @@ public interface IAttestedInvitationSessions
     Task<bool> Complete(StagedInvitationTransaction stage, VerifiedInvitationAttestation assertion);
 }
 
+/// <summary>Records which transaction claimed a signed assertion's replay identifier.</summary>
+/// <param name="TransactionId">The staged transaction identifier.</param>
+/// <param name="AssertionId">The signed assertion's replay identifier.</param>
+public record AttestedAssertionClaim(string TransactionId, string AssertionId);
+
 /// <summary>
 /// The one durable completion and session for a staged transaction. No other document grants access.
 /// </summary>
@@ -79,6 +84,9 @@ public record AttestedInvitationSession(
 
     /// <summary>Gets the assertion first claimed for the most recent staged transaction.</summary>
     public string? LatestAssertionId { get; init; }
+
+    /// <summary>Retains the transaction binding of every claimed assertion across restaging.</summary>
+    public AttestedAssertionClaim[] AssertionClaims { get; init; } = [];
 }
 
 /// <summary>
@@ -140,15 +148,37 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
                 filter.Eq(row => row.ProviderKey, assertion.ProviderKey) &
                 filter.Eq(row => row.ProviderIssuer, assertion.ProviderIssuer) &
                 filter.Eq(row => row.ProviderSubject, assertion.ProviderSubject);
-            if (existing.Id != stage.Id && existing.LatestAssertionId != assertion.AssertionId)
+
+            // A retry may carry a freshly signed assertion for the same transaction. A jti
+            // already claimed for another transaction must never be rebound, even on this actor.
+            if (existing.AssertionIds.Contains(assertion.AssertionId))
             {
-                return AttestedSessionOutcome.Rejected;
+                return existing.AssertionClaims.Any(claim => claim.AssertionId == assertion.AssertionId && claim.TransactionId == stage.Id) ||
+                    (existing.LatestTransactionId == stage.Id && existing.LatestAssertionId == assertion.AssertionId)
+                    ? AttestedSessionOutcome.Accepted : AttestedSessionOutcome.Rejected;
+            }
+
+            if (existing.Id != stage.Id)
+            {
+                binding &= filter.Eq(row => row.LatestTransactionId, stage.Id);
             }
 
             var updated = await sessions.UpdateOneAsync(
-                binding,
-                Builders<AttestedInvitationSession>.Update.AddToSet(row => row.AssertionIds, assertion.AssertionId));
-            return updated.MatchedCount == 1 ? AttestedSessionOutcome.Accepted : AttestedSessionOutcome.Rejected;
+                binding & filter.Not(filter.AnyEq(row => row.AssertionIds, assertion.AssertionId)),
+                Builders<AttestedInvitationSession>.Update.AddToSet(row => row.AssertionIds, assertion.AssertionId)
+                    .Push(row => row.AssertionClaims, new AttestedAssertionClaim(stage.Id, assertion.AssertionId))
+                    .Set(row => row.LatestTransactionId, stage.Id)
+                    .Set(row => row.LatestAssertionId, assertion.AssertionId));
+            if (updated.MatchedCount == 1)
+            {
+                return AttestedSessionOutcome.Accepted;
+            }
+
+            // A concurrent identical claim may have won. Re-read its immutable transaction binding.
+            var winner = await sessions.Find(row => row.Id == existing.Id).FirstOrDefaultAsync();
+            return winner is not null && winner.ExpiresAtUtc > DateTime.UtcNow &&
+                winner.AssertionClaims.Any(claim => claim.AssertionId == assertion.AssertionId && claim.TransactionId == stage.Id)
+                ? AttestedSessionOutcome.Accepted : AttestedSessionOutcome.Rejected;
         }
         catch (MongoWriteException exception) when (exception.WriteError.Category == ServerErrorCategory.DuplicateKey)
         {
@@ -173,7 +203,12 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
             assertion.ProviderIssuer!,
             assertion.ProviderSubject!,
             [assertion.AssertionId],
-            AttestedSessionExpiry.For(stage)) { LatestTransactionId = stage.Id, LatestAssertionId = assertion.AssertionId };
+            AttestedSessionExpiry.For(stage))
+        {
+            LatestTransactionId = stage.Id,
+            LatestAssertionId = assertion.AssertionId,
+            AssertionClaims = [new(stage.Id, assertion.AssertionId)],
+        };
         try
         {
             await sessions.InsertOneAsync(session);
@@ -216,7 +251,12 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
                     assertion.ProviderIssuer!,
                     assertion.ProviderSubject!,
                     [assertion.AssertionId],
-                    AttestedSessionExpiry.For(stage)) { LatestTransactionId = stage.Id, LatestAssertionId = assertion.AssertionId });
+                    AttestedSessionExpiry.For(stage))
+                {
+                    LatestTransactionId = stage.Id,
+                    LatestAssertionId = assertion.AssertionId,
+                    AssertionClaims = [new(stage.Id, assertion.AssertionId)],
+                });
             return replaced is not null;
         }
 
@@ -229,6 +269,7 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
                 actor & filter.Eq(row => row.Id, existing.Id) & filter.Gt(row => row.ExpiresAtUtc, now) &
                     filter.Not(filter.AnyEq(row => row.AssertionIds, assertion.AssertionId)),
                 Builders<AttestedInvitationSession>.Update.AddToSet(row => row.AssertionIds, assertion.AssertionId)
+                    .Push(row => row.AssertionClaims, new AttestedAssertionClaim(stage.Id, assertion.AssertionId))
                     .Set(row => row.LatestTransactionId, stage.Id)
                     .Set(row => row.LatestAssertionId, assertion.AssertionId));
             return claimed.MatchedCount == 1;

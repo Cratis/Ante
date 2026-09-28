@@ -5,6 +5,8 @@ using System.Diagnostics;
 using System.Net;
 using Ante.Integration.given;
 using Microsoft.IdentityModel.JsonWebTokens;
+using MongoDB.Bson;
+using MongoDB.Driver;
 
 namespace Ante.Integration.Invitations.when_a_token_reaches_current_and_generation_two_consumers;
 
@@ -19,6 +21,9 @@ public class and_both_read_the_host_inbox : Specification
     string _older = string.Empty;
     Guid _currentId;
     uint _issuedGeneration;
+    BsonDocument _anteStoredContent = null!;
+    BsonDocument _currentStoredContent = null!;
+    BsonDocument _olderStoredContent = null!;
 
     string AnteStore => $"Ante{_suffix}";
     string OldHost => $"Legacy{_suffix}";
@@ -44,6 +49,9 @@ public class and_both_read_the_host_inbox : Specification
         _issuedGeneration = received.Single(entry => entry.Content is InvitationTokenIssued).Context.EventType.Generation.Value;
         _older = await Eventually.Get(async () => await RunOlderHost("read", oldId),
             what: "generation-2-only host inbox token");
+        _anteStoredContent = await RawContent(AnteStore, "outbox", _currentId);
+        _currentStoredContent = await RawContent(_currentHost.Name, $"inbox-{AnteStore}", _currentId);
+        _olderStoredContent = await RawContent(OldHost, $"inbox-{AnteStore}", oldId);
     }
 
     async Task Destroy()
@@ -62,6 +70,27 @@ public class and_both_read_the_host_inbox : Specification
     [Fact] void should_have_published_generation_three() => Assert.Equal(3u, _issuedGeneration);
     [Fact] void should_read_the_current_contracts_token() => Assert.Equal(_currentId.ToString("D"), new JsonWebToken(_current.Token).Id);
     [Fact] void should_read_a_usable_token_from_the_old_only_store() => Assert.Equal("readable", _older);
+    [Fact] void should_not_store_the_jwt_in_antes_outbox() => Assert.DoesNotContain(_current.Token, _anteStoredContent.ToJson());
+    [Fact] void should_not_store_the_jwt_in_the_current_host_inbox() => Assert.DoesNotContain(_current.Token, _currentStoredContent.ToJson());
+    [Fact] void should_capture_the_old_host_copy() => Assert.NotEmpty(_olderStoredContent);
+    [Fact] void should_record_that_the_generation_two_only_host_stores_a_plaintext_jwt() => Assert.True(
+        _olderStoredContent["3"].AsBsonDocument["token"] is BsonString raw && raw.Value.Split('.').Length == 3 && raw.Value.StartsWith("eyJ", StringComparison.Ordinal));
+
+    async Task<BsonDocument> RawContent(string store, string sequence, Guid invitationId)
+    {
+        // Chronicle 19.13.1 stores each event sequence in <store>+es+Default/<sequence>,
+        // with content keyed by event generation. This deliberately bypasses typed PII release.
+        var mongo = new MongoClient(_infrastructure.MongoDBServer);
+        var collection = mongo.GetDatabase($"{store}+es+Default").GetCollection<BsonDocument>(sequence);
+        var document = await Eventually.Get(async () => (await collection.Find(
+            Builders<BsonDocument>.Filter.Eq("eventSourceId", invitationId.ToString("D")))
+            .ToListAsync()).FirstOrDefault(entry => entry["content"].AsBsonDocument.Elements.Any(
+                generation => generation.Value.AsBsonDocument.Contains("token"))),
+            what: $"raw token event in {store}/{sequence}");
+
+        // Inspect every stored generation; downcast copies must not silently leak the JWT either.
+        return document["content"].AsBsonDocument;
+    }
 
     async Task<string?> RunOlderHost(string operation, Guid id)
     {

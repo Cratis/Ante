@@ -368,11 +368,21 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
 
         var recorded = recordedCollection.Find(Builders<OrganizationSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
         var published = publishedCollection.Find(Builders<OrganizationSetupPublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
-        return subscriptions.GetStatus(
+        var status = subscriptions.GetStatus(
             invitationId,
             recorded?.OrganizationName,
             isRecorded: recorded is not null,
             isFullyPublished: OrganizationSetupPublication.IsFullyPublished(recorded, published));
+        if (!signedInIdentity.IsAttestedExchange)
+        {
+            return status;
+        }
+
+        var actor = signedInIdentity.CaptureRecoveryActor();
+        return actor is null
+            ? new BehaviorSubject<OrganizationSetupAcceptanceStatusView>(new(invitationId, OrganizationSetupAcceptanceStatus.Pending, TenantName.NotSet))
+            : new InvitationStatusOwnerFilter<OrganizationSetupAcceptanceStatusView>(
+                status, invitationId, actor, eventStore, view => view.Status == OrganizationSetupAcceptanceStatus.Pending);
     }
 
     /// <summary>
