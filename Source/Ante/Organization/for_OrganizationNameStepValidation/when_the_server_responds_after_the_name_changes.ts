@@ -29,7 +29,7 @@ describe('when a server rejection arrives after the user has corrected the name'
             const probe = new NameCommand();
             probe.validate = () => new Promise(resolve => { respond = resolve; });
             return probe;
-        }, 'Could not validate');
+        }, () => 'Could not validate');
         command.organizationName = 'Bad Name';
         validation.onFieldChange(command, 'organizationName', '', 'Bad Name');
         await vi.runAllTimersAsync();

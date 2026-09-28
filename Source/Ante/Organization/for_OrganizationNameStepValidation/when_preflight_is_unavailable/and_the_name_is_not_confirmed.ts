@@ -27,7 +27,7 @@ describe('when the name pre-flight is unavailable', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         probe = new NameCommand();
-        validation = new OrganizationNameStepValidation(() => probe, unavailableMessage);
+        validation = new OrganizationNameStepValidation(() => probe, () => unavailableMessage);
     });
 
     afterEach(() => vi.useRealTimers());

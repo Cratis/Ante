@@ -130,6 +130,10 @@
     width: 100%;
 }
 
+.user-setup-card__content--stepper > .user-setup-errors {
+    margin: 1.5rem 2.5rem 0;
+}
+
 @media (max-width: 768px) {
     .user-setup-card {
         max-width: calc(100vw - 2rem);
@@ -149,6 +153,11 @@
     .user-setup-card__content--stepper .cratis-command-stepper > div:last-child {
         padding-left: 1.5rem;
         padding-right: 1.5rem;
+    }
+
+    .user-setup-card__content--stepper > .user-setup-errors {
+        margin-left: 1.5rem;
+        margin-right: 1.5rem;
     }
 
     .user-setup-logo {

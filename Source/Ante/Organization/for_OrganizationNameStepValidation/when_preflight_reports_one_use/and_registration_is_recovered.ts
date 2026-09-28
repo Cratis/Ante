@@ -30,7 +30,7 @@ describe('when name pre-flight finds an earlier registration submission', () => 
         vi.useFakeTimers();
         resumes = 0;
         validation = new OrganizationNameStepValidation(
-            () => new RegistrationCommand(), 'Could not validate',
+            () => new RegistrationCommand(), () => 'Could not validate',
             results => { if (shouldResumeRegistrationAfterFailure(results)) resumes++; }
         );
         const command = new RegistrationCommand();

@@ -34,10 +34,11 @@ export class OrganizationNameStepValidation<TCommand extends OrganizationNameCom
     private _timer?: ReturnType<typeof setTimeout>;
     private _revision = 0;
     private _validatedName?: string;
+    private _currentName?: string;
 
     constructor(
         private readonly _createProbe: () => TCommand,
-        private readonly _unavailableMessage: string,
+        private readonly _unavailableMessage: () => string,
         private readonly _onValidationFailure?: (results: ValidationResult[]) => void
     ) { }
 
@@ -56,6 +57,7 @@ export class OrganizationNameStepValidation<TCommand extends OrganizationNameCom
     readonly onFieldChange = (command: TCommand, fieldName: string, oldValue: unknown, newValue: unknown, validationInfo?: FieldValidationInfo): void => {
         if (fieldName !== 'organizationName') return;
         const organizationName = command.organizationName;
+        this._currentName = organizationName;
         if (oldValue === newValue) {
             if (validationInfo?.isValid && organizationName && this._validatedName !== organizationName) {
                 this.schedule(organizationName, 0);
@@ -73,6 +75,17 @@ export class OrganizationNameStepValidation<TCommand extends OrganizationNameCom
         this.schedule(organizationName, 300);
     };
 
+    /** Invalidate the old-language response and check the current name again in the new locale. */
+    onLocaleChange(): void {
+        this._validatedName = undefined;
+        if (this._currentName && !validateNameField('organizationName', this._currentName)) {
+            this.schedule(this._currentName, 0);
+        } else {
+            this.cancel();
+            this.update({ isValidating: false, error: this._currentName ? validateNameField('organizationName', this._currentName) : undefined });
+        }
+    }
+
     private schedule(organizationName: string, delay: number): void {
         this.cancel();
         const revision = this._revision;
@@ -86,13 +99,13 @@ export class OrganizationNameStepValidation<TCommand extends OrganizationNameCom
             if (revision !== this._revision) return;
             this._onValidationFailure?.(result.validationResults);
             if (result.hasExceptions || !result.isAuthorized) {
-                this.update({ isValidating: false, error: this._unavailableMessage });
+                this.update({ isValidating: false, error: this._unavailableMessage() });
                 return;
             }
             this._validatedName = organizationName;
             this.update({ isValidating: false, error: nameError(result.validationResults) });
         } catch {
-            if (revision === this._revision) this.update({ isValidating: false, error: this._unavailableMessage });
+            if (revision === this._revision) this.update({ isValidating: false, error: this._unavailableMessage() });
         }
     }
 
