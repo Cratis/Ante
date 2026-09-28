@@ -25,10 +25,11 @@ public static class SpaFallback
 
     /// <summary>
     /// The invitation link route: exactly one path segment shaped like a JWT - three base64url parts
-    /// separated by dots - so a missing file under <c language="csharp">/invite</c> (for example <c language="csharp">/invite/app.js</c>) still
-    /// answers 404 instead of the shell.
+    /// separated by dots, where the header and payload are base64url-encoded JSON objects and therefore
+    /// start with <c language="csharp">eyJ</c> - so a missing file under <c language="csharp">/invite</c>, even a three-part name
+    /// such as <c language="csharp">/invite/app.min.js</c>, still answers 404 instead of the shell.
     /// </summary>
-    public const string InvitationLinkPattern = @"invite/{token:regex(^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$)}";
+    public const string InvitationLinkPattern = @"invite/{token:regex(^eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$)}";
 
     /// <summary>
     /// Maps the invitation link route and the general SPA fallback to <see cref="ShellFile"/>.
