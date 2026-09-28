@@ -1,6 +1,8 @@
 [
+  "InvitationReissueRequested:1",
   "InvitationRejected:1",
   "InvitationRejected:2",
+  "InvitationRejected:3",
   "InvitationRevoked:1",
   "InvitationToCreateTenantAccepted:1",
   "InvitationToJoinTenantAccepted:1",
@@ -10,7 +12,10 @@
   "LegalDocumentSetActivated:1",
   "LegalDocumentSetPublished:1",
   "LegalTermsAccepted:1",
+  "OrganizationNameReleased:1",
+  "OrganizationNameReserved:1",
   "OrganizationRegistrationCompleted:1",
+  "OrganizationRegistrationCompleted:2",
   "UserInvitedToCreateTenant:1",
   "UserInvitedToJoinTenant:1"
 ]

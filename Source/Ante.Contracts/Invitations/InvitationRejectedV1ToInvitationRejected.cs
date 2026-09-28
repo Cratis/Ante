@@ -5,14 +5,16 @@ using Cratis.Chronicle.Events.Migrations;
 
 namespace Ante.Contracts.Invitations;
 
-/// <summary>Preserves existing rejection reasons while adding a new reason for future deliveries.</summary>
-public class InvitationRejectedV1ToInvitationRejected : EventTypeMigration<InvitationRejected, InvitationRejectedV1>
+/// <summary>
+/// Migrates generation-1 rejections to generation 2; both reasons keep their numeric values.
+/// </summary>
+public class InvitationRejectedV1ToInvitationRejected : EventTypeMigration<InvitationRejectedV2, InvitationRejectedV1>
 {
     /// <inheritdoc/>
-    public override void Upcast(IEventMigrationBuilder<InvitationRejected, InvitationRejectedV1> builder) =>
+    public override void Upcast(IEventMigrationBuilder<InvitationRejectedV2, InvitationRejectedV1> builder) =>
         builder.Properties(properties => { });
 
     /// <inheritdoc/>
-    public override void Downcast(IEventMigrationBuilder<InvitationRejectedV1, InvitationRejected> builder) =>
+    public override void Downcast(IEventMigrationBuilder<InvitationRejectedV1, InvitationRejectedV2> builder) =>
         builder.Properties(properties => { });
 }
