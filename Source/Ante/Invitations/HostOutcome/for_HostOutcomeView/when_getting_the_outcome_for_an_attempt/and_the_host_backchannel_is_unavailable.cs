@@ -27,11 +27,11 @@ public class and_the_host_backchannel_is_unavailable : Specification
         _backchannel.GetOutcome(_attemptId).Returns((HostOutcomeStatus.Unknown, string.Empty));
 
         _signedInIdentity = Substitute.For<ISignedInIdentity>();
-        _signedInIdentity.IsVerifiedOwnerOf(_attemptId).Returns(true);
+        _signedInIdentity.IsVerifiedRecoveryOwnerOf(_attemptId, Arg.Any<IEventStore>()).Returns(true);
     }
 
     async Task Because() =>
-        _result = await HostOutcomeView.ForAttempt(_attemptId, _signedInIdentity, Options.Create(new AnteOptions { HostOutcomeUrl = "https://host.example.com/onboarding" }), _backchannel);
+        _result = await HostOutcomeView.ForAttempt(_attemptId, _signedInIdentity, Options.Create(new AnteOptions { HostOutcomeUrl = "https://host.example.com/onboarding" }), _backchannel, Substitute.For<IEventStore>());
 
     [Fact] void should_report_configured() => Assert.True(_result.IsConfigured);
     [Fact] void should_be_unknown() => Assert.Equal(HostOutcomeStatus.Unknown, _result.Status);

@@ -16,6 +16,9 @@ using Cratis.Arc.MongoDB;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 
 // Force invariant culture for the backend.
@@ -23,6 +26,15 @@ CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 CultureInfo.CurrentUICulture = CultureInfo.InvariantCulture;
+
+// InvitationId is a Guid-backed concept stored in Mongo session documents. MongoDB.Driver 3
+// defaults bare Guids to an unspecified representation, which cannot serialize those sessions.
+// Register before Arc creates any Mongo collections; repeated test-host startups are harmless.
+BsonSerializer.TryRegisterSerializer(GuidSerializer.StandardInstance);
+if (BsonSerializer.LookupSerializer<Guid>() is not GuidSerializer { GuidRepresentation: GuidRepresentation.Standard })
+{
+    throw new InvalidOperationException("MongoDB Guid representation must be Standard for invitation sessions.");
+}
 
 var builder = WebApplication.CreateBuilder(args);
 

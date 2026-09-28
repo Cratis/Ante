@@ -27,7 +27,7 @@ public class a_recorded_completion : Specification
             "hash",
             "challenge",
             "jane@example.com",
-            DateTimeOffset.UtcNow.AddMinutes(10));
+            DateTimeOffset.UtcNow.AddMinutes(10)) { CapabilityExpiresAtUtc = DateTimeOffset.UtcNow.AddDays(1) };
         Assertion = new VerifiedInvitationAttestation(
             "jti-1",
             InvitationAttestationPurpose.Complete,
@@ -52,7 +52,7 @@ public class a_recorded_completion : Specification
             "https://identity.example.com",
             "CaseSensitive",
             ["jti-1"],
-            DateTimeOffset.FromUnixTimeMilliseconds(Stage.ExpiresAtUtc.ToUnixTimeMilliseconds()).UtcDateTime);
+            DateTimeOffset.FromUnixTimeMilliseconds(Stage.CapabilityExpiresAtUtc.ToUnixTimeMilliseconds()).UtcDateTime);
         Collection = Substitute.For<IMongoCollection<AttestedInvitationSession>>();
         var cursor = Substitute.For<IAsyncCursor<AttestedInvitationSession>>();
         cursor.MoveNextAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(true), Task.FromResult(false));

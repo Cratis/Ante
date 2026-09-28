@@ -34,7 +34,7 @@ public class a_staged_completion : a_signed_assertion
             (string)_claims["capability_hash"],
             (string)_claims["invitation_challenge"],
             "Jane@Example.com",
-            DateTimeOffset.UtcNow.AddMinutes(10));
+            DateTimeOffset.UtcNow.AddMinutes(10)) { CapabilityExpiresAtUtc = DateTimeOffset.UtcNow.AddDays(1) };
         Request = new CompleteInvitationRequest(Stage.Transaction);
         Sessions = Substitute.For<IAttestedInvitationSessions>();
         Sessions.Retry(Arg.Any<StagedInvitationTransaction>(), Arg.Any<VerifiedInvitationAttestation>()).Returns(AttestedSessionOutcome.Missing);

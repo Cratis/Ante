@@ -279,6 +279,17 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
             return legalError;
         }
 
+        if (!signedInIdentity.IsVerifiedOwnerOf(InvitationId))
+        {
+            return ValidationResult.Error("Invitation is no longer pending and cannot be used for organization setup.");
+        }
+
+        var owner = signedInIdentity.AttestedOwnerOf(InvitationId);
+        if (signedInIdentity.IsAttestedExchange && owner is null)
+        {
+            return ValidationResult.Error("Invitation is no longer pending and cannot be used for organization setup.");
+        }
+
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
@@ -292,6 +303,11 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
                 pendingInvitation.Email,
                 pendingInvitation.Roles),
         };
+        if (owner is not null)
+        {
+            events.Add(owner);
+        }
+
         events.AddRange(legalEvents);
 
         var scope = await acceptanceFence.For(InvitationId, InvitationFlowType.CreateTenant);
@@ -335,15 +351,17 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
     /// <param name="subscriptions">The subscription tracker.</param>
     /// <param name="recordedCollection">The durable setup-record collection.</param>
     /// <param name="publishedCollection">The durable outbox-publication collection.</param>
+    /// <param name="eventStore">The scoped store used to release the committed owner's identity.</param>
     /// <returns>An observable status stream for the invitation.</returns>
     public static ISubject<OrganizationSetupAcceptanceStatusView> StatusForInvitation(
         InvitationId invitationId,
         ISignedInIdentity signedInIdentity,
         OrganizationSetupStatusSubscriptions subscriptions,
         IMongoCollection<OrganizationSetupProgress> recordedCollection,
-        IMongoCollection<OrganizationSetupPublished> publishedCollection)
+        IMongoCollection<OrganizationSetupPublished> publishedCollection,
+        IEventStore eventStore)
     {
-        if (!signedInIdentity.IsVerifiedOwnerOf(invitationId))
+        if (!signedInIdentity.IsVerifiedRecoveryOwnerOf(invitationId, eventStore))
         {
             return new BehaviorSubject<OrganizationSetupAcceptanceStatusView>(new(invitationId, OrganizationSetupAcceptanceStatus.Pending, TenantName.NotSet));
         }

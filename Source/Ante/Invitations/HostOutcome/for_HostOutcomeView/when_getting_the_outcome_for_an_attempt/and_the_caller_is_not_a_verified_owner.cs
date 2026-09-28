@@ -28,11 +28,11 @@ public class and_the_caller_is_not_a_verified_owner : Specification
         _backchannel.GetOutcome(_attemptId).Returns((HostOutcomeStatus.Succeeded, "tenant-provisioned"));
 
         _signedInIdentity = Substitute.For<ISignedInIdentity>();
-        _signedInIdentity.IsVerifiedOwnerOf(_attemptId).Returns(false);
+        _signedInIdentity.IsVerifiedRecoveryOwnerOf(_attemptId, Arg.Any<IEventStore>()).Returns(false);
     }
 
     async Task Because() =>
-        _result = await HostOutcomeView.ForAttempt(_attemptId, _signedInIdentity, Options.Create(new AnteOptions { HostOutcomeUrl = "https://host.example.com/onboarding" }), _backchannel);
+        _result = await HostOutcomeView.ForAttempt(_attemptId, _signedInIdentity, Options.Create(new AnteOptions { HostOutcomeUrl = "https://host.example.com/onboarding" }), _backchannel, Substitute.For<IEventStore>());
 
     [Fact] void should_still_report_configured() => Assert.True(_result.IsConfigured);
     [Fact] void should_be_unknown_rather_than_the_hosts_real_answer() => Assert.Equal(HostOutcomeStatus.Unknown, _result.Status);

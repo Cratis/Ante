@@ -6,6 +6,7 @@ using Ante.Invitations.Receiving;
 using Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_an_invitation_arrives.given;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Execution;
+using Microsoft.Extensions.Options;
 
 namespace Ante.Invitations.Accepting.for_InvitationAcceptanceFence.when_accepting;
 
@@ -36,7 +37,7 @@ public class and_revocation_lands_between_read_and_append : a_local_invitation_h
 
     async Task Because()
     {
-        var fence = new InvitationAcceptanceFence(Store);
+        var fence = new InvitationAcceptanceFence(Store, Options.Create(new InvitationExchangeConfig()));
         _join = await fence.For((InvitationId)Guid.Parse(Id.Value), InvitationFlowType.JoinTenant);
         _joinRejected = await RejectWithConcurrentRevocation(_join);
 

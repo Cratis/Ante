@@ -3,6 +3,7 @@
 
 using Ante.Invitations.Receiving;
 using Cratis.Chronicle.EventSequences.Concurrency;
+using Microsoft.Extensions.Options;
 
 namespace Ante.Invitations.Accepting;
 
@@ -24,7 +25,8 @@ public interface IInvitationAcceptanceFence
 /// Fences acceptance against a local revocation even when the pending projection has not caught up.
 /// </summary>
 /// <param name="store">The local Chronicle store.</param>
-public class InvitationAcceptanceFence(IEventStore store) : IInvitationAcceptanceFence
+/// <param name="exchangeConfig">The selected protocol; only attested receipts must be unique.</param>
+public class InvitationAcceptanceFence(IEventStore store, IOptions<InvitationExchangeConfig> exchangeConfig) : IInvitationAcceptanceFence
 {
     static readonly EventType[] _decisionTypes =
     [
@@ -47,8 +49,9 @@ public class InvitationAcceptanceFence(IEventStore store) : IInvitationAcceptanc
         var history = await store.EventLog.GetForEventSourceIdAndEventTypes(source, _decisionTypes);
         var receipts = history.Where(entry => entry.Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived).ToArray();
         var joinExpected = expectedFlow == InvitationFlowType.JoinTenant;
-        if (receipts.Length != 1 ||
-            joinExpected != (receipts[0].Content is JoinTenantInvitationReceived) ||
+        if (receipts.Length == 0 ||
+            (exchangeConfig.Value.Mode == InvitationExchangeMode.Attested && receipts.Length != 1) ||
+            receipts.Any(receipt => joinExpected != (receipt.Content is JoinTenantInvitationReceived)) ||
             history.Any(entry => entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted))
         {
             return null;

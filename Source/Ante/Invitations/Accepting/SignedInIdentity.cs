@@ -17,6 +17,9 @@ namespace Ante.Invitations.Accepting;
 /// </summary>
 public interface ISignedInIdentity
 {
+    /// <summary>Gets a value indicating whether signed completion is mandatory.</summary>
+    bool IsAttestedExchange { get; }
+
     /// <summary>
     /// Resolves the identity provider and compliance subject for the current request. Callers must reject an empty provider.
     /// </summary>
@@ -32,8 +35,9 @@ public interface ISignedInIdentity
     IdentityProviderName ResolveProvider();
 
     /// <summary>
-    /// Determines whether the current actor owns an invitation. In attested mode only an exact, live
-    /// attested session grants access; in legacy mode the forwarded invitation jti or legacy session does.
+    /// Determines whether the current actor may mutate an invitation. In attested mode only an exact,
+    /// live session grants mutation access; committed owner evidence grants status reads separately.
+    /// In legacy mode the forwarded invitation jti or legacy session grants access.
     /// </summary>
     /// <remarks>
     /// This is the authorization gate every invitation-bound onboarding command must pass before acting:
@@ -45,6 +49,15 @@ public interface ISignedInIdentity
     /// <param name="invitationId">The invitation to verify ownership of.</param>
     /// <returns>True when the current request verifiably owns the invitation; otherwise false.</returns>
     bool IsVerifiedOwnerOf(InvitationId invitationId);
+
+    /// <summary>Gets the attested actor to commit alongside acceptance, or null in Legacy mode.</summary>
+    InvitedAcceptanceOwnerRecorded? AttestedOwnerOf(InvitationId invitationId);
+
+    /// <summary>Authorizes a status/recovery read using either the live session or committed owner evidence.</summary>
+    /// <param name="invitationId">The acceptance being queried.</param>
+    /// <param name="eventStore">The scoped store used to release the committed owner.</param>
+    /// <returns>True only for the canonical accepting actor.</returns>
+    bool IsVerifiedRecoveryOwnerOf(InvitationId invitationId, IEventStore eventStore);
 
     /// <summary>
     /// Resolves the current registration owner only from the forwarded sign-in identity, never from an invitation session.
@@ -88,17 +101,19 @@ public class SignedInIdentity(
     IOptions<InvitationExchangeConfig>? exchangeConfig = null,
     IMongoCollection<AttestedInvitationSession>? attestedSessions = null) : ISignedInIdentity
 {
-    bool IsAttested => exchangeConfig?.Value.Mode == InvitationExchangeMode.Attested;
+    /// <inheritdoc/>
+    public bool IsAttestedExchange => exchangeConfig?.Value.Mode == InvitationExchangeMode.Attested;
 
     /// <inheritdoc/>
     public (IdentityProviderName Provider, Cratis.Chronicle.Subject Subject) Resolve(InvitationId invitationId, Cratis.Chronicle.Subject fallbackSubject)
     {
-        if (IsAttested)
+        if (IsAttestedExchange)
         {
             var attested = AttestedSessionFor(invitationId);
             return attested is null
                 ? ((IdentityProviderName)string.Empty, fallbackSubject)
-                : ((IdentityProviderName)attested.ProviderKey, (Cratis.Chronicle.Subject)attested.ProviderSubject);
+                : ((IdentityProviderName)identityProviderResolver.ResolveFrom([attested.ProviderKey, attested.ProviderIssuer]),
+                    (Cratis.Chronicle.Subject)attested.ProviderSubject);
         }
 
         var subject = SubjectOfCurrentRequest();
@@ -110,9 +125,23 @@ public class SignedInIdentity(
     /// <inheritdoc/>
     public IdentityProviderName ResolveProvider()
     {
-        if (IsAttested)
+        if (IsAttestedExchange)
         {
-            return (IdentityProviderName)(AttestedSessionFor(InvitationId.NotSet)?.ProviderKey ?? string.Empty);
+            var attested = AttestedSessionFor(InvitationId.NotSet);
+            if (attested is not null)
+            {
+                return (IdentityProviderName)identityProviderResolver.ResolveFrom([attested.ProviderKey, attested.ProviderIssuer]);
+            }
+
+            // Routing is not mutation authority. After the session expires, the current canonical
+            // sign-in still identifies the provider's configured login scheme for host handoff.
+            var claims = httpContextAccessor.HttpContext?.User?.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value)).ToArray() ?? [];
+            var report = AuthProxySignInReport.FromClaims(claims);
+            var canonicalSubject = claims.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:subject").Value;
+            return (IdentityProviderName)(string.IsNullOrWhiteSpace(canonicalSubject) || string.IsNullOrWhiteSpace(report.ProviderKey) ||
+                string.IsNullOrWhiteSpace(report.Issuer)
+                    ? string.Empty
+                    : identityProviderResolver.ResolveFrom([report.ProviderKey, report.Issuer]));
         }
 
         var subject = SubjectOfCurrentRequest();
@@ -129,7 +158,7 @@ public class SignedInIdentity(
         }
 
         // A forwarded jti is correlation, never authority, in attested mode.
-        if (IsAttested)
+        if (IsAttestedExchange)
         {
             return AttestedSessionFor(invitationId) is not null;
         }
@@ -150,9 +179,56 @@ public class SignedInIdentity(
     }
 
     /// <inheritdoc/>
+    public InvitedAcceptanceOwnerRecorded? AttestedOwnerOf(InvitationId invitationId)
+    {
+        var session = IsAttestedExchange ? AttestedSessionFor(invitationId) : null;
+        return session is null ? null : new InvitedAcceptanceOwnerRecorded(
+            session.LobbyScope,
+            session.ProviderKey,
+            session.ProviderIssuer,
+            (RegistrationOwnerSubject)session.ProviderSubject);
+    }
+
+    /// <inheritdoc/>
+    public bool IsVerifiedRecoveryOwnerOf(InvitationId invitationId, IEventStore eventStore)
+    {
+        if (!IsAttestedExchange || invitationId == InvitationId.NotSet)
+        {
+            return IsVerifiedOwnerOf(invitationId);
+        }
+
+        // Read the committed batch, not an eventually consistent owner projection. Arc 22.30's
+        // observable query signature is synchronous, so this lookup completes before any status
+        // subscription can reveal private data. Never fall back to a live session after an owner
+        // fact is present: another actor may also have exchanged the same invitation.
+        var history = eventStore.EventLog.GetForEventSourceIdAndEventTypes(
+            (EventSourceId)invitationId.Value.ToString("D"),
+            [typeof(InvitedAcceptanceOwnerRecorded).GetEventType()]).GetAwaiter().GetResult();
+        var owners = history.Select(entry => entry.Content).OfType<InvitedAcceptanceOwnerRecorded>().ToArray();
+        if (owners.Length == 0)
+        {
+            return IsVerifiedOwnerOf(invitationId);
+        }
+
+        if (owners.Length != 1)
+        {
+            return false;
+        }
+
+        var owner = owners[0];
+        var claims = httpContextAccessor.HttpContext?.User?.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value)).ToArray() ?? [];
+        var report = AuthProxySignInReport.FromClaims(claims);
+        var subject = claims.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:subject").Value;
+        return !string.IsNullOrWhiteSpace(subject) &&
+            owner.LobbyScope == exchangeConfig?.Value.Attestation.LobbyScope &&
+            owner.ProviderKey == report.ProviderKey && owner.ProviderIssuer == report.Issuer &&
+            owner.OwnerSubject.Value == subject;
+    }
+
+    /// <inheritdoc/>
     public InvitationId CurrentInvitationId()
     {
-        if (IsAttested)
+        if (IsAttestedExchange)
         {
             var claimed = ForwardedInvitationId();
             return AttestedSessionFor(claimed)?.InvitationId ?? InvitationId.NotSet;

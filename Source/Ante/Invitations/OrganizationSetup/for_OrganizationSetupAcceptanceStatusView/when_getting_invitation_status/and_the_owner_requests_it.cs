@@ -16,11 +16,11 @@ public class and_the_owner_requests_it : Specification
     void Because()
     {
         var identity = Substitute.For<ISignedInIdentity>();
-        identity.IsVerifiedOwnerOf(Arg.Any<InvitationId>()).Returns(true);
+        identity.IsVerifiedRecoveryOwnerOf(Arg.Any<InvitationId>(), Arg.Any<IEventStore>()).Returns(true);
         var recorded = QueryCollections.With(new OrganizationSetupProgress(_id, "Acme"));
         using var subscriptions = new OrganizationSetupStatusSubscriptions();
         _result = ((BehaviorSubject<OrganizationSetupAcceptanceStatusView>)OrganizationSetupAcceptanceStatusView.StatusForInvitation(
-            _id, identity, subscriptions, recorded, Substitute.For<IMongoCollection<OrganizationSetupPublished>>())).Value;
+            _id, identity, subscriptions, recorded, Substitute.For<IMongoCollection<OrganizationSetupPublished>>(), Substitute.For<IEventStore>())).Value;
     }
 
     [Fact] void should_return_the_recorded_status() => Assert.Equal(OrganizationSetupAcceptanceStatus.Recorded, _result.Status);

@@ -34,7 +34,14 @@ public record StagedInvitationTransaction(
     string CapabilityHash,
     string Challenge,
     string RecipientEmail,
-    DateTimeOffset ExpiresAtUtc);
+    DateTimeOffset ExpiresAtUtc)
+{
+    /// <summary>
+    /// Gets the independently verified capability expiry. Unlike the transaction window, this bounds the
+    /// session after completion. Old stages without this evidence cannot create a new session.
+    /// </summary>
+    public DateTimeOffset CapabilityExpiresAtUtc { get; init; }
+}
 
 /// <summary>
 /// Installs cleanup of staged transactions. The BSON id is also the unique scope/transaction key.
@@ -130,7 +137,7 @@ public class AttestedInvitationStaging(
             assertion.CapabilityHash,
             assertion.Challenge,
             recipient,
-            expires);
+            expires) { CapabilityExpiresAtUtc = verified.ExpiresAtUtc };
         try
         {
             await transactions.InsertOneAsync(stage);
@@ -146,6 +153,7 @@ public class AttestedInvitationStaging(
                 existing.LobbyScope == stage.LobbyScope && existing.Transaction == stage.Transaction &&
                 existing.InvitationId == stage.InvitationId && existing.FlowType == stage.FlowType &&
                 existing.CapabilityHash == stage.CapabilityHash && existing.Challenge == stage.Challenge &&
+                existing.CapabilityExpiresAtUtc == stage.CapabilityExpiresAtUtc &&
                 string.Equals(existing.RecipientEmail, stage.RecipientEmail, StringComparison.Ordinal);
         }
     }

@@ -10,12 +10,12 @@ public class and_mongodb_truncated_the_original_expiry : a_recorded_completion
 {
     async Task Because()
     {
-        Stage = Stage with { ExpiresAtUtc = DateTimeOffset.FromUnixTimeMilliseconds(Stage.ExpiresAtUtc.ToUnixTimeMilliseconds()).AddTicks(1234) };
-        Existing = Existing with { ExpiresAtUtc = DateTimeOffset.FromUnixTimeMilliseconds(Stage.ExpiresAtUtc.ToUnixTimeMilliseconds()).UtcDateTime };
+        Stage = Stage with { CapabilityExpiresAtUtc = DateTimeOffset.FromUnixTimeMilliseconds(Stage.CapabilityExpiresAtUtc.ToUnixTimeMilliseconds()).AddTicks(1234) };
+        Existing = Existing with { ExpiresAtUtc = DateTimeOffset.FromUnixTimeMilliseconds(Stage.CapabilityExpiresAtUtc.ToUnixTimeMilliseconds()).UtcDateTime };
         Outcome = await Sessions.Retry(Stage, Assertion);
     }
 
     [Fact] void should_accept_the_identical_live_retry() => Assert.Equal(AttestedSessionOutcome.Accepted, Outcome);
-    [Fact] void should_not_push_expiry_into_the_next_millisecond() => Assert.True(Existing.ExpiresAtUtc < Stage.ExpiresAtUtc.UtcDateTime);
+    [Fact] void should_not_push_expiry_into_the_next_millisecond() => Assert.True(Existing.ExpiresAtUtc < Stage.CapabilityExpiresAtUtc.UtcDateTime);
 }
 #endif

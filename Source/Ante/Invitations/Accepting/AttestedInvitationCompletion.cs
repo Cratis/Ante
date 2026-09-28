@@ -62,7 +62,7 @@ public interface IAttestedInvitationSessions
 /// <param name="ProviderIssuer">The canonical provider authority.</param>
 /// <param name="ProviderSubject">The case-sensitive authenticated subject.</param>
 /// <param name="AssertionIds">Completion assertions claimed by this transaction.</param>
-/// <param name="ExpiresAtUtc">The original transaction expiry; retries never replace it.</param>
+/// <param name="ExpiresAtUtc">The original capability expiry; retries never extend it.</param>
 public record AttestedInvitationSession(
     [property: BsonId] string Id,
     string LobbyScope,
@@ -72,7 +72,14 @@ public record AttestedInvitationSession(
     string ProviderIssuer,
     string ProviderSubject,
     string[] AssertionIds,
-    DateTime ExpiresAtUtc);
+    DateTime ExpiresAtUtc)
+{
+    /// <summary>Gets the most recent staged transaction reconciled with this actor's session.</summary>
+    public string? LatestTransactionId { get; init; }
+
+    /// <summary>Gets the assertion first claimed for the most recent staged transaction.</summary>
+    public string? LatestAssertionId { get; init; }
+}
 
 /// <summary>
 /// Installs the unique constraints required before admitting any attested completion.
@@ -108,7 +115,7 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
     /// <inheritdoc/>
     public async Task<AttestedSessionOutcome> Retry(StagedInvitationTransaction stage, VerifiedInvitationAttestation assertion)
     {
-        var existing = await sessions.Find(row => row.Id == stage.Id).FirstOrDefaultAsync();
+        var existing = await sessions.Find(row => row.Id == stage.Id || row.LatestTransactionId == stage.Id).FirstOrDefaultAsync();
         if (existing is null)
         {
             return AttestedSessionOutcome.Missing;
@@ -116,7 +123,7 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
 
         if (existing.ExpiresAtUtc <= DateTime.UtcNow || existing.LobbyScope != stage.LobbyScope ||
             existing.InvitationId != stage.InvitationId || existing.FlowType != stage.FlowType ||
-            existing.ExpiresAtUtc != SessionExpiry(stage) ||
+            (existing.Id == stage.Id && existing.ExpiresAtUtc != AttestedSessionExpiry.For(stage)) ||
             existing.ProviderKey != assertion.ProviderKey || existing.ProviderIssuer != assertion.ProviderIssuer ||
             existing.ProviderSubject != assertion.ProviderSubject)
         {
@@ -128,13 +135,19 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
             // The multikey unique index claims this jti globally, including on retries. A failed
             // $addToSet cannot yield a successful response. No field other than AssertionIds changes.
             var now = DateTime.UtcNow;
+            var filter = Builders<AttestedInvitationSession>.Filter;
+            var binding = filter.Eq(row => row.Id, existing.Id) & filter.Gt(row => row.ExpiresAtUtc, now) &
+                filter.Eq(row => row.ProviderKey, assertion.ProviderKey) &
+                filter.Eq(row => row.ProviderIssuer, assertion.ProviderIssuer) &
+                filter.Eq(row => row.ProviderSubject, assertion.ProviderSubject);
+            if (existing.Id != stage.Id && existing.LatestAssertionId != assertion.AssertionId)
+            {
+                return AttestedSessionOutcome.Rejected;
+            }
+
             var updated = await sessions.UpdateOneAsync(
-                row => row.Id == stage.Id && row.ExpiresAtUtc > now &&
-                    row.ProviderKey == assertion.ProviderKey && row.ProviderIssuer == assertion.ProviderIssuer &&
-                    row.ProviderSubject == assertion.ProviderSubject,
-                Builders<AttestedInvitationSession>.Update.AddToSet(row => row.AssertionIds, assertion.AssertionId),
-                null,
-                CancellationToken.None);
+                binding,
+                Builders<AttestedInvitationSession>.Update.AddToSet(row => row.AssertionIds, assertion.AssertionId));
             return updated.MatchedCount == 1 ? AttestedSessionOutcome.Accepted : AttestedSessionOutcome.Rejected;
         }
         catch (MongoWriteException exception) when (exception.WriteError.Category == ServerErrorCategory.DuplicateKey)
@@ -160,7 +173,7 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
             assertion.ProviderIssuer!,
             assertion.ProviderSubject!,
             [assertion.AssertionId],
-            SessionExpiry(stage));
+            AttestedSessionExpiry.For(stage)) { LatestTransactionId = stage.Id, LatestAssertionId = assertion.AssertionId };
         try
         {
             await sessions.InsertOneAsync(session);
@@ -168,14 +181,63 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
         }
         catch (MongoWriteException exception) when (exception.WriteError.Category == ServerErrorCategory.DuplicateKey)
         {
-            return await Retry(stage, assertion) == AttestedSessionOutcome.Accepted;
+            var retry = await Retry(stage, assertion);
+            return retry == AttestedSessionOutcome.Accepted ||
+                (retry == AttestedSessionOutcome.Missing && await ReconcileActor(stage, assertion));
         }
     }
 
-    // BSON datetime stores milliseconds, while the staged DateTimeOffset may retain ticks.
-    // Normalize once for both insertion and retry comparison; rounding down never extends authority.
-    static DateTime SessionExpiry(StagedInvitationTransaction stage) =>
-        DateTimeOffset.FromUnixTimeMilliseconds(stage.ExpiresAtUtc.ToUnixTimeMilliseconds()).UtcDateTime;
+    async Task<bool> ReconcileActor(StagedInvitationTransaction stage, VerifiedInvitationAttestation assertion)
+    {
+        var filter = Builders<AttestedInvitationSession>.Filter;
+        var actor = filter.Eq(row => row.LobbyScope, stage.LobbyScope) &
+            filter.Eq(row => row.InvitationId, stage.InvitationId) &
+            filter.Eq(row => row.ProviderKey, assertion.ProviderKey!) &
+            filter.Eq(row => row.ProviderSubject, assertion.ProviderSubject!);
+        var existing = await sessions.Find(actor).FirstOrDefaultAsync();
+        if (existing is null || existing.ProviderIssuer != assertion.ProviderIssuer || existing.FlowType != stage.FlowType)
+        {
+            return false;
+        }
+
+        var now = DateTime.UtcNow;
+        if (existing.ExpiresAtUtc <= now)
+        {
+            // The TTL sweeper is asynchronous. Replace an expired actor atomically instead of
+            // waiting for it, and never overwrite a session that another request has renewed.
+            var replaced = await sessions.FindOneAndReplaceAsync(
+                actor & filter.Eq(row => row.Id, existing.Id) & filter.Lte(row => row.ExpiresAtUtc, now),
+                new AttestedInvitationSession(
+                    existing.Id,
+                    stage.LobbyScope,
+                    stage.InvitationId,
+                    stage.FlowType,
+                    assertion.ProviderKey!,
+                    assertion.ProviderIssuer!,
+                    assertion.ProviderSubject!,
+                    [assertion.AssertionId],
+                    AttestedSessionExpiry.For(stage)) { LatestTransactionId = stage.Id, LatestAssertionId = assertion.AssertionId });
+            return replaced is not null;
+        }
+
+        // A newly staged transaction may recover a lost completion response for this actor.
+        // Claim its assertion on the original document, never resetting that session's expiry.
+        // A jti already used by a different transaction cannot be replayed as a new assertion.
+        try
+        {
+            var claimed = await sessions.UpdateOneAsync(
+                actor & filter.Eq(row => row.Id, existing.Id) & filter.Gt(row => row.ExpiresAtUtc, now) &
+                    filter.Not(filter.AnyEq(row => row.AssertionIds, assertion.AssertionId)),
+                Builders<AttestedInvitationSession>.Update.AddToSet(row => row.AssertionIds, assertion.AssertionId)
+                    .Set(row => row.LatestTransactionId, stage.Id)
+                    .Set(row => row.LatestAssertionId, assertion.AssertionId));
+            return claimed.MatchedCount == 1;
+        }
+        catch (MongoWriteException exception) when (exception.WriteError.Category == ServerErrorCategory.DuplicateKey)
+        {
+            return false;
+        }
+    }
 }
 
 /// <summary>
@@ -255,6 +317,7 @@ public class AttestedInvitationCompletion(
     internal static bool Matches(StagedInvitationTransaction stage, VerifiedInvitationAttestation assertion) =>
         assertion.Purpose == InvitationAttestationPurpose.Complete &&
         stage.ExpiresAtUtc > DateTimeOffset.UtcNow &&
+        stage.CapabilityExpiresAtUtc > DateTimeOffset.UtcNow &&
         stage.LobbyScope == assertion.LobbyScope && stage.Transaction == assertion.Transaction &&
         stage.InvitationId == assertion.InvitationId && stage.Challenge == assertion.Challenge &&
         stage.CapabilityHash == assertion.CapabilityHash &&
@@ -268,3 +331,12 @@ public class AttestedInvitationCompletion(
 /// </summary>
 /// <param name="InvitationTransaction">The previously staged opaque transaction.</param>
 public record CompleteInvitationRequest(string InvitationTransaction);
+
+/// <summary>Normalizes the independently verified capability expiry to MongoDB precision.</summary>
+internal static class AttestedSessionExpiry
+{
+    /// <summary>Returns the immutable session expiry, rounded down to a BSON millisecond.</summary>
+    /// <param name="stage">The verified stage carrying capability expiry.</param>
+    public static DateTime For(StagedInvitationTransaction stage) =>
+        DateTimeOffset.FromUnixTimeMilliseconds(stage.CapabilityExpiresAtUtc.ToUnixTimeMilliseconds()).UtcDateTime;
+}

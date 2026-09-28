@@ -26,11 +26,11 @@ public class and_the_verified_owner_asks_and_the_host_reports_failure : Specific
         _backchannel.GetOutcome(_attemptId).Returns((HostOutcomeStatus.Failed, "quota-exceeded"));
 
         _signedInIdentity = Substitute.For<ISignedInIdentity>();
-        _signedInIdentity.IsVerifiedOwnerOf(_attemptId).Returns(true);
+        _signedInIdentity.IsVerifiedRecoveryOwnerOf(_attemptId, Arg.Any<IEventStore>()).Returns(true);
     }
 
     async Task Because() =>
-        _result = await HostOutcomeView.ForAttempt(_attemptId, _signedInIdentity, Options.Create(new AnteOptions { HostOutcomeUrl = "https://host.example.com/onboarding" }), _backchannel);
+        _result = await HostOutcomeView.ForAttempt(_attemptId, _signedInIdentity, Options.Create(new AnteOptions { HostOutcomeUrl = "https://host.example.com/onboarding" }), _backchannel, Substitute.For<IEventStore>());
 
     [Fact] void should_be_failed() => Assert.Equal(HostOutcomeStatus.Failed, _result.Status);
     [Fact] void should_carry_the_reason_code() => Assert.Equal("quota-exceeded", _result.ReasonCode);

@@ -36,10 +36,14 @@ public class and_a_live_attested_session_matches_the_exact_actor : Specification
             "CaseSensitive",
             ["assertion"],
             DateTime.UtcNow.AddMinutes(10));
+        var resolver = new IdentityProviderResolver(Options.Create(new IdentityProviderOptions
+        {
+            Providers = [new ConfiguredIdentityProvider { Name = "GitHub Login", Issuer = "https://github.example" }],
+        }));
         _identity = new SignedInIdentity(
             accessor,
             Substitute.For<IMongoCollection<AcceptedInvitation>>(),
-            Substitute.For<IIdentityProviderResolver>(),
+            resolver,
             Options.Create(new InvitationExchangeConfig { Mode = InvitationExchangeMode.Attested, Attestation = new() { LobbyScope = "lobby" } }),
             QueryCollections.With(session));
     }
@@ -47,10 +51,11 @@ public class and_a_live_attested_session_matches_the_exact_actor : Specification
     [Fact] void should_own_the_exact_invitation() => Assert.True(_identity.IsVerifiedOwnerOf(_id));
     [Fact] void should_not_own_a_different_invitation() => Assert.False(_identity.IsVerifiedOwnerOf(InvitationId.New()));
     [Fact] void should_find_the_attested_invitation() => Assert.Equal(_id, _identity.CurrentInvitationId());
+    [Fact] void should_route_to_the_configured_login_scheme() => Assert.Equal("GitHub Login", _identity.ResolveProvider().Value);
     [Fact] void should_resolve_the_attested_actor()
     {
         var (provider, subject) = _identity.Resolve(_id, (Cratis.Chronicle.Subject)"fallback");
-        Assert.Equal("github", provider.Value);
+        Assert.Equal("GitHub Login", provider.Value);
         Assert.Equal("CaseSensitive", subject.ToString());
     }
 }

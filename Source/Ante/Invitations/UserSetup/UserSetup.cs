@@ -173,6 +173,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// <param name="existingSetup">Durable organization setup evidence from a reused id predating the one-use marker.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
     /// <param name="acceptanceFence">The authoritative invitation revision used to fence revocation.</param>
+    /// <param name="signedInIdentity">The actor whose live attested session owns this acceptance.</param>
     /// <returns>The compliance subject and a batch scoped to the invitation's read revision.</returns>
     /// <remarks>
     /// Does not mark the invitation as accepted here - that would be a pre-append success signal, visible
@@ -185,7 +186,8 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
         PendingInvitationToJoin? pendingInvitation,
         OrganizationSetupProgress? existingSetup,
         ILegalDocumentSource legalDocumentSource,
-        IInvitationAcceptanceFence acceptanceFence)
+        IInvitationAcceptanceFence acceptanceFence,
+        ISignedInIdentity signedInIdentity)
     {
         if (pendingInvitation is null || existingSetup is not null)
         {
@@ -208,6 +210,17 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
             return legalError;
         }
 
+        if (!signedInIdentity.IsVerifiedOwnerOf(InvitationId))
+        {
+            return ValidationResult.Error("Invitation is no longer pending and cannot be used to accept the invitation.");
+        }
+
+        var owner = signedInIdentity.AttestedOwnerOf(InvitationId);
+        if (signedInIdentity.IsAttestedExchange && owner is null)
+        {
+            return ValidationResult.Error("Invitation is no longer pending and cannot be used to accept the invitation.");
+        }
+
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
@@ -221,6 +234,11 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
                 pendingInvitation.Email,
                 pendingInvitation.Roles),
         };
+        if (owner is not null)
+        {
+            events.Add(owner);
+        }
+
         events.AddRange(legalEvents);
 
         var scope = await acceptanceFence.For(InvitationId, InvitationFlowType.JoinTenant);
@@ -261,15 +279,17 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
     /// <param name="subscriptions">The subscription tracker.</param>
     /// <param name="recordedCollection">The durable acceptance-record collection.</param>
     /// <param name="publishedCollection">The durable outbox-publication collection.</param>
+    /// <param name="eventStore">The scoped store used to release the committed owner's identity.</param>
     /// <returns>An observable status stream for the invitation.</returns>
     public static ISubject<UserSetupAcceptanceStatusView> StatusForInvitation(
         InvitationId invitationId,
         ISignedInIdentity signedInIdentity,
         UserSetupStatusSubscriptions subscriptions,
         IMongoCollection<UserSetupProgress> recordedCollection,
-        IMongoCollection<JoinTenantAcceptancePublished> publishedCollection)
+        IMongoCollection<JoinTenantAcceptancePublished> publishedCollection,
+        IEventStore eventStore)
     {
-        if (!signedInIdentity.IsVerifiedOwnerOf(invitationId))
+        if (!signedInIdentity.IsVerifiedRecoveryOwnerOf(invitationId, eventStore))
         {
             return new BehaviorSubject<UserSetupAcceptanceStatusView>(new(invitationId, UserSetupAcceptanceStatus.Pending));
         }
