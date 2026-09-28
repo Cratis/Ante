@@ -51,6 +51,16 @@ public sealed class AnteApplication(
         return JsonDocument.Parse(body.Length == 0 ? "{}" : body);
     }
 
+    /// <summary>Reads registration status through the same owner-checked API used by the browser.</summary>
+    public async Task<JsonDocument> RegistrationStatus(Guid registrationId, string subject)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/invitations/organization-setup/status-for-registration?registrationId={registrationId:D}");
+        AddForwardedIdentity(request, subject, subject);
+        using var response = await CreateClient().SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+    }
+
     /// <summary>
     /// What the authentication proxy does after the invitee's OIDC login: exchange the invitation token for a session.
     /// </summary>
@@ -66,8 +76,7 @@ public sealed class AnteApplication(
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        // Not Development: that environment turns on DI scope validation, and Program.cs resolves a scoped
-        // IMongoCollection from the root provider at startup - fine in a deployment, fatal under Development.
+        // Integration runs the real Program with isolated host stores, kernel and MongoDB.
         using var signingKey = RSA.Create(2048);
         builder
             .UseEnvironment("Integration")
