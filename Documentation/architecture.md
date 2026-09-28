@@ -3,17 +3,19 @@ title: Architecture
 description: How Ante connects a host outbox to its local event log, outbox, MongoDB state, and lobby.
 ---
 
-An invitation crosses two event stores and several distinct sequences. Ante's command completing does not mean the host has provisioned a user. The diagram separates each handoff.
+An invitation crosses its host source store and Ante's destination store through distinct sequences. Ante accepts several trusted host stores, each with its own inbox and observer. Ante's command completing does not mean the host has provisioned a user.
 
 ```mermaid
 flowchart LR
     subgraph Host[Host product]
-        HO[(Host outbox)]
+        HO1[(Host outbox A)]
+        HO2[(Host outbox B)]
         HI[Host observer and provisioning]
         HB[Optional HTTP backchannels]
     end
     subgraph Ante[Ante instance]
-        AI[(Inbox for host store)]
+        AI1[(inbox-A)]
+        AI2[(inbox-B)]
         EL[(Ante event log)]
         AO[(Ante outbox)]
         MG[(MongoDB sessions and read models)]
@@ -23,7 +25,8 @@ flowchart LR
         FR[Outbox forwarding reactors]
     end
     PX[Trusted verifying authentication proxy]
-    HO --> AI --> IR --> EL
+    HO1 --> AI1 --> IR --> EL
+    HO2 --> AI2 --> IR
     EL --> TR --> AO --> HI
     API --> EL --> FR --> AO
     EL --> MG
@@ -37,6 +40,8 @@ The proxy sends `POST /_invite/exchange` through Ante's API, which writes an acc
 
 ## Routing and identity
 
-Ante selects its own Chronicle store and one fixed namespace per instance. Its incoming inbox subscription targets the host store compiled as `Direct` in `InboxSourceStore.Name`; changing `Ante:EventStore` does not change that target. Contracts carry an assembly-level `Ante` store annotation, so a host observing an Ante store renamed from `Ante` must explicitly route its observer to the configured store. The host mints a GUID invitation id and uses it as the event source id; the token `jti` carries the same id. A correlation id is separate event metadata, not the invitation id.
+Ante selects its own Chronicle store and one fixed namespace per instance. `Ante:HostStores` independently selects host sources: one filtered source-outbox subscription and one runtime reactor over `inbox-{source}` per store. The original Direct reactor id and subscription id are retained so its observer cursor can resume after an upgrade; the typed incoming reactor is no longer discovered. Runtime callbacks deserialize with Chronicle's event serializer and append local receipt events before acknowledging delivery. The local event log continues to drive token issuance and read models.
+
+The contracts assembly still carries an `Ante` store annotation. A host observing an Ante store renamed from `Ante` can reference the package by explicitly binding its observer to the actual store. The host mints globally unique GUID invitation ids across *all* configured stores and uses the canonical string as event source id; token `jti` carries the same id. A correlation id is separate event metadata. Multiple sources have neither a global event order nor exactly-once delivery, and Chronicle does not remap namespaces.
 
 The proxy and API access conditions that make this topology safe are specified in [Security and trust](./security.md). See [Contracts](./contracts.md) for the event and HTTP boundaries.
