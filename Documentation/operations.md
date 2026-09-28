@@ -25,6 +25,21 @@ Check `UserSetupAcceptanceStatusView.StatusForInvitation` for joins or `Organiza
 
 If status is `Pending`, check that the invitation was received and its pending projection caught up; do not treat a transient UI spinner as an invitation. If status is `Accepted` but the host did not provision, trace the host observer and host-side checks: Ante's accepted state reports outbox publication, **not** host success. With `Ante:HostOutcomeUrl`, the invited-flow completion screen can ask the host for an informational result, but `Unknown` can mean absent/unreachable/malformed response and does not change Ante's status. Self-service registration has no such outcome lookup.
 
+## Operator visibility
+
+Keep the operator view in the host console, where the host can authorize staff and scope results to its tenants. Today Ante offers `/healthz` and Mongo-only `/healthz/ready`, owner-scoped status queries, Chronicle inbox/event-log/outbox and observer partition state, and application logs for diagnosis; it has no consolidated operator dashboard or service diagnostics endpoint. Token publication does not mean the host sent or delivered mail. A narrow read-only, service-authenticated diagnostics API is planned in [Ante #62](https://github.com/Cratis/Ante/issues/62); do not use invitee status queries as an operator API.
+
+## Rehearse a quiesced erasure
+
+This is a **manual procedure to rehearse before use**, not an automated or proven complete-erasure feature. Obtain the host's approved subject mapping, retention decision and legal-hold clearance, then:
+
+1. Stop new writes from affected host/Ante operations, drain in-flight forwarding (including host relays), then pause those forwarders before deletion. Do not allow replay or reissuance during deletion.
+2. Inventory the subject's keys and plaintext/session/read-model copies in **every** affected event store and namespace, including host and Ante, and account for logs, links, exports, backups and restore paths. An invitation id need not equal the compliance subject.
+3. Under the approved Chronicle/MongoDB operator procedures, remove the authorized sessions/plaintext copies and delete or block re-creation of each affected key. Chronicle 19.4.7 checks a target erasure fence before copying a missing key; plain deletion without an effective fence can be undone by forwarding.
+4. Verify absence/inaccessibility across every store/namespace and a safe replay/restore path before restarting writers and forwarders. If any store is unavailable or a copy returns, do not report erasure complete; keep the operation quiesced and escalate.
+
+See [Personal data, retention and erasure](./security.md#personal-data-retention-and-erasure) and [Ante #64](https://github.com/Cratis/Ante/issues/64). This outline does not substitute for a deployment-specific tested procedure or a verified erasure acknowledgement.
+
 ## Dependency and identity failures
 
 `/healthz` runs no dependency checks; `/healthz/ready` pings **MongoDB only** with a three-second health-check timeout. Check Chronicle and the host independently even if ready is green. At startup Ante creates Mongo indexes for accepted-invitation sessions; exchange depends on MongoDB. A 400 from `/_invite/exchange` can mean malformed/missing bearer token, malformed GUID `jti` or expired/missing `exp`; it does not establish the reason the proxy accepted or rejected a request. Inspect proxy verification and access controls as described in [Security and trust](./security.md). A failed optional `/in-use` HTTP call can allow join acceptance to proceed; the host's own uniqueness rule must hold. Review [Security](./security.md) before diagnosing untrusted identity headers in production.
