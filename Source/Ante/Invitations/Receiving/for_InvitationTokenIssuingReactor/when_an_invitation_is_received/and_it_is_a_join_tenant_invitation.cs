@@ -41,7 +41,7 @@ public class and_it_is_a_join_tenant_invitation : Specification
             .Returns(AppendResult.Success(CorrelationId.New(), 1));
 
         _tokenIssuer = Substitute.For<IInvitationTokenIssuer>();
-        _tokenIssuer.IssueJoinTenantInvitation(_invitationGuid).Returns(new IssuedInvitationToken(_token, _expiresAt));
+        _tokenIssuer.IssueJoinTenantInvitation(_invitationGuid, "jane@example.com").Returns(new IssuedInvitationToken(_token, _expiresAt));
 
         _scenario = new(new ServiceCollection()
             .AddSingleton(eventStore)
@@ -54,7 +54,7 @@ public class and_it_is_a_join_tenant_invitation : Specification
         await _scenario.Given.ForEventSource(_invitationId).Events(new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]));
 
     [Fact]
-    void should_issue_a_join_tenant_token() => _tokenIssuer.Received(1).IssueJoinTenantInvitation(_invitationGuid);
+    void should_issue_a_join_tenant_token() => _tokenIssuer.Received(1).IssueJoinTenantInvitation(_invitationGuid, "jane@example.com");
 
     [Fact]
     void should_forward_the_token_to_the_outbox() =>

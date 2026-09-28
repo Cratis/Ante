@@ -205,7 +205,7 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
             return;
         }
 
-        var token = tokenIssuer.IssueJoinTenantInvitation(invitationId);
+        var token = tokenIssuer.IssueJoinTenantInvitation(invitationId, @event.Email);
         await eventStore.PublishToOutbox(context, new InvitationTokenIssued(InvitationFlowType.JoinTenant, token.Token, token.ExpiresAt), []);
     }
 
@@ -222,7 +222,7 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
             return;
         }
 
-        var token = tokenIssuer.IssueCreateTenantInvitation(invitationId);
+        var token = tokenIssuer.IssueCreateTenantInvitation(invitationId, @event.Email);
         await eventStore.PublishToOutbox(context, new InvitationTokenIssued(InvitationFlowType.CreateTenant, token.Token, token.ExpiresAt), []);
     }
 

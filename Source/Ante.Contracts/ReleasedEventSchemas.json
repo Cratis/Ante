@@ -5,6 +5,7 @@
   "InvitationToJoinTenantAccepted:1",
   "InvitationTokenIssued:1",
   "InvitationTokenIssued:2",
+  "InvitationTokenIssued:3",
   "LegalTermsAccepted:1",
   "OrganizationRegistrationCompleted:1",
   "UserInvitedToCreateTenant:1",

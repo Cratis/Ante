@@ -35,6 +35,13 @@ public class and_it_is_a_join_tenant_invitation : Specification
     }
 
     [Fact]
+    void should_not_add_attested_recipient_or_scope_claims()
+    {
+        var claims = new JsonWebToken(_issued.Token).Claims.ToArray();
+        Assert.DoesNotContain(claims, claim => claim.Type == "email" || claim.Type == "tenant_id");
+    }
+
+    [Fact]
     public void should_return_the_exact_jwt_expiry()
     {
         var jwt = new JsonWebTokenHandler().ReadJsonWebToken(_issued.Token);

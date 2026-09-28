@@ -11,13 +11,13 @@ namespace Ante.Contracts.Invitations;
 /// Chronicle 19.4.7 migrates existing event-log rows, not inbox/outbox rows; the current
 /// contract's JSON constructor also supplies the sentinel when the older payload lacks expiresAt.
 /// </summary>
-public class InvitationTokenIssuedMigration : EventTypeMigration<InvitationTokenIssued, InvitationTokenIssuedV1>
+public class InvitationTokenIssuedMigration : EventTypeMigration<InvitationTokenIssuedV2, InvitationTokenIssuedV1>
 {
     /// <inheritdoc/>
-    public override void Upcast(IEventMigrationBuilder<InvitationTokenIssued, InvitationTokenIssuedV1> builder) =>
+    public override void Upcast(IEventMigrationBuilder<InvitationTokenIssuedV2, InvitationTokenIssuedV1> builder) =>
         builder.Properties(properties => properties.DefaultValue(target => target.ExpiresAt, DateTimeOffset.UnixEpoch));
 
     /// <inheritdoc/>
-    public override void Downcast(IEventMigrationBuilder<InvitationTokenIssuedV1, InvitationTokenIssued> builder) =>
+    public override void Downcast(IEventMigrationBuilder<InvitationTokenIssuedV1, InvitationTokenIssuedV2> builder) =>
         builder.Properties(properties => { });
 }

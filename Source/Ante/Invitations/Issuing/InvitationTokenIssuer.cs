@@ -3,6 +3,8 @@
 
 using System.Security.Claims;
 using System.Security.Cryptography;
+using Ante.Invitations.Accepting;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
@@ -21,11 +23,27 @@ public interface IInvitationTokenIssuer
     IssuedInvitationToken IssueJoinTenantInvitation(Guid invitationId);
 
     /// <summary>
+    /// Issues a join capability bound to the recipient when attested exchange is selected.
+    /// </summary>
+    /// <param name="invitationId">The invitation identifier.</param>
+    /// <param name="email">The host invitation's recipient email.</param>
+    /// <returns>The signed JWT and its expiry.</returns>
+    IssuedInvitationToken IssueJoinTenantInvitation(Guid invitationId, Email email) => IssueJoinTenantInvitation(invitationId);
+
+    /// <summary>
     /// Issues a JWT token for a create-tenant invitation.
     /// </summary>
     /// <param name="invitationId">The invitation identifier embedded as the <c language="csharp">jti</c> claim.</param>
     /// <returns>The signed JWT and its expiration instant.</returns>
     IssuedInvitationToken IssueCreateTenantInvitation(Guid invitationId);
+
+    /// <summary>
+    /// Issues a create capability bound to the recipient when attested exchange is selected.
+    /// </summary>
+    /// <param name="invitationId">The invitation identifier.</param>
+    /// <param name="email">The host invitation's recipient email.</param>
+    /// <returns>The signed JWT and its expiry.</returns>
+    IssuedInvitationToken IssueCreateTenantInvitation(Guid invitationId, Email email) => IssueCreateTenantInvitation(invitationId);
 }
 
 /// <summary>A signed invitation token together with its JWT expiration instant.</summary>
@@ -85,25 +103,55 @@ public class InvitationTokenConfig
 /// reimplementing (and re-securing) the same RSA-signed JWT scheme.
 /// </summary>
 /// <param name="config">The signing configuration.</param>
-public class InvitationTokenIssuer(IOptions<InvitationTokenConfig> config) : IInvitationTokenIssuer
+/// <param name="exchange">The optional exchange mode for issued capability claims.</param>
+public class InvitationTokenIssuer(IOptions<InvitationTokenConfig> config, IOptions<InvitationExchangeConfig>? exchange) : IInvitationTokenIssuer
 {
+    /// <summary>
+    /// Retains the original legacy-only constructor for compiled consumers.
+    /// </summary>
+    /// <param name="config">The signing configuration.</param>
+    public InvitationTokenIssuer(IOptions<InvitationTokenConfig> config) : this(config, null)
+    {
+    }
+
     /// <inheritdoc/>
     public IssuedInvitationToken IssueJoinTenantInvitation(Guid invitationId) =>
-        CreateToken(invitationId, InvitationFlowType.JoinTenant);
+        CreateToken(invitationId, InvitationFlowType.JoinTenant, null);
+
+    /// <inheritdoc/>
+    public IssuedInvitationToken IssueJoinTenantInvitation(Guid invitationId, Email email) =>
+        CreateToken(invitationId, InvitationFlowType.JoinTenant, email);
 
     /// <inheritdoc/>
     public IssuedInvitationToken IssueCreateTenantInvitation(Guid invitationId) =>
-        CreateToken(invitationId, InvitationFlowType.CreateTenant);
+        CreateToken(invitationId, InvitationFlowType.CreateTenant, null);
 
-    IssuedInvitationToken CreateToken(Guid invitationId, InvitationFlowType flowType)
+    /// <inheritdoc/>
+    public IssuedInvitationToken IssueCreateTenantInvitation(Guid invitationId, Email email) =>
+        CreateToken(invitationId, InvitationFlowType.CreateTenant, email);
+
+    IssuedInvitationToken CreateToken(Guid invitationId, InvitationFlowType flowType, Email? email)
     {
         var options = config.Value;
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(InvitationClaims.InvitationType, flowType.ToString()),
-            new Claim(JwtRegisteredClaimNames.Jti, invitationId.ToString()),
+            new(InvitationClaims.InvitationType, flowType.ToString()),
+            new(JwtRegisteredClaimNames.Jti, invitationId.ToString()),
         };
+        if (exchange?.Value.Mode == InvitationExchangeMode.Attested)
+        {
+            var recipient = email?.Value;
+            if (recipient is null || recipient.Length is < 3 or > 320 ||
+                recipient != recipient.Trim() || recipient.IndexOf('@', StringComparison.Ordinal) is < 1 ||
+                recipient.EndsWith('@'))
+            {
+                throw new ArgumentException("Attested invitation issuance requires a valid host recipient email.", nameof(email));
+            }
+
+            claims.Add(new Claim("email", recipient));
+            claims.Add(new Claim("tenant_id", exchange.Value.Attestation.LobbyScope));
+        }
 
         using var rsa = RSA.Create();
         rsa.ImportFromPem(options.PrivateKeyPem);

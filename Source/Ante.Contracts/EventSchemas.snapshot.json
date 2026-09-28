@@ -157,6 +157,41 @@
     ],
     "title": "InvitationToJoinTenantAccepted"
   },
+  "InvitationTokenIssued:3": {
+    "type": "object",
+    "properties": {
+      "flowType": {
+        "type": "integer",
+        "enum": [
+          0,
+          1
+        ],
+        "x-enumNames": [
+          "JoinTenant",
+          "CreateTenant"
+        ]
+      },
+      "token": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "expiresAt": {
+        "type": "string",
+        "format": "date-time-offset"
+      }
+    },
+    "required": [
+      "flowType",
+      "token",
+      "expiresAt"
+    ],
+    "title": "InvitationTokenIssued"
+  },
   "InvitationTokenIssued:2": {
     "type": "object",
     "properties": {
