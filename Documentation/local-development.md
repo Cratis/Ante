@@ -57,6 +57,10 @@ A run takes a few minutes and removes its container afterwards. Three environmen
 
 The fixture does not cover the authentication proxy's token verification, host provisioning or the frontend. The command posts use the forwarded identity headers the proxy would set.
 
+These specifications are the Tier 2 check. Run them locally before opening a pull request, or before marking one ready for review, when the change touches Chronicle wiring (event stores, sequences, inbox/outbox routing, compliance), contracts, reactors or projections. The in-process specifications substitute the sink and the kernel, so a read model can pass there and still never be populated by a real kernel.
+
+They do not run on every push. `.github/workflows/integration.yml` runs them nightly against `cratis/chronicle:latest-development`, on demand from the Actions tab (pick the image with the `chronicle-image` input), and on a pull request that carries the `run-integration` label. Adding the label starts a run, and while it stays on the pull request every new push runs them again; remove it when the extra runs are no longer needed.
+
 ## Run a development server
 
 With MongoDB and Chronicle independently configured:
