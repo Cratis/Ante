@@ -47,7 +47,7 @@ export const RegistrationPage = () => {
         strings.organizationSetup.nameValidationUnavailable,
         results => { if (shouldResumeRegistrationAfterFailure(results)) markSubmittedRef.current(); }
     ), [registrationId]);
-    const { isValidating: isNameValidating } = useSyncExternalStore(nameValidation.subscribe, nameValidation.getSnapshot);
+    const { isValidating: isNameValidating, error: nameValidationError } = useSyncExternalStore(nameValidation.subscribe, nameValidation.getSnapshot);
     useEffect(() => () => nameValidation.dispose(), [nameValidation]);
 
     // Memoized so an unrelated re-render - opening the terms dialog, a status poll tick - does not
@@ -201,6 +201,7 @@ export const RegistrationPage = () => {
                 {legalDocuments.dialog}
             </div>
             <LiveRegion message={announcement} />
+            <LiveRegion message={nameValidationError ?? ''} />
         </OrganizationSetupFrame>
     );
 };
