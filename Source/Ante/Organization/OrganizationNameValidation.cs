@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Buffers;
+using Ante.Resources;
 using FluentValidation;
 
 namespace Ante.Organization;
@@ -42,10 +43,10 @@ public static class OrganizationNameValidation
     /// <param name="rule">The rule builder for the name value.</param>
     /// <returns>The configured rule builder.</returns>
     public static IRuleBuilderOptions<T, string> MustBeAValidOrganizationName<T>(this IRuleBuilder<T, string> rule) =>
-        rule.NotEmpty()
-                .WithMessage("Organization name is required.")
-            .MaximumLength(MaximumLength)
-                .WithMessage($"Organization name cannot be longer than {MaximumLength} characters.")
+        rule.Must(name => !string.IsNullOrWhiteSpace(name))
+                .WithMessage(_ => Messages.Get("OrganizationNameRequired"))
+            .Must(name => name is null || name.Length <= MaximumLength)
+                .WithMessage(_ => Messages.Format("OrganizationNameLength", MaximumLength))
             .Must(name => string.IsNullOrEmpty(name) || name.AsSpan().IndexOfAny(_invalidCharacters) < 0)
-                .WithMessage("Organization name cannot contain spaces or any of these characters: / \\ . \" $ * < > : | ? +");
+                .WithMessage(_ => Messages.Get("OrganizationNameCharacters"));
 }

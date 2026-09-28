@@ -18,6 +18,7 @@ import { applyInitialLocale } from '../Locale/applyInitialLocale';
 import { LocaleProvider } from '../Locale/LocaleContext';
 import { LOCALE_TAGS } from '../Locale/Locale';
 import { RenderRecoveryBoundary } from '../RenderRecovery/RenderRecoveryBoundary';
+import { selectStrings } from '../Locales/Strings';
 
 // Applied synchronously, before the first render, so the stored display preferences (Cratis/Ante#20)
 // are already on the document by the time the first frame paints - never a flash of the wrong text
@@ -26,7 +27,8 @@ applyInitialDisplayPreferences();
 
 // Resolved once, synchronously, and threaded into both the document (lang/dir) and the providers
 // below (Cratis/Ante#21) - one resolution applied consistently everywhere the lobby needs it.
-const locale = applyInitialLocale();
+const { locale, settings } = await applyInitialLocale();
+selectStrings(locale);
 
 // PrimeReact 11 verifies a license key at runtime. The application owns it and hands it straight to
 // PrimeReactProvider; Components never receives it, and takes only the boolean attestation below -
@@ -44,7 +46,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                     value={{ locale: LOCALE_TAGS[locale] }}
                     library={primeReactUiLibrary}
                     rendererSetup={{ 'cratis-primereact.license-configured': Boolean(primeUiLicense) }}>
-                    <LocaleProvider locale={locale}>
+                    <LocaleProvider locale={locale} settings={settings}>
                         <App />
                     </LocaleProvider>
                 </CratisComponentsProvider>

@@ -3,12 +3,15 @@
 
 import { createContext, ReactNode, useContext } from 'react';
 import { DEFAULT_LOCALE, SupportedLocale } from './Locale';
+import { LocaleSettings } from './negotiateLocale';
 
 const LocaleReactContext = createContext<SupportedLocale>(DEFAULT_LOCALE);
+const LocaleSettingsContext = createContext<LocaleSettings>({ defaultLocale: 'en', supportedLocales: ['en', 'nb-NO'] });
 
 interface LocaleProviderProps {
-    /** The resolved locale (see `applyInitialLocale.ts`) to make available to descendants. */
+    /** The resolved locale to make available to descendants. */
     locale: SupportedLocale;
+    settings: LocaleSettings;
     children: ReactNode;
 }
 
@@ -17,9 +20,14 @@ interface LocaleProviderProps {
  * locale-aware formatting - e.g. `useAccessibleStepper`'s number-formatted step announcements -
  * without prop-drilling it through every page. Mounted once in `index.tsx`, above `<App />`.
  */
-export const LocaleProvider = ({ locale, children }: LocaleProviderProps) => (
-    <LocaleReactContext.Provider value={locale}>{children}</LocaleReactContext.Provider>
+export const LocaleProvider = ({ locale, settings, children }: LocaleProviderProps) => (
+    <LocaleSettingsContext.Provider value={settings}>
+        <LocaleReactContext.Provider value={locale}>{children}</LocaleReactContext.Provider>
+    </LocaleSettingsContext.Provider>
 );
 
 /** Reads the currently active locale. Resolves to {@link DEFAULT_LOCALE} outside a {@link LocaleProvider} (e.g. in a spec). */
 export const useLocale = (): SupportedLocale => useContext(LocaleReactContext);
+
+/** Reads the deployment's configured language allowlist. */
+export const useLocaleSettings = (): LocaleSettings => useContext(LocaleSettingsContext);

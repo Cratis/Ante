@@ -10,6 +10,8 @@ import { InvitationIdentityDetails } from '../Invitations/Accepting/Accepting';
 import { InvitationFlowType } from '../Contracts/Invitations/InvitationFlowType';
 import { getFlowTypeFromInvitationToken, getInvitationToken, normalizeFlowType } from '../Invitations/Accepting/invitationToken';
 import '@cratis/components/styles';
+import { LOCALE_TAGS } from '../Locale/Locale';
+import { useLocale } from '../Locale/LocaleContext';
 
 function InvitationRouter() {
     const identity = useIdentity(InvitationIdentityDetails);
@@ -27,9 +29,10 @@ function InvitationRouter() {
 
 function App() {
     const isRegistrationPath = window.location.pathname === '/register' || window.location.pathname.startsWith('/register/');
+    const locale = useLocale();
 
     return (
-        <Arc queryDirectMode={true}>
+        <Arc queryDirectMode={true} httpHeadersCallback={() => ({ 'Accept-Language': LOCALE_TAGS[locale] })}>
             {isRegistrationPath ? <RegistrationPage /> : <InvitationRouter />}
         </Arc>
     );

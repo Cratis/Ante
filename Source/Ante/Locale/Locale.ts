@@ -1,15 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-/**
- * The locales the lobby ships reviewed translations for (`Cratis/Ante#21`). Exactly one today -
- * `en` - which is also {@link DEFAULT_LOCALE}. Adding a locale means adding it here, adding its
- * reviewed `Locales/<code>/translation.json`, its {@link LOCALE_TAGS}/{@link LOCALE_DIRECTIONS}
- * entries, and - because `Program.cs` pins the backend to `CultureInfo.InvariantCulture` deliberately
- * - localizing the backend's own validation messages to match. A locale is not "supported" until all
- * of those move together; see `Documentation/customization.md#add-a-language-in-source`.
- */
-export const SUPPORTED_LOCALES = ['en'] as const;
+/** Languages with bundled frontend and backend messages. */
+export const SUPPORTED_LOCALES = ['en', 'nb-NO'] as const;
 
 /** One of the locales in {@link SUPPORTED_LOCALES}. */
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
@@ -24,10 +17,12 @@ export const DEFAULT_LOCALE: SupportedLocale = 'en';
  * regional variant (e.g. `fr` -> `fr-FR`) without changing the closed set above.
  */
 export const LOCALE_TAGS: Record<SupportedLocale, string> = {
-    en: 'en-US'
+    en: 'en-US',
+    'nb-NO': 'nb-NO'
 };
 
 /** Text direction for each {@link SupportedLocale}, applied to the document root - see `applyLocaleToDocument.ts`. */
 export const LOCALE_DIRECTIONS: Record<SupportedLocale, 'ltr' | 'rtl'> = {
-    en: 'ltr'
+    en: 'ltr',
+    'nb-NO': 'ltr'
 };

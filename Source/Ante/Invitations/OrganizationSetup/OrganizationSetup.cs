@@ -10,6 +10,7 @@ using Ante.Legal;
 using Ante.Organization;
 using Ante.Organization.Registration;
 using Ante.Outbox;
+using Ante.Resources;
 using Cratis.Chronicle.Keys;
 using Cratis.Types;
 using MongoDB.Driver;
@@ -80,7 +81,7 @@ public class SetupOrganizationValidator : CommandValidator<SetupOrganization>
         // uses, so a mismatched owner is indistinguishable from an invitation that is no longer pending.
         RuleFor(c => c.InvitationId)
             .Must(invitationId => signedInIdentity.IsVerifiedOwnerOf(invitationId))
-            .WithMessage("Invitation is no longer pending and cannot be used for organization setup.");
+            .WithMessage(_ => Messages.Get("SetupNotPending"));
 
         RuleFor(c => (string)c.OrganizationName)
             .MustBeAValidOrganizationName();
@@ -91,7 +92,7 @@ public class SetupOrganizationValidator : CommandValidator<SetupOrganization>
         // owns the field instead of only surfacing once the final submit has already failed.
         RuleFor(c => (string)c.OrganizationName)
             .MustAsync(async (organizationName, _) => !await ClaimedOrganizationNames.Contains(acceptedOrganizationNames, organizationName))
-            .WithMessage("An organization with this name already exists.");
+            .WithMessage(_ => Messages.Get("OrganizationNameExists"));
 
         RuleFor(c => (string)c.FirstName).MustBeARequiredName("First name");
         RuleFor(c => (string)c.LastName).MustBeARequiredName("Last name");
@@ -249,18 +250,18 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         // the field.
         if (await ClaimedOrganizationNames.Contains(acceptedOrganizationNames, OrganizationName))
         {
-            return ValidationResult.Error("Organization name is already in use.", ["organizationName"]);
+            return ValidationResult.Error(Messages.Get("OrganizationNameInUse"), ["organizationName"]);
         }
 
         if (pendingInvitation is null || existingSetup is not null || existingJoin is not null)
         {
-            return ValidationResult.Error("Invitation is no longer pending and cannot be used for organization setup.");
+            return ValidationResult.Error(Messages.Get("SetupNotPending"));
         }
 
         var (identityProviderValue, complianceSubject) = signedInIdentity.Resolve(InvitationId, (Cratis.Chronicle.Subject)pendingInvitation.Subject);
         if (string.IsNullOrWhiteSpace(identityProviderValue.Value))
         {
-            return ValidationResult.Error("A signed-in subject and provider are required to set up an organization.");
+            return ValidationResult.Error(Messages.Get("SetupIdentityRequired"));
         }
 
         var legalResolution = await LegalAcceptanceEvidence.Resolve(

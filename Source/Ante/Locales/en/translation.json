@@ -16,6 +16,10 @@
         "trigger": "Display preferences",
         "title": "Display preferences",
         "description": "These settings change how this page looks. They do not change your account.",
+        "language": "Language",
+        "languageReload": "Changing language reloads this page. Unsaved information will be lost.",
+        "english": "English",
+        "bokmal": "Norwegian Bokmål",
         "textSize": {
             "label": "Text size",
             "default": "Default",
