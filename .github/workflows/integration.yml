@@ -1,0 +1,53 @@
+name: Integration
+
+# Container-backed specifications against a real Chronicle kernel. They take long enough that they do not run on
+# every push: on demand, nightly, or on a pull request carrying the `run-integration` label.
+on:
+  workflow_dispatch:
+    inputs:
+      chronicle-image:
+        description: Chronicle development image to run the specifications against
+        required: true
+        default: cratis/chronicle:19.13.1-development
+  schedule:
+    - cron: '37 4 * * *'
+  pull_request:
+    types: [labeled, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    name: Integration
+    # On pull requests: only when labelled `run-integration`, and not when some other label is added.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (contains(github.event.pull_request.labels.*.name, 'run-integration') &&
+       (github.event.action != 'labeled' || github.event.label.name == 'run-integration'))
+    # Job-level, not workflow-level: a run started by some other label skips this job and must not
+    # cancel an integration run that is already in progress.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Node (proxy generation runs during the Debug build)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Run container-backed specifications
+        env:
+          # Empty on pull requests: the fixture then uses the server release matching the pinned client.
+          ANTE_CHRONICLE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.chronicle-image || github.event_name == 'schedule' && 'cratis/chronicle:latest-development' || '' }}
+        run: dotnet test Integration/Ante.Integration.Specs.csproj --configuration Debug --logger "console;verbosity=minimal"
