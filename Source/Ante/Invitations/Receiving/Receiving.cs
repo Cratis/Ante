@@ -117,7 +117,6 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
     /// </summary>
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
-    [OnceOnly]
     public InvitationRevocationReceived? On(InvitationRevoked @event, EventContext context) =>
         InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out _) ? new() : null;
 
@@ -151,9 +150,7 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
                 await AppendReceipt(await On(create, context), context);
                 break;
             case InvitationRevoked revoked:
-
-                // The former typed handler used [OnceOnly] for this side effect.
-                if (!context.ObservationState.HasFlag(EventObservationState.Replay) && On(revoked, context) is { } receipt)
+                if (On(revoked, context) is { } receipt)
                 {
                     var result = await eventStore.EventLog.Append(
                         context.EventSourceId,

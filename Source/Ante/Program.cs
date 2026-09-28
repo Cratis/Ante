@@ -62,6 +62,7 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o => o.S
 
 builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(anteOptions));
 builder.Services.AddSingleton<IncomingInvitationSubscriptions>();
+builder.Services.AddHostedService<IncomingInvitationRegistration>();
 builder.Services.Configure<InvitationTokenConfig>(builder.Configuration.GetSection("Ante:Invitations:Token"));
 builder.Services.Configure<IdentityProviderOptions>(builder.Configuration.GetSection(IdentityProviderOptions.ConfigurationSection));
 
@@ -122,9 +123,7 @@ app.MapOpenApiInDevelopment();
 app.UseCratisArc();
 app.UseCratisChronicle();
 
-// Connect, wait for discovered artifacts, then register delegate reactors once per client store.
-// Do not run this from OnConnected: waiting there would block the registration lifecycle itself.
-await app.Services.GetRequiredService<IncomingInvitationSubscriptions>().Initialize(anteOptions);
+// The hosted registration retries off the startup path; waiting here would block readiness and startup.
 app.MapIdentityProvider();
 
 app.MapAnteHealthChecks();
