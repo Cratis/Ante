@@ -29,7 +29,7 @@ public class and_a_create_invitation_is_delivered : Specification
         _serializer = Substitute.For<IEventSerializer>();
         _serializer.Deserialize(typeof(UserInvitedToCreateTenant), Arg.Any<JsonObject>())
             .Returns(Task.FromResult<object>(new UserInvitedToCreateTenant("person@example.com", ["Owner"])));
-        _handler = new(store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, "StudioAdmin");
+        _handler = new(store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy, "StudioAdmin");
         _context = EventContext.Empty with
         {
             EventSourceId = _id,

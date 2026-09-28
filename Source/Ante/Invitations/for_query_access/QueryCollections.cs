@@ -17,22 +17,24 @@ internal static class QueryCollections
         return store;
     }
 
-    public static IMongoCollection<T> With<T>(T value)
+    public static IMongoCollection<T> With<T>(T value) => WithMany(value);
+
+    public static IMongoCollection<T> WithMany<T>(params T[] values)
     {
         var collection = Substitute.For<IMongoCollection<T>>();
         collection.FindSync(Arg.Any<FilterDefinition<T>>(), Arg.Any<FindOptions<T, T>>(), Arg.Any<CancellationToken>())
-            .Returns(_ => CursorWith(value));
+            .Returns(_ => CursorWith(values));
         collection.FindAsync(Arg.Any<FilterDefinition<T>>(), Arg.Any<FindOptions<T, T>>(), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult(CursorWith(value)));
+            .Returns(_ => Task.FromResult(CursorWith(values)));
         return collection;
     }
 
-    static IAsyncCursor<T> CursorWith<T>(T value)
+    static IAsyncCursor<T> CursorWith<T>(T[] values)
     {
         var cursor = Substitute.For<IAsyncCursor<T>>();
         cursor.MoveNext(Arg.Any<CancellationToken>()).Returns(true, false);
         cursor.MoveNextAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(true), Task.FromResult(false));
-        cursor.Current.Returns([value]);
+        cursor.Current.Returns(values);
         return cursor;
     }
 }

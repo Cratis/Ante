@@ -33,5 +33,6 @@ public class and_a_crash_precedes_the_insert : a_recorded_completion
     [Fact] void should_grant_nothing_before_the_insert() => Assert.Equal(AttestedSessionOutcome.Missing, _beforeRecovery);
     [Fact] void should_commit_once_storage_recovers() => Assert.True(_recovered);
     [Fact] void should_keep_the_original_expiry() => Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(Stage.CapabilityExpiresAtUtc.ToUnixTimeMilliseconds()).UtcDateTime, Existing.ExpiresAtUtc);
+    [Fact] void should_record_the_completion_time_independently_of_expiry() => Assert.InRange(Existing.CompletedAtUtc, DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow);
 }
 #endif

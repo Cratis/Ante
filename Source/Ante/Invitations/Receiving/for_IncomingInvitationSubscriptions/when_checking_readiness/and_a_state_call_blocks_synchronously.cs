@@ -41,7 +41,7 @@ public class and_a_state_call_blocks_synchronously : Specification
             .Returns(Task.CompletedTask);
         var client = Substitute.For<IChronicleClient>();
         client.GetEventStore(_options.EventStore, _options.Namespace).Returns(Task.FromResult(store));
-        _routing = new(client, Substitute.For<IServiceScopeFactory>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance);
+        _routing = new(client, Substitute.For<IServiceScopeFactory>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy);
     }
 
     async Task Because()

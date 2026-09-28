@@ -12,7 +12,7 @@ public class and_a_non_direct_legacy_delivery_is_redelivered : a_local_invitatio
 
     void Establish()
     {
-        Reactor = new(Store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, "Studio");
+        Reactor = new(Store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy, "Studio");
         AlreadyRecorded(new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]), 1, "inbox-Studio");
         AlreadyRecorded(new InvitationRevocationReceived());
     }

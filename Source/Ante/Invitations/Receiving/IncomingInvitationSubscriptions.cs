@@ -1,12 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Ante.Invitations.Accepting;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventStoreSubscriptions;
 using Cratis.Chronicle.Reactors;
 using Cratis.Chronicle.Registrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Ante.Invitations.Receiving;
 
@@ -17,10 +19,12 @@ namespace Ante.Invitations.Receiving;
 /// <param name="client">The Chronicle client for Ante's configured event store.</param>
 /// <param name="scopeFactory">Creates a scope per delivery for Chronicle's event serializer.</param>
 /// <param name="logger">The incoming handler's logger.</param>
+/// <param name="exchange">The selected invitation exchange mode.</param>
 public class IncomingInvitationSubscriptions(
     IChronicleClient client,
     IServiceScopeFactory scopeFactory,
-    ILogger<IncomingInvitationReactor> logger)
+    ILogger<IncomingInvitationReactor> logger,
+    IOptions<InvitationExchangeConfig> exchange)
 {
     const string LegacyReactorId = "Ante.Invitations.Receiving.IncomingInvitationReactor";
     readonly HashSet<string> _registeredReactors = new(StringComparer.Ordinal);
@@ -81,7 +85,7 @@ public class IncomingInvitationSubscriptions(
         {
             if (!_registeredReactors.Contains(source))
             {
-                var handler = new IncomingInvitationReactor(store, logger, source);
+                var handler = new IncomingInvitationReactor(store, logger, exchange, source);
                 await store.Reactors.Register(
                     ReactorIdFor(source),
                     definition => definition

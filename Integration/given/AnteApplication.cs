@@ -22,11 +22,13 @@ namespace Ante.Integration.given;
 /// <param name="eventStore">Ante's event store name (<c>Ante:EventStore</c>).</param>
 /// <param name="hostStores">The trusted host stores (<c>Ante:HostStores</c>).</param>
 /// <param name="legalDocuments">Optional legal document source, standing in for a host-provided one.</param>
+/// <param name="attestedExchange">Whether to configure the real host in attested exchange mode.</param>
 public sealed class AnteApplication(
     ChronicleInfrastructure infrastructure,
     string eventStore,
     IReadOnlyList<string> hostStores,
-    ILegalDocumentSource? legalDocuments = default) : WebApplicationFactory<Program>
+    ILegalDocumentSource? legalDocuments = default,
+    bool attestedExchange = false) : WebApplicationFactory<Program>
 {
     public const string IdentityProvider = "integration-idp";
 
@@ -87,6 +89,22 @@ public sealed class AnteApplication(
             .UseSetting("Cratis:MongoDB:Database", EventStore)
             .UseSetting("Ante:EventStore", EventStore)
             .UseSetting("IdentityProviders:Providers:0:Name", IdentityProvider);
+        if (attestedExchange)
+        {
+            builder
+                .UseSetting("Ante:Invitations:Token:Issuer", "integration-ante")
+                .UseSetting("Ante:Invitations:Token:Audience", "integration-lobby")
+                .UseSetting("Ante:Invitations:Exchange:Mode", "Attested")
+                .UseSetting("Ante:Invitations:Exchange:Attestation:Issuer", "integration-proxy")
+                .UseSetting("Ante:Invitations:Exchange:Attestation:Audience", "integration-lobby")
+                .UseSetting("Ante:Invitations:Exchange:Attestation:LobbyScope", "integration-lobby")
+                .UseSetting("Ante:Invitations:Exchange:Attestation:PublicKeys:0:KeyId", "integration-key")
+                .UseSetting("Ante:Invitations:Exchange:Attestation:PublicKeys:0:PublicKeyPem", signingKey.ExportSubjectPublicKeyInfoPem())
+                .UseSetting("Ante:Invitations:Exchange:Attestation:Providers:0:Key", "integration-provider")
+                .UseSetting("Ante:Invitations:Exchange:Attestation:Providers:0:Issuer", "https://integration.example")
+                .UseSetting("Ante:Invitations:Exchange:Attestation:Providers:0:AcceptableAssurances:0", "oidc");
+        }
+
         for (var index = 0; index < hostStores.Count; index++)
         {
             builder.UseSetting($"Ante:HostStores:{index}", hostStores[index]);

@@ -15,7 +15,7 @@ public class and_another_source_reuses_the_same_sequence_number : a_local_invita
     {
         AlreadyRecorded(new JoinTenantInvitationReceived("first@example.com", "Acme", ["Member"]));
         AlreadyRecorded(new InvitationInboxEventRecorded(1));
-        Reactor = new(Store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, "StudioAdmin");
+        Reactor = new(Store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy, "StudioAdmin");
     }
 
     async Task Because() => _result = await Reactor.On(

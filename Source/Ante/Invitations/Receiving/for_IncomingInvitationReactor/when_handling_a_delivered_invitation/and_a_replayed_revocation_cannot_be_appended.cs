@@ -35,7 +35,7 @@ public class and_a_replayed_revocation_cannot_be_appended : Specification
             Arg.Any<Cratis.Chronicle.Subject>()).Returns(AppendResult.Failed(CorrelationId.New(), [new AppendError("failed")]));
         _serializer = Substitute.For<IEventSerializer>();
         _serializer.Deserialize(typeof(InvitationRevoked), Arg.Any<JsonObject>()).Returns(Task.FromResult<object>(new InvitationRevoked()));
-        _handler = new(store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, "StudioAdmin");
+        _handler = new(store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy, "StudioAdmin");
     }
 
     async Task Because() => _failure = await Record.ExceptionAsync(() => _handler.Handle(

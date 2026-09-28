@@ -35,7 +35,7 @@ public class and_a_revocation_is_replayed : Specification
             Arg.Any<Cratis.Chronicle.Subject>()).Returns(AppendResult.Success(CorrelationId.New(), 1));
         _serializer = Substitute.For<IEventSerializer>();
         _serializer.Deserialize(typeof(InvitationRevoked), Arg.Any<JsonObject>()).Returns(Task.FromResult<object>(new InvitationRevoked()));
-        _handler = new(store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, "StudioAdmin");
+        _handler = new(store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy, "StudioAdmin");
         _context = EventContext.Empty with
         {
             EventSourceId = _id,

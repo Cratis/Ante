@@ -79,6 +79,9 @@ public record AttestedInvitationSession(
     string[] AssertionIds,
     DateTime ExpiresAtUtc)
 {
+    /// <summary>Gets the time this session first completed, independent of capability expiry.</summary>
+    public DateTime CompletedAtUtc { get; init; }
+
     /// <summary>Gets the most recent staged transaction reconciled with this actor's session.</summary>
     public string? LatestTransactionId { get; init; }
 
@@ -217,6 +220,7 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
             [assertion.AssertionId],
             AttestedSessionExpiry.For(stage))
         {
+            CompletedAtUtc = DateTime.UtcNow,
             LatestTransactionId = stage.Id,
             LatestAssertionId = assertion.AssertionId,
             AssertionClaims = [new(stage.Id, assertion.AssertionId)],
@@ -267,6 +271,7 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
                         [assertion.AssertionId],
                         AttestedSessionExpiry.For(stage))
                     {
+                        CompletedAtUtc = DateTime.UtcNow,
                         LatestTransactionId = stage.Id,
                         LatestAssertionId = assertion.AssertionId,
                         AssertionClaims = [new(stage.Id, assertion.AssertionId)],

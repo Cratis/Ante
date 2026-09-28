@@ -304,10 +304,21 @@ public class SignedInIdentity(
         string providerIssuer,
         string subject,
         DateTime now) =>
-        sessions.Where(row => row.ExpiresAtUtc > now && row.LobbyScope == scope &&
-            (invitationId == InvitationId.NotSet || row.InvitationId == invitationId) &&
-            row.ProviderKey == providerKey && row.ProviderIssuer == providerIssuer && row.ProviderSubject == subject)
-            .OrderByDescending(row => row.ExpiresAtUtc).FirstOrDefault();
+        SelectLatestAttestedSession(
+            sessions.Where(row => row.ExpiresAtUtc > now && row.LobbyScope == scope &&
+                (invitationId == InvitationId.NotSet || row.InvitationId == invitationId) &&
+                row.ProviderKey == providerKey && row.ProviderIssuer == providerIssuer && row.ProviderSubject == subject),
+            invitationId);
+
+    static AttestedInvitationSession? SelectLatestAttestedSession(IEnumerable<AttestedInvitationSession> candidates, InvitationId invitationId)
+    {
+        var ordered = candidates.OrderByDescending(row => row.CompletedAtUtc).Take(2).ToArray();
+
+        // An exact id is already checked against the actor above. Without one, two sessions with
+        // indistinguishable completion times (including pre-upgrade records) cannot be routed safely.
+        return invitationId == InvitationId.NotSet && ordered.Length > 1 && ordered[0].CompletedAtUtc == ordered[1].CompletedAtUtc
+            ? null : ordered.FirstOrDefault();
+    }
 
     static Cratis.Chronicle.Subject SubjectOf(string? subject, AcceptedInvitation? session, Cratis.Chronicle.Subject fallbackSubject)
     {

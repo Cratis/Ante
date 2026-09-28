@@ -3,6 +3,7 @@
 
 #if DEBUG
 using System.Collections.Immutable;
+using Ante.Invitations.Accepting;
 using Cratis.Chronicle.EventStoreSubscriptions;
 using Cratis.Chronicle.Registrations;
 using Microsoft.Extensions.DependencyInjection;
@@ -59,7 +60,7 @@ public class and_registration_succeeds_on_retry : Specification
             return Task.FromResult(store);
         });
         var options = Options.Create(_options);
-        var routing = new IncomingInvitationSubscriptions(_client, Substitute.For<IServiceScopeFactory>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance);
+        var routing = new IncomingInvitationSubscriptions(_client, Substitute.For<IServiceScopeFactory>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, Options.Create(new InvitationExchangeConfig()));
         _health = new(routing, options);
         _registration = new(routing, options, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationRegistration>.Instance);
     }

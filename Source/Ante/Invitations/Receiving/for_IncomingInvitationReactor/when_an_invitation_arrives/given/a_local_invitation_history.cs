@@ -43,7 +43,7 @@ public class a_local_invitation_history : Specification
             Arg.Any<DateTimeOffset?>(),
             Arg.Any<Cratis.Chronicle.Subject>())
             .Returns(AppendResult.Success(CorrelationId.New(), 1));
-        Reactor = new(Store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance);
+        Reactor = new(Store, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, IncomingInvitationTestOptions.Legacy);
     }
 
     protected void AlreadyRecorded(object @event, EventSequenceNumber? inboxNumber = null, string? inboxSequence = null)

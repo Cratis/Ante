@@ -54,9 +54,9 @@ public record InvitationSourceInboxEventRecorded(EventSequenceNumber InboxSequen
 /// </summary>
 /// <param name="eventStore">Ante's event store for recording receipts and publishing rejections.</param>
 /// <param name="logger">The warning logger for invalid invitation ids.</param>
-/// <param name="sourceStore">The host store whose inbox delivered this event.</param>
 /// <param name="exchange">The selected exchange mode.</param>
-public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, string sourceStore = InboxSourceStore.Name, IOptions<InvitationExchangeConfig>? exchange = null)
+/// <param name="sourceStore">The host store whose inbox delivered this event.</param>
+public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name)
 {
     static readonly EventType[] _decisionEventTypes =
     [
@@ -261,7 +261,7 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             return null;
         }
 
-        if (exchange?.Value.Mode == InvitationExchangeMode.Attested)
+        if (exchange.Value.Mode == InvitationExchangeMode.Attested)
         {
             var receipts = history.Select(entry => entry.Content)
                 .Where(content => content is JoinTenantInvitationReceived or CreateTenantInvitationReceived).ToArray();
