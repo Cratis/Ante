@@ -7,12 +7,22 @@ using Cratis.Chronicle.EventSequences.Concurrency;
 namespace Ante.Legal.Receiving;
 
 /// <summary>
+/// Provides the activated set and its stream fence in one read for command execution.
+/// </summary>
+public interface IActivatedLegalDocumentSource : ILegalDocumentSource
+{
+    /// <summary>Reads the activated documents and their append-time concurrency scope.</summary>
+    /// <returns>The activated set and scope.</returns>
+    Task<ActivatedLegalSnapshot> GetActivated();
+}
+
+/// <summary>
 /// Reads the activated set from the read model for display and preflight validation. Command execution
 /// reads the event log instead to fence its append against a concurrent activation.
 /// </summary>
 /// <param name="store">Ante's configured event store.</param>
 /// <param name="options">The validated source and document set identity.</param>
-public class InboxLegalDocumentSource(IEventStore store, IOptions<AnteOptions> options) : ILegalDocumentSource, ILegalDocumentAvailability
+public class InboxLegalDocumentSource(IEventStore store, IOptions<AnteOptions> options) : IActivatedLegalDocumentSource, ILegalDocumentAvailability
 {
     /// <inheritdoc/>
     public bool RequiresDocuments => true;

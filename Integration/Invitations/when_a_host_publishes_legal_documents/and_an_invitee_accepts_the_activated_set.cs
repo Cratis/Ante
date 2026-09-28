@@ -4,6 +4,9 @@
 using System.Text.Json;
 using Ante.Contracts.Legal;
 using Ante.Integration.given;
+using Ante.Invitations;
+using Ante.Invitations.Receiving;
+using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Legal.Receiving;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,9 +24,29 @@ public class and_an_invitee_accepts_the_activated_set : a_running_ante
     LegalTermsAccepted _accepted;
     LegalDocumentSetRejected _rejection;
     JsonDocument _current;
-    bool _staleAcceptanceRejected;
+    JsonDocument _raceResult;
+    bool _raceTriggered;
+    int _raceFactsCount;
 
     protected override bool UseLegalInbox => true;
+
+    protected override Func<IServiceProvider, ILegalDocumentSource>? LegalDocumentFactory => services =>
+        new activating_during_acceptance(
+            ActivatorUtilities.CreateInstance<InboxLegalDocumentSource>(services),
+            async () =>
+            {
+                _raceTriggered = true;
+                await Host.Publish(LegalDocumentSetId, new LegalDocumentSetPublished(3, "2026-03", "Terms three", "Privacy three"));
+                var store = services.GetRequiredService<IEventStore>();
+                await Eventually.Until(async () =>
+                    (await store.EventLog.GetForEventSourceIdAndEventTypes(LegalDocumentSetId,
+                        [typeof(LegalDocumentSetReceived).GetEventType()]))
+                        .Select(entry => entry.Content).OfType<LegalDocumentSetReceived>().LastOrDefault()?.Revision.Value == 3,
+                    what: "third legal revision activation before command append");
+            },
+            () => _raceEnabled);
+
+    bool _raceEnabled;
 
     async Task Because()
     {
@@ -54,24 +77,21 @@ public class and_an_invitee_accepts_the_activated_set : a_running_ante
             _subject);
         _accepted = await Host.WaitForFromAnte<LegalTermsAccepted>(_invitationId.ToString());
 
-        // Resolve the same evidence and append envelope as an onboarding command. Advance the
-        // legal stream after resolution but before committing that envelope.
-        await using var scope = Ante.Services.CreateAsyncScope();
-        var scopedStore = scope.ServiceProvider.GetRequiredService<IEventStore>();
-        var source = scope.ServiceProvider.GetRequiredService<ILegalDocumentSource>();
-        var resolved = await LegalAcceptanceEvidence.ResolveWithScope(
-            source, true, "2026-02", "Acme", AnteApplication.IdentityProvider, _subject);
-        Assert.True(resolved.TryGetResult(out var evidence));
-        var otherInvitation = NewInvitationId().ToString();
-        var commandAppend = await LegalAcceptanceEvidence.ForAppend(scopedStore, otherInvitation, evidence.Events, evidence);
-        await Host.Publish(LegalDocumentSetId, new LegalDocumentSetPublished(3, "2026-03", "Terms three", "Privacy three"));
+        var otherInvitation = NewInvitationId();
+        var otherSubject = $"user-{Guid.NewGuid():N}";
+        var otherIssued = await Invite(Host, otherInvitation, JoinInvitation());
+        using var otherExchange = await Ante.ExchangeInvitation(otherIssued.Token, otherSubject);
         await Eventually.Until(async () =>
-            (await store.EventLog.GetForEventSourceIdAndEventTypes(LegalDocumentSetId,
-                [typeof(LegalDocumentSetReceived).GetEventType()]))
-                .Select(entry => entry.Content).OfType<LegalDocumentSetReceived>().LastOrDefault()?.Revision.Value == 3,
-            what: "third legal revision activation");
-        var staleAppend = await scopedStore.EventLog.AppendMany(commandAppend.Events, concurrencyScopes: commandAppend.ConcurrencyScopes.ToDictionary());
-        _staleAcceptanceRejected = staleAppend.HasConcurrencyViolations;
+            await store.ReadModels.GetInstanceById<PendingInvitationToJoin>(otherInvitation) is not null,
+            what: "second invitation projection before racing the command");
+
+        _raceEnabled = true;
+        _raceResult = await Ante.Execute("/api/invitations/user-setup",
+            new { invitationId = otherInvitation, firstName = "Jane", lastName = "Doe", acceptedLegalTerms = true, acceptedLegalVersion = "2026-02" },
+            otherSubject);
+        var raceFacts = await store.EventLog.GetForEventSourceIdAndEventTypes(otherInvitation.ToString("D"),
+            [typeof(OnboardingAttemptClaimed).GetEventType(), typeof(InvitationToJoinTenantAccepted).GetEventType(), typeof(LegalTermsAccepted).GetEventType()]);
+        _raceFactsCount = raceFacts.Count;
     }
 
     [Fact] void should_block_before_first_activation() => IsSuccess(_beforePublication).ShouldBeFalse();
@@ -80,5 +100,28 @@ public class and_an_invitee_accepts_the_activated_set : a_running_ante
     [Fact] void should_not_roll_back_the_current_version() => _current.RootElement.GetProperty("data").GetProperty("version").GetString().ShouldEqual("2026-02");
     [Fact] void should_accept_the_activated_documents() => IsSuccess(_afterPublication).ShouldBeTrue();
     [Fact] void should_publish_the_accepted_version() => _accepted.Version.Value.ShouldEqual("2026-02");
-    [Fact] void should_reject_an_acceptance_when_activation_races_its_append() => _staleAcceptanceRejected.ShouldBeTrue();
+    [Fact] void should_exercise_activation_during_command_execution() => _raceTriggered.ShouldBeTrue();
+    [Fact] void should_reject_the_command_when_activation_races_its_append() => IsSuccess(_raceResult).ShouldBeFalse();
+    [Fact] void should_not_append_onboarding_or_acceptance_facts_for_the_rejected_command() => _raceFactsCount.ShouldEqual(0);
+
+    class activating_during_acceptance(
+        InboxLegalDocumentSource inner,
+        Func<Task> activateNext,
+        Func<bool> isArmed) : IActivatedLegalDocumentSource, ILegalDocumentAvailability
+    {
+        bool _activated;
+        public bool RequiresDocuments => inner.RequiresDocuments;
+        public Task<LegalDocumentSet?> GetCurrent() => inner.GetCurrent();
+
+        public async Task<ActivatedLegalSnapshot> GetActivated()
+        {
+            var snapshot = await inner.GetActivated();
+            if (isArmed() && !_activated)
+            {
+                _activated = true;
+                await activateNext();
+            }
+            return snapshot;
+        }
+    }
 }

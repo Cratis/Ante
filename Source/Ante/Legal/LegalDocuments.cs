@@ -207,7 +207,7 @@ public static class LegalAcceptanceEvidence
         IdentityProviderName identityProvider,
         string subject)
     {
-        var activated = legalDocumentSource is InboxLegalDocumentSource inbox ? await inbox.GetActivated() : null;
+        var activated = legalDocumentSource is IActivatedLegalDocumentSource inbox ? await inbox.GetActivated() : null;
         var current = activated?.Documents ?? (activated is null ? await legalDocumentSource.GetCurrent() : null);
         var scope = activated?.Scope;
 

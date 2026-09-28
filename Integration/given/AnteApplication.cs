@@ -23,12 +23,14 @@ namespace Ante.Integration.given;
 /// <param name="hostStores">The trusted host stores (<c>Ante:HostStores</c>).</param>
 /// <param name="legalDocuments">Optional legal document source, standing in for a host-provided one.</param>
 /// <param name="legalDocumentSetId">When set, selects the first host's inbox legal stream.</param>
+/// <param name="legalDocumentFactory">Optional scoped test source wrapping the inbox implementation.</param>
 public sealed class AnteApplication(
     ChronicleInfrastructure infrastructure,
     string eventStore,
     IReadOnlyList<string> hostStores,
     ILegalDocumentSource? legalDocuments = default,
-    string? legalDocumentSetId = default) : WebApplicationFactory<Program>
+    string? legalDocumentSetId = default,
+    Func<IServiceProvider, ILegalDocumentSource>? legalDocumentFactory = default) : WebApplicationFactory<Program>
 {
     public const string IdentityProvider = "integration-idp";
 
@@ -110,6 +112,10 @@ public sealed class AnteApplication(
         if (legalDocuments is not null)
         {
             builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Singleton(legalDocuments)));
+        }
+        if (legalDocumentFactory is not null)
+        {
+            builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Scoped(legalDocumentFactory)));
         }
     }
 

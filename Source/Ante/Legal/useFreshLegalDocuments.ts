@@ -15,15 +15,18 @@ export const useFreshLegalDocuments = () => {
     performRef.current = perform;
     const [confirmed, setConfirmed] = useState(false);
     const lastAvailableDocuments = useRef<typeof status.data | undefined>(undefined);
+    const refreshGeneration = useRef(0);
 
     const refresh = useCallback(async () => {
+        const generation = ++refreshGeneration.current;
         setConfirmed(false);
         await performRef.current();
-        setConfirmed(true);
+        if (generation === refreshGeneration.current) setConfirmed(true);
     }, []);
 
     useEffect(() => {
         void refresh();
+        return () => { refreshGeneration.current++; };
     }, [refresh]);
 
     const isChecking = !confirmed || status.isPerforming;
