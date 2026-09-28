@@ -28,7 +28,7 @@ public interface IInvitationTokenIssuer
     /// <param name="invitationId">The invitation identifier.</param>
     /// <param name="email">The host invitation's recipient email.</param>
     /// <returns>The signed JWT and its expiry.</returns>
-    IssuedInvitationToken IssueJoinTenantInvitation(Guid invitationId, Email email) => IssueJoinTenantInvitation(invitationId);
+    IssuedInvitationToken IssueJoinTenantInvitation(Guid invitationId, Email email);
 
     /// <summary>
     /// Issues a JWT token for a create-tenant invitation.
@@ -43,7 +43,7 @@ public interface IInvitationTokenIssuer
     /// <param name="invitationId">The invitation identifier.</param>
     /// <param name="email">The host invitation's recipient email.</param>
     /// <returns>The signed JWT and its expiry.</returns>
-    IssuedInvitationToken IssueCreateTenantInvitation(Guid invitationId, Email email) => IssueCreateTenantInvitation(invitationId);
+    IssuedInvitationToken IssueCreateTenantInvitation(Guid invitationId, Email email);
 }
 
 /// <summary>A signed invitation token together with its JWT expiration instant.</summary>
