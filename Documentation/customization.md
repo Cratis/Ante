@@ -1,9 +1,9 @@
 ---
 title: Customize the lobby
-description: Supply branding and legal documents, and understand the single-locale limit.
+description: Supply branding and legal documents, and configure English or Norwegian Bokmål.
 ---
 
-Ante has URL-based branding and two legal-document sources. There is no deployed theme catalog, legal authoring UI or runtime locale setting.
+Ante has URL-based branding, two legal-document sources, and two bundled languages. There is no deployed theme catalog, legal authoring UI or runtime locale setting.
 
 ## Set branding assets
 
@@ -20,6 +20,14 @@ Choose one source for the deployment:
 
 Verify the current documents appear as a terms step in all three wizards. On submission Ante validates acceptance against the current activated version and emits `LegalTermsAccepted` only when documents were actually presented and accepted. Change content and version together; a stale submission is rejected. In Inbox mode, each publication is a complete immutable pair with a strictly increasing positive revision; the host keeps the version-to-text archive. An older delivery never rolls back the current set, identical duplicates do nothing, and contradictory reuse is recorded locally as `LegalDocumentSetRejected`. The newest *activated* revision is current, not the newest host draft or an in-flight publication. See [Host integration](./host-integration.md) and [Operations](./operations.md) for delivery and diagnosis.
 
+## Choose the lobby language
+
+English (`en`, rendered as `en-US`) and Norwegian Bokmål (`nb-NO`) ship with matching frontend and server messages. `nb` and `nb-NO` select Bokmål; `no` is accepted as a Bokmål compatibility alias, **not** Nynorsk (`nn`). Set `Ante:DefaultLocale` and `Ante:SupportedLocales` to choose the deployment default and limit what visitors can select; see [Configuration](./configuration.md#ante-runtime-options). Only shipped locales are accepted, and the default must be in the allowlist.
+
+The visitor's choice in Display preferences persists in their browser when storage is available and takes precedence over a `?lang=nb-NO` link hint. Without browser storage, the choice lasts for the current page without a reload. Otherwise Ante picks the first allowed language in the browser's ordered language list, then the configured default, then English. Unsupported hints are ignored. Ante fetches its locale policy before rendering and sends the resolved language in `Accept-Language` on Arc HTTP requests. It also writes a same-origin `ante-locale` cookie (`SameSite=Lax`) before Arc connects: browser WebSocket/EventSource transports cannot set custom headers. The server uses `Accept-Language` for Arc HTTP requests, even when another tab has written a conflicting cookie. The cookie is only preferred for WebSocket and EventSource connections. Numeric parsing and identity comparisons remain invariant; only display messages change.
+
+If you also serve sign-in or invitation email through AuthProxy, supply matching proxy-owned translations: Ante does not localize those pages or emails, nor can it guarantee a query hint survives an external sign-in redirect. Browser language still works on return. Legal text and its revision remain entirely host-owned; Ante never translates or substitutes it.
+
 ## Add a language in source
 
-Only English (`en`, rendered as `en-US`) ships. There is no deployment-time locale selection. A source change needs a reviewed translation in `Source/Ante/Locales/`, an entry in `Source/Ante/Locale/Locale.ts` and its resolution path, plus localized backend validation: `Program.cs` currently forces invariant culture. Run frontend and backend checks from [Local development](./local-development.md) before claiming another locale is supported. Legal document language remains the custom document source's responsibility.
+A new locale needs a translation with exactly the English keys under `Source/Ante/Locales/`, entries in `Source/Ante/Locale/Locale.ts` and negotiation, matching server resources under `Source/Ante/Resources/`, and the parity/spec checks. Chronicle freezes constraint messages when definitions are registered, outside a request; Ante maps known constraint names to localized text in Arc command responses instead. Name rules use server-side predicates so generated client validators do not short-circuit the localized server error with build-time English messages. Run the frontend and backend checks from [Local development](./local-development.md). Bokmål copy needs native review before release.

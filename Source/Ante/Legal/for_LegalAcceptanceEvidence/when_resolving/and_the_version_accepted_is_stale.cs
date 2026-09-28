@@ -4,6 +4,7 @@
 #if DEBUG
 using Ante.Contracts.Legal;
 using Ante.Legal;
+using Ante.Resources;
 
 namespace Ante.Legal.for_LegalAcceptanceEvidence.when_resolving;
 
@@ -28,7 +29,7 @@ public class and_the_version_accepted_is_stale : Specification
     void should_report_that_the_terms_have_changed()
     {
         _result.TryGetError(out var error);
-        Assert.Equal(LegalTermsRules.StaleVersionMessage, error.Message);
+        Assert.Equal(Messages.Get(nameof(LegalTermsRules.StaleVersionMessage)), error.Message);
     }
 }
 #endif

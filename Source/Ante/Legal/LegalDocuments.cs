@@ -4,6 +4,7 @@
 using System.Linq.Expressions;
 using Ante.Contracts.Legal;
 using Ante.Legal.Receiving;
+using Ante.Resources;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using FluentValidation;
 
@@ -117,22 +118,22 @@ public static class LegalTermsRules
             {
                 if (legalDocumentSource is ILegalDocumentAvailability { RequiresDocuments: true })
                 {
-                    context.AddFailure(acceptedProperty, UnavailableMessage);
+                    context.AddFailure(acceptedProperty, Messages.Get(nameof(UnavailableMessage)));
                 }
                 else if (isAccepted(command))
                 {
-                    context.AddFailure(acceptedProperty, UnsolicitedAcceptanceMessage);
+                    context.AddFailure(acceptedProperty, Messages.Get(nameof(UnsolicitedAcceptanceMessage)));
                 }
                 return;
             }
 
             if (!isAccepted(command))
             {
-                context.AddFailure(acceptedProperty, MustAcceptMessage);
+                context.AddFailure(acceptedProperty, Messages.Get(nameof(MustAcceptMessage)));
             }
             if (acceptedVersion(command) != current.Version)
             {
-                context.AddFailure(versionProperty, StaleVersionMessage);
+                context.AddFailure(versionProperty, Messages.Get(nameof(StaleVersionMessage)));
             }
         });
     }
@@ -214,22 +215,22 @@ public static class LegalAcceptanceEvidence
         {
             if (legalDocumentSource is ILegalDocumentAvailability { RequiresDocuments: true })
             {
-                return ValidationResult.Error(LegalTermsRules.UnavailableMessage);
+                return ValidationResult.Error(Messages.Get(nameof(LegalTermsRules.UnavailableMessage)));
             }
 
             return acceptedLegalTerms
-                ? ValidationResult.Error(LegalTermsRules.UnsolicitedAcceptanceMessage)
+                ? ValidationResult.Error(Messages.Get(nameof(LegalTermsRules.UnsolicitedAcceptanceMessage)))
                 : Result<LegalAcceptanceSnapshot, ValidationResult>.Success(new([], null));
         }
 
         if (!acceptedLegalTerms)
         {
-            return ValidationResult.Error(LegalTermsRules.MustAcceptMessage);
+            return ValidationResult.Error(Messages.Get(nameof(LegalTermsRules.MustAcceptMessage)));
         }
 
         if (acceptedLegalVersion != current.Version)
         {
-            return ValidationResult.Error(LegalTermsRules.StaleVersionMessage);
+            return ValidationResult.Error(Messages.Get(nameof(LegalTermsRules.StaleVersionMessage)));
         }
 
         return Result<LegalAcceptanceSnapshot, ValidationResult>.Success(

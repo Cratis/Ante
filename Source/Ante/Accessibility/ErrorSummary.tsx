@@ -22,9 +22,8 @@ interface ErrorSummaryProps {
  * screen-reader user lands directly on it instead of discovering it later by continuing to tab
  * through the page - `Cratis/Ante#20`'s "error-summary focus".
  *
- * Each of the three onboarding journeys mounts a fresh instance of this component only once it
- * actually has errors to show (an early-return branch in the owning page), so the focus-on-mount
- * behavior fires exactly when the errors newly appear - never on the page's own initial mount.
+ * Onboarding pages mount a fresh instance only when errors appear, whether in the page's failure
+ * state or above an active form, so focus moves to the newly reported message.
  */
 export const ErrorSummary = ({ messages, className, itemClassName }: ErrorSummaryProps) => {
     const ref = useRef<HTMLDivElement>(null);

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="OrganizationNameRequired" xml:space="preserve"><value>Organisasjonsnavn er påkrevd.</value></data>
+  <data name="OrganizationNameLength" xml:space="preserve"><value>Organisasjonsnavnet kan ikke være lengre enn {0} tegn.</value></data>
+  <data name="OrganizationNameCharacters" xml:space="preserve"><value>Organisasjonsnavnet kan ikke inneholde mellomrom eller noen av disse tegnene: / \ . " $ * &lt; &gt; : | ? +</value></data>
+  <data name="OrganizationNameExists" xml:space="preserve"><value>En organisasjon med dette navnet finnes allerede.</value></data>
+  <data name="OrganizationNameInUse" xml:space="preserve"><value>Organisasjonsnavnet er allerede i bruk.</value></data>
+  <data name="NameRequired" xml:space="preserve"><value>{0} er påkrevd.</value></data>
+  <data name="NameLength" xml:space="preserve"><value>{0} kan ikke være lengre enn {1} tegn.</value></data>
+  <data name="NameCharacters" xml:space="preserve"><value>{0} kan ikke inneholde kontrolltegn eller tegn som overstyrer tekstretning.</value></data>
+  <data name="FirstName" xml:space="preserve"><value>Fornavn</value></data>
+  <data name="MiddleName" xml:space="preserve"><value>Mellomnavn</value></data>
+  <data name="LastName" xml:space="preserve"><value>Etternavn</value></data>
+  <data name="SetupNotPending" xml:space="preserve"><value>Invitasjonen er ikke lenger aktiv og kan ikke brukes til å opprette en organisasjon.</value></data>
+  <data name="AcceptNotPending" xml:space="preserve"><value>Invitasjonen er ikke lenger aktiv og kan ikke godtas.</value></data>
+  <data name="InvitationAlreadyAccepted" xml:space="preserve"><value>Invitasjonen er allerede godtatt.</value></data>
+  <data name="AttemptAlreadySubmitted" xml:space="preserve"><value>Dette oppsettet er allerede sendt inn.</value></data>
+  <data name="RegisterIdentityRequired" xml:space="preserve"><value>Du må være logget inn med en identitet og en identitetsleverandør for å registrere en organisasjon.</value></data>
+  <data name="SetupIdentityRequired" xml:space="preserve"><value>Du må være logget inn med en identitet og en identitetsleverandør for å opprette en organisasjon.</value></data>
+  <data name="AcceptIdentityRequired" xml:space="preserve"><value>Du må være logget inn med en identitet og en identitetsleverandør for å godta invitasjonen.</value></data>
+  <data name="LoginAlreadyAssociated" xml:space="preserve"><value>Denne innloggingen tilhører allerede en bruker i organisasjonen. Logg inn med den i stedet for å godta invitasjonen.</value></data>
+  <data name="UnavailableMessage" xml:space="preserve"><value>Juridiske dokumenter er ikke tilgjengelige ennå. Sjekk igjen før du fortsetter.</value></data>
+  <data name="MustAcceptMessage" xml:space="preserve"><value>Du må godta vilkårene og personvernerklæringen for å fortsette.</value></data>
+  <data name="StaleVersionMessage" xml:space="preserve"><value>Vilkårene og personvernerklæringen er endret. Last siden på nytt og godta den gjeldende versjonen.</value></data>
+  <data name="UnsolicitedAcceptanceMessage" xml:space="preserve"><value>Det finnes ingen vilkår å godta nå. Last siden på nytt og fortsett.</value></data>
+</root>

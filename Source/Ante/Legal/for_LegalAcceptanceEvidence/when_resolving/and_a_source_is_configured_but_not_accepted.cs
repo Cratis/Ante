@@ -4,6 +4,7 @@
 #if DEBUG
 using Ante.Contracts.Legal;
 using Ante.Legal;
+using Ante.Resources;
 
 namespace Ante.Legal.for_LegalAcceptanceEvidence.when_resolving;
 
@@ -28,7 +29,7 @@ public class and_a_source_is_configured_but_not_accepted : Specification
     void should_report_that_acceptance_is_required()
     {
         _result.TryGetError(out var error);
-        Assert.Equal(LegalTermsRules.MustAcceptMessage, error.Message);
+        Assert.Equal(Messages.Get(nameof(LegalTermsRules.MustAcceptMessage)), error.Message);
     }
 }
 #endif

@@ -12,11 +12,17 @@ import { registrationValidationFailure } from './registrationValidationFailure';
 import { shouldResumeRegistrationAfterFailure } from './shouldResumeRegistrationAfterFailure';
 import { OrganizationNameStepValidation } from '../OrganizationNameStepValidation';
 import { OrganizationNameStepError } from '../OrganizationNameStepError';
+import { InitialNameErrors } from '../../Invitations/InitialNameErrors';
+import { initialRegistrationValues } from '../../Invitations/initialOnboardingValues';
+import { validateChangedName } from '../../Invitations/NameFieldValidation';
+import { localeHttpHeaders } from '../../Locale/localeHttpHeaders';
+import { useLocale } from '../../Locale/LocaleContext';
 import { useOrganizationSetupHandoff } from '../../Invitations/OrganizationSetup/useOrganizationSetupHandoff';
 import { OrganizationSetupFrame } from '../../Invitations/OrganizationSetup/OrganizationSetupFrame';
 import { useFreshLegalDocuments } from '../../Legal/useFreshLegalDocuments';
 import { LegalAcceptanceField } from '../../Legal/LegalAcceptanceField';
 import { LegalDocumentsUnavailable } from '../../Legal/LegalDocumentsUnavailable';
+import { LegalVersionValues } from '../../Legal/LegalVersionValues';
 import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
 import { ErrorSummary } from '../../Accessibility/ErrorSummary';
 import { LiveRegion } from '../../Accessibility/LiveRegion';
@@ -29,7 +35,9 @@ export const RegistrationPage = () => {
     // RegistrationOperation.ts for what is, and is never, stored.
     const operation = useMemo(() => getOrCreateRegistrationOperation(), []);
     const registrationId = operation.id;
-    const { documents: availableDocuments, isChecking: checkingLegalDocuments, refresh: refreshLegalDocuments } = useFreshLegalDocuments();
+    const { documents: availableDocuments, lastAvailableDocuments, isChecking: checkingLegalDocuments, refresh: refreshLegalDocuments } = useFreshLegalDocuments();
+    const displayedDocuments = availableDocuments ?? lastAvailableDocuments;
+    const locale = useLocale();
 
     const handoff = useOrganizationSetupHandoff({
         invitationId: registrationId,
@@ -43,39 +51,23 @@ export const RegistrationPage = () => {
         () => {
             const probe = new RegisterOrganization();
             probe.registrationId = registrationId;
+            probe.setHttpHeadersCallback(localeHttpHeaders);
             return probe;
         },
-        strings.organizationSetup.nameValidationUnavailable,
+        () => strings.organizationSetup.nameValidationUnavailable,
         results => { if (shouldResumeRegistrationAfterFailure(results)) markSubmittedRef.current(); }
     ), [registrationId]);
     const { isValidating: isNameValidating, error: nameValidationError } = useSyncExternalStore(nameValidation.subscribe, nameValidation.getSnapshot);
     useEffect(() => () => nameValidation.dispose(), [nameValidation]);
+    useEffect(() => nameValidation.onLocaleChange(), [nameValidation, locale]);
 
-    // Memoized so an unrelated re-render - opening the terms dialog, a status poll tick - does not
-    // recreate this object: CommandForm reasserts initialValues/currentValues onto the command whenever
-    // their identity changes, and a fresh literal on every render would otherwise silently uncheck the
-    // acceptance box or blank the version as often as the page re-renders.
-    const initialValues = useMemo(() => ({ registrationId }), [registrationId]);
-
-    // The legal version comes from a query, so it arrives after mount - it has to be a reactive overlay
-    // rather than part of the synchronous baseline, or the command would submit an empty version and be
-    // rejected. Memoized on the configured/version pair rather than recreated every render, so it is
-    // only reapplied when the document the host presents actually changes - at which point
-    // acceptedLegalTerms is deliberately reset to false too, renewing review: a version bump the user
-    // has not seen forces a fresh acceptance instead of silently carrying the old one forward. Only
-    // these two legal fields are ever included here, so a version change never touches the name fields
-    // the user has already filled in. If the source stops being configured entirely, this becomes
-    // undefined and any previously accepted value is left as-is on the command; that submission is
-    // rejected server-side as unsolicited acceptance rather than silently recorded or silently dropped.
-    const currentValues = useMemo(
-        () => (availableDocuments?.isConfigured
-            ? { acceptedLegalTerms: false, acceptedLegalVersion: availableDocuments.version }
-            : undefined),
-        [availableDocuments?.isConfigured, availableDocuments?.version]);
+    // Without currentValues the form seeds this command once. The legal document version is
+    // applied separately when it arrives, without replaying editable defaults on every render.
+    const initialValues = useMemo(() => initialRegistrationValues(registrationId), [registrationId]);
 
     const legalDocuments = useLegalDocumentViewer({
-        termsAndConditions: availableDocuments?.termsAndConditions ?? '',
-        privacyPolicy: availableDocuments?.privacyPolicy ?? ''
+        termsAndConditions: displayedDocuments?.termsAndConditions ?? '',
+        privacyPolicy: displayedDocuments?.privacyPolicy ?? ''
     });
 
     const stepperContainerRef = useRef<HTMLDivElement>(null);
@@ -146,7 +138,7 @@ export const RegistrationPage = () => {
         );
     }
 
-    if (checkingLegalDocuments) {
+    if (checkingLegalDocuments && !displayedDocuments) {
         return (
             <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
                 <div className='organization-setup-card__content'>
@@ -156,7 +148,7 @@ export const RegistrationPage = () => {
         );
     }
 
-    if (!availableDocuments) {
+    if (!displayedDocuments) {
         return (
             <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
                 <div className='organization-setup-card__content'>
@@ -169,14 +161,18 @@ export const RegistrationPage = () => {
     return (
         <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
             <div className='organization-setup-card__content organization-setup-card__content--stepper' ref={stepperContainerRef}>
+                {!availableDocuments && (checkingLegalDocuments
+                    ? <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
+                    : <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />)}
+                <div hidden={!availableDocuments} inert={!availableDocuments}>
                 <CommandStepper<RegisterOrganization>
                     command={RegisterOrganization}
                     validateOnInit
+                    onFieldValidate={validateChangedName}
                     isBusy={isNameValidating}
                     onFieldChange={nameValidation.onFieldChange}
                     okLabel={strings.registration.register}
                     initialValues={initialValues}
-                    currentValues={currentValues}
                     onBeforeExecute={(values) => {
                         handoff.captureOrganizationName(values.organizationName ?? '');
                         return values;
@@ -185,6 +181,7 @@ export const RegistrationPage = () => {
                     {...registrationValidationFailure(handoff.markSubmitted)}
                 >
                     <StepperPanel header={strings.organizationSetup.stepOrganization}>
+                        <InitialNameErrors includeOrganization />
                         <InputTextField<RegisterOrganization>
                             value={c => c.organizationName}
                             title={strings.registration.organizationName}
@@ -213,13 +210,15 @@ export const RegistrationPage = () => {
                             pt={{ root: { autoComplete: 'family-name' } }}
                         />
                     </StepperPanel>
-                    {availableDocuments.isConfigured && (
+                    {displayedDocuments.isConfigured && (
                         <StepperPanel header={strings.organizationSetup.stepTermsConditions}>
+                            <LegalVersionValues version={displayedDocuments.version} />
                             <LegalAcceptanceField<RegisterOrganization> value={c => c.acceptedLegalTerms} onShowDocument={legalDocuments.showDocument} />
                         </StepperPanel>
                     )}
                 </CommandStepper>
-                {legalDocuments.dialog}
+                </div>
+                {availableDocuments && legalDocuments.dialog}
             </div>
             <LiveRegion message={announcement} />
             <LiveRegion message={nameValidationError ?? ''} />

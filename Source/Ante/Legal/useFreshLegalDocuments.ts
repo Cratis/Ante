@@ -14,6 +14,7 @@ export const useFreshLegalDocuments = () => {
     const performRef = useRef(perform);
     performRef.current = perform;
     const [confirmed, setConfirmed] = useState(false);
+    const lastAvailableDocuments = useRef<typeof status.data | undefined>(undefined);
 
     const refresh = useCallback(async () => {
         setConfirmed(false);
@@ -27,6 +28,7 @@ export const useFreshLegalDocuments = () => {
 
     const isChecking = !confirmed || status.isPerforming;
     const documents = legalDocumentsForDisplay(confirmed, status);
+    if (documents) lastAvailableDocuments.current = documents;
 
-    return { documents, isChecking, refresh };
+    return { documents, lastAvailableDocuments: lastAvailableDocuments.current, isChecking, refresh };
 };

@@ -42,7 +42,7 @@ describe('when leaving the name step with a server-rejected name', () => {
         command = new NameCommand();
         probe = new NameCommand();
         probe.result = nameRejected;
-        validation = new OrganizationNameStepValidation(() => probe, 'Could not validate');
+        validation = new OrganizationNameStepValidation(() => probe, () => 'Could not validate');
         changeName(validation, command, 'Bad Name');
         validation.onFieldChange(command, 'organizationName', 'Bad Name', 'Bad Name', { isValid: true, errors: [] });
         await vi.runAllTimersAsync();

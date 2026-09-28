@@ -21,10 +21,15 @@ import { InvitationIdentityDetails } from '../Accepting/Accepting';
 import { getInvitationIdFromToken } from '../Accepting/invitationToken';
 import { LegalAcceptanceField } from '../../Legal/LegalAcceptanceField';
 import { LegalDocumentsUnavailable } from '../../Legal/LegalDocumentsUnavailable';
+import { LegalVersionValues } from '../../Legal/LegalVersionValues';
 import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
 import { ErrorSummary } from '../../Accessibility/ErrorSummary';
 import { LiveRegion } from '../../Accessibility/LiveRegion';
 import { useAccessibleStepper } from '../../Accessibility/useAccessibleStepper';
+import { InitialNameErrors } from '../InitialNameErrors';
+import { initialUserSetupValues } from '../initialOnboardingValues';
+import { validateChangedName } from '../NameFieldValidation';
+import { serverValidationMessages } from './serverValidationMessages';
 import strings from 'Strings';
 
 type UserSetupPageProps = {
@@ -45,10 +50,12 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
         return Guid.isGuid(str) ? Guid.parse(str) : null;
     }, [identity.isSet, invitationIdentityDetails, invitationToken]);
     const [errorMessages, setErrorMessages] = useState<string[]>([]);
+    const [validationMessages, setValidationMessages] = useState<string[]>([]);
     const resolvedInvitationId = invitationId ?? Guid.empty;
     const [statusResult] = StatusForInvitation.use({ invitationId: resolvedInvitationId });
     const [hostUrlResult] = HostUrl.use();
-    const { documents: availableDocuments, isChecking: checkingLegalDocuments, refresh: refreshLegalDocuments } = useFreshLegalDocuments();
+    const { documents: availableDocuments, lastAvailableDocuments, isChecking: checkingLegalDocuments, refresh: refreshLegalDocuments } = useFreshLegalDocuments();
+    const displayedDocuments = availableDocuments ?? lastAvailableDocuments;
 
     const isRecorded = statusResult.hasData && statusResult.data.status !== UserSetupAcceptanceStatus.pending;
     const isAccepted = statusResult.hasData && statusResult.data.status === UserSetupAcceptanceStatus.accepted;
@@ -59,31 +66,12 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     const hostOutcome = useHostOutcome(recovery.isAccepted ? resolvedInvitationId : Guid.empty);
     const hostOutcomeGate = resolveHostOutcomeGate(recovery.isAccepted, hostOutcome.isConfigured);
 
-    // Memoized so an unrelated re-render - opening the terms dialog, a status poll tick - does not
-    // recreate this object: CommandForm reasserts initialValues/currentValues onto the command whenever
-    // their identity changes, and a fresh literal on every render would otherwise silently uncheck the
-    // acceptance box or blank the version as often as the page re-renders.
-    const initialValues = useMemo(() => ({ invitationId: resolvedInvitationId }), [resolvedInvitationId]);
-
-    // The legal version comes from a query, so it arrives after mount - it has to be a reactive overlay
-    // rather than part of the synchronous baseline, or the command would submit an empty version and be
-    // rejected. Memoized on the configured/version pair rather than recreated every render, so it is
-    // only reapplied when the document the host presents actually changes - at which point
-    // acceptedLegalTerms is deliberately reset to false too, renewing review: a version bump the user
-    // has not seen forces a fresh acceptance instead of silently carrying the old one forward. Only
-    // these two legal fields are ever included here, so a version change never touches the name fields
-    // the user has already filled in. If the source stops being configured entirely, this becomes
-    // undefined and any previously accepted value is left as-is on the command; that submission is
-    // rejected server-side as unsolicited acceptance rather than silently recorded or silently dropped.
-    const currentValues = useMemo(
-        () => (availableDocuments?.isConfigured
-            ? { acceptedLegalTerms: false, acceptedLegalVersion: availableDocuments.version }
-            : undefined),
-        [availableDocuments?.isConfigured, availableDocuments?.version]);
+    // Static form defaults apply once per command; legal document updates must not replay names.
+    const initialValues = useMemo(() => initialUserSetupValues(resolvedInvitationId), [resolvedInvitationId]);
 
     const legalDocuments = useLegalDocumentViewer({
-        termsAndConditions: availableDocuments?.termsAndConditions ?? '',
-        privacyPolicy: availableDocuments?.privacyPolicy ?? ''
+        termsAndConditions: displayedDocuments?.termsAndConditions ?? '',
+        privacyPolicy: displayedDocuments?.privacyPolicy ?? ''
     });
 
     const stepperContainerRef = useRef<HTMLDivElement>(null);
@@ -208,7 +196,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
         );
     }
 
-    if (checkingLegalDocuments) {
+    if (checkingLegalDocuments && !displayedDocuments) {
         return (
             <UserSetupFrame>
                 <div className='user-setup-card__content'>
@@ -218,7 +206,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
         );
     }
 
-    if (!availableDocuments) {
+    if (!displayedDocuments) {
         return (
             <UserSetupFrame>
                 <div className='user-setup-card__content'>
@@ -230,6 +218,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
 
     const userInformationPanel = (
         <StepperPanel header={strings.userSetup.stepUserInformation}>
+            <InitialNameErrors />
             <InputTextField<AcceptInvitation>
                 value={c => c.firstName}
                 title={strings.userSetup.firstName}
@@ -254,19 +243,25 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     return (
         <UserSetupFrame>
             <div className='user-setup-card__content user-setup-card__content--stepper' ref={stepperContainerRef}>
+                {validationMessages.length > 0 && (
+                    <ErrorSummary messages={validationMessages} className='user-setup-errors' itemClassName='user-setup-errors__item' />
+                )}
+                {!availableDocuments && (checkingLegalDocuments
+                    ? <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
+                    : <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />)}
+                <div hidden={!availableDocuments} inert={!availableDocuments}>
                 <CommandStepper<AcceptInvitation>
+                    key={resolvedInvitationId.toString()}
                     command={AcceptInvitation}
                     validateOnInit
+                    onFieldValidate={validateChangedName}
+                    onFieldChange={() => setValidationMessages([])}
                     okLabel={strings.userSetup.acceptInvitation}
                     initialValues={initialValues}
-                    currentValues={currentValues}
                     onSuccess={async () => { recovery.markSubmitted(); }}
                     onValidationFailure={(validationResults) => {
-                        // Acceptance can be rejected for reasons no form field can express - most importantly when the
-                        // login already belongs to a user in the organization. Surface those messages rather than
-                        // leaving the user on a form that silently refuses to submit.
-                        const messages = validationResults.map(result => result.message).filter(message => !!message);
-                        setErrorMessages(messages.length > 0 ? messages : [strings.userSetup.acceptanceFailed]);
+                        // A rejection for a name on an earlier step must remain visible from the terms step.
+                        setValidationMessages(serverValidationMessages(validationResults));
                     }}
                 >
                     {/* Every child here has to be a StepperPanel. A component that renders one is not one:
@@ -274,13 +269,15 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
                         into the position the wizard treats as the last one — so Next would submit the
                         invitation with the terms still unaccepted instead of showing them. */}
                     {userInformationPanel}
-                    {availableDocuments.isConfigured && (
+                    {displayedDocuments.isConfigured && (
                         <StepperPanel header={strings.userSetup.stepTermsConditions}>
+                            <LegalVersionValues version={displayedDocuments.version} />
                             <LegalAcceptanceField<AcceptInvitation> value={c => c.acceptedLegalTerms} onShowDocument={legalDocuments.showDocument} />
                         </StepperPanel>
                     )}
                 </CommandStepper>
-                {legalDocuments.dialog}
+                </div>
+                {availableDocuments && legalDocuments.dialog}
             </div>
             <LiveRegion message={announcement} />
         </UserSetupFrame>

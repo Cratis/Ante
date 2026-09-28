@@ -8,6 +8,7 @@ using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
 using Ante.Outbox;
+using Ante.Resources;
 using Cratis.Arc.Validation;
 using Cratis.Types;
 using MongoDB.Driver;
@@ -68,7 +69,7 @@ public class AcceptInvitationValidator : CommandValidator<AcceptInvitation>
         // is indistinguishable from an invitation that is no longer pending.
         RuleFor(c => c.InvitationId)
             .Must(invitationId => signedInIdentity.IsVerifiedOwnerOf(invitationId))
-            .WithMessage("Invitation is no longer pending and cannot be used to accept the invitation.");
+            .WithMessage(_ => Messages.Get("AcceptNotPending"));
 
         RuleFor(c => (string)c.FirstName).MustBeARequiredName("First name");
         RuleFor(c => (string)c.LastName).MustBeARequiredName("Last name");
@@ -141,13 +142,13 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     {
         if (pendingInvitation is null)
         {
-            return ValidationResult.Error("Invitation is no longer pending and cannot be used to accept the invitation.");
+            return ValidationResult.Error(Messages.Get("AcceptNotPending"));
         }
 
         var (identityProvider, complianceSubject) = signedInIdentity.Resolve(InvitationId, (Cratis.Chronicle.Subject)pendingInvitation.Subject);
         if (string.IsNullOrWhiteSpace(identityProvider.Value))
         {
-            return ValidationResult.Error("A signed-in subject and provider are required to accept this invitation.");
+            return ValidationResult.Error(Messages.Get("AcceptIdentityRequired"));
         }
 
         // The same person can hold several invitations to one organization - for instance one per email
@@ -156,7 +157,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
         // flow.
         if (await identityBackchannel.IsSubjectAlreadyAssociatedWithAUser(pendingInvitation.TenantName, complianceSubject.ToString()))
         {
-            return ValidationResult.Error("This login is already associated with a user in the organization. Sign in with it instead of accepting this invitation.");
+            return ValidationResult.Error(Messages.Get("LoginAlreadyAssociated"));
         }
 
         return new AcceptingUserIdentity(identityProvider, complianceSubject);
@@ -188,7 +189,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     {
         if (pendingInvitation is null || existingSetup is not null)
         {
-            return ValidationResult.Error("Invitation is no longer pending and cannot be used to accept the invitation.");
+            return ValidationResult.Error(Messages.Get("AcceptNotPending"));
         }
 
         // Resolved once, authoritatively, from the host's document source as it reads right now - not

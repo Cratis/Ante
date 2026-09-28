@@ -3,6 +3,7 @@
 
 using System.Globalization;
 using System.Text;
+using Ante.Resources;
 using FluentValidation;
 
 namespace Ante.Invitations;
@@ -48,10 +49,10 @@ public static class PersonalNameValidation
     /// <returns>The configured rule builder.</returns>
     public static IRuleBuilderOptions<T, string> MustBeAValidName<T>(this IRuleBuilder<T, string> rule, string fieldLabel) =>
         rule
-            .MaximumLength(MaximumLength)
-                .WithMessage($"{fieldLabel} cannot be longer than {MaximumLength} characters.")
-            .Must(BeFreeOfDisallowedCharacters)
-                .WithMessage($"{fieldLabel} cannot contain control or text-direction-override characters.");
+            .Must(value => value is null || value.Length <= MaximumLength)
+                .WithMessage(_ => Messages.Format("NameLength", Messages.Get(fieldLabel.Replace(" name", "Name", StringComparison.Ordinal)), MaximumLength))
+            .Must(value => value is null || BeFreeOfDisallowedCharacters(value))
+                .WithMessage(_ => Messages.Format("NameCharacters", Messages.Get(fieldLabel.Replace(" name", "Name", StringComparison.Ordinal))));
 
     /// <summary>
     /// Applies the shared name rules and requires the value to be present. Use for a required field
@@ -63,8 +64,8 @@ public static class PersonalNameValidation
     /// <returns>The configured rule builder.</returns>
     public static IRuleBuilderOptions<T, string> MustBeARequiredName<T>(this IRuleBuilder<T, string> rule, string fieldLabel) =>
         rule
-            .NotEmpty()
-                .WithMessage($"{fieldLabel} is required.")
+            .Must(value => !string.IsNullOrWhiteSpace(value))
+                .WithMessage(_ => Messages.Format("NameRequired", Messages.Get(fieldLabel.Replace(" name", "Name", StringComparison.Ordinal))))
             .MustBeAValidName(fieldLabel);
 
     /// <summary>

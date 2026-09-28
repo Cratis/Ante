@@ -12,18 +12,14 @@ using Ante.Invitations.Receiving;
 using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Legal.Receiving;
+using Ante.Locale;
 using Cratis.Arc;
 using Cratis.Arc.MongoDB;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
-
-// Force invariant culture for the backend.
-CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
-CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
-CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
-CultureInfo.CurrentUICulture = CultureInfo.InvariantCulture;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +32,7 @@ var anteConfiguration = builder.Configuration.GetSection("Ante");
 var anteOptions = anteConfiguration.Get<AnteOptions>() ?? new AnteOptions();
 AnteRoutingValidator.Validate(anteOptions, anteConfiguration);
 LegalOptions.Validate(anteOptions);
+var localizationOptions = LocaleNegotiation.CreateOptions(anteOptions);
 var invitationTokenOptions = builder.Configuration.GetSection("Ante:Invitations:Token").Get<InvitationTokenConfig>() ?? new InvitationTokenConfig();
 InvitationTokenConfigurationValidator.Validate(invitationTokenOptions);
 
@@ -118,14 +115,23 @@ await using (var startupScope = app.Services.CreateAsyncScope())
     await AcceptedInvitationIndexes.EnsureCreated(startupScope.ServiceProvider.GetRequiredService<IMongoCollection<AcceptedInvitation>>());
 }
 
+app.UseWebSockets();
+app.UseRequestLocalization(localizationOptions);
+
+// UI messages follow the request; parsing and numeric/identity semantics do not.
+app.Use(async (context, next) =>
+{
+    CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+    await next(context);
+});
 app.UseRouting();
+app.Use(LocalizedConstraintResponses.Invoke);
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.UseWebSockets();
 app.UseMiddleware<InviteExchangeBypassMiddleware>();
 app.MapControllers();
 app.MapOpenApiInDevelopment();
@@ -136,6 +142,8 @@ app.UseCratisChronicle();
 app.MapIdentityProvider();
 
 app.MapAnteHealthChecks();
+app.MapGet("/api/locale-config", () => Results.Json(LocaleNegotiation.PublicOptions(anteOptions)))
+    .AllowAnonymous();
 
 // Reserved, API-shaped prefixes get a genuine 404 for anything not already matched by a real endpoint
 // above, instead of falling through to the SPA shell below - see ApiRouteGuard.
