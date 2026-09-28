@@ -46,6 +46,8 @@ public class and_two_sources_are_configured : Specification
                 _handlers.Add(handler);
                 return Task.FromResult(handler);
             });
+        reactors.GetHandlerById(Arg.Any<ReactorId>()).Returns(call =>
+            _handlers[_reactors.FindIndex(entry => entry.Id == (ReactorId)call[0])]);
         var subscriptions = Substitute.For<IEventStoreSubscriptions>();
         _store.Subscriptions.Returns(subscriptions);
         subscriptions.Subscribe(Arg.Any<EventStoreSubscriptionId>(), Arg.Any<string>(), Arg.Any<Action<IEventStoreSubscriptionBuilder>>())

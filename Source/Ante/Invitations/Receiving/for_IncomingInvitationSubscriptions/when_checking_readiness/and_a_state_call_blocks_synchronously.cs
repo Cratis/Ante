@@ -34,6 +34,7 @@ public class and_a_state_call_blocks_synchronously : Specification
         _handler = Substitute.For<IReactorHandler>();
         reactors.Register(Arg.Any<ReactorId>(), Arg.Any<Action<IReactorDefinitionBuilder>>(), Arg.Any<Func<ReactorEvent, CancellationToken, Task>>())
             .Returns(Task.FromResult(_handler));
+        reactors.GetHandlerById(Arg.Any<ReactorId>()).Returns(_handler);
         var subscriptions = Substitute.For<IEventStoreSubscriptions>();
         store.Subscriptions.Returns(subscriptions);
         subscriptions.Subscribe(Arg.Any<EventStoreSubscriptionId>(), Arg.Any<string>(), Arg.Any<Action<IEventStoreSubscriptionBuilder>>())
