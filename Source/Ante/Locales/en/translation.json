@@ -28,7 +28,6 @@
         "title": "Display preferences",
         "description": "These settings change how this page looks. They do not change your account.",
         "language": "Language",
-        "languageReload": "Changing language reloads this page. Unsaved information will be lost.",
         "english": "English",
         "bokmal": "Norwegian Bokmål",
         "textSize": {
@@ -72,6 +71,10 @@
             "privacyPolicy": "Privacy Policy"
         },
         "close": "Close"
+    },
+    "nameValidation": {
+        "required": "{field} is required.",
+        "length": "{field} cannot be longer than {maximum} characters."
     },
     "registration": {
         "subtitle": "Register your organization",

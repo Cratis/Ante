@@ -24,6 +24,9 @@ import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
 import { ErrorSummary } from '../../Accessibility/ErrorSummary';
 import { LiveRegion } from '../../Accessibility/LiveRegion';
 import { useAccessibleStepper } from '../../Accessibility/useAccessibleStepper';
+import { InitialNameErrors } from '../InitialNameErrors';
+import { validateChangedName } from '../NameFieldValidation';
+import { unhandledValidationMessages } from './unhandledValidationMessages';
 import strings from 'Strings';
 
 type UserSetupPageProps = {
@@ -62,7 +65,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     // recreate this object: CommandForm reasserts initialValues/currentValues onto the command whenever
     // their identity changes, and a fresh literal on every render would otherwise silently uncheck the
     // acceptance box or blank the version as often as the page re-renders.
-    const initialValues = useMemo(() => ({ invitationId: resolvedInvitationId }), [resolvedInvitationId]);
+    const initialValues = useMemo(() => ({ invitationId: resolvedInvitationId, firstName: '', middleName: '', lastName: '', acceptedLegalTerms: false, acceptedLegalVersion: '' }), [resolvedInvitationId]);
 
     // The legal version comes from a query, so it arrives after mount - it has to be a reactive overlay
     // rather than part of the synchronous baseline, or the command would submit an empty version and be
@@ -209,6 +212,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
 
     const userInformationPanel = (
         <StepperPanel header={strings.userSetup.stepUserInformation}>
+            <InitialNameErrors />
             <InputTextField<AcceptInvitation>
                 value={c => c.firstName}
                 title={strings.userSetup.firstName}
@@ -236,6 +240,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
                 <CommandStepper<AcceptInvitation>
                     command={AcceptInvitation}
                     validateOnInit
+                    onFieldValidate={validateChangedName}
                     okLabel={strings.userSetup.acceptInvitation}
                     initialValues={initialValues}
                     currentValues={currentValues}
@@ -244,8 +249,8 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
                         // Acceptance can be rejected for reasons no form field can express - most importantly when the
                         // login already belongs to a user in the organization. Surface those messages rather than
                         // leaving the user on a form that silently refuses to submit.
-                        const messages = validationResults.map(result => result.message).filter(message => !!message);
-                        setErrorMessages(messages.length > 0 ? messages : [strings.userSetup.acceptanceFailed]);
+                        const messages = unhandledValidationMessages(validationResults);
+                        if (messages.length > 0) setErrorMessages(messages);
                     }}
                 >
                     {/* Every child here has to be a StepperPanel. A component that renders one is not one:

@@ -7,7 +7,7 @@ import { SupportedLocale } from '../Locale/Locale';
 
 const strings = { ...translationEN };
 
-/** Switch once before mounting the application; keep the same object for existing imports. */
+/** Keep the same object for existing imports while replacing messages for the active locale. */
 export const selectStrings = (locale: SupportedLocale): void => {
     Object.assign(strings, locale === 'nb-NO' ? translationNB : translationEN);
 };

@@ -2,11 +2,15 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { applyLocaleToDocument } from './applyLocaleToDocument';
-import { SupportedLocale } from './Locale';
+import { DEFAULT_LOCALE, SupportedLocale } from './Locale';
 import { LocaleSettings, negotiateLocale } from './negotiateLocale';
 
 export const LOCALE_PREFERENCE_KEY = 'ante.locale.preference';
 export const LOCALE_COOKIE_NAME = 'ante-locale';
+let activeLocale: SupportedLocale = DEFAULT_LOCALE;
+
+/** A stable header callback can read the current locale even on commands created before a switch. */
+export const getActiveLocale = (): SupportedLocale => activeLocale;
 
 /** Resolve before mounting Arc, including its observable connections and validation requests. */
 export const applyInitialLocale = async (): Promise<{ locale: SupportedLocale; settings: LocaleSettings }> => {
@@ -18,8 +22,10 @@ export const applyInitialLocale = async (): Promise<{ locale: SupportedLocale; s
         // An offline bootstrap can still render English; the cookie aligns event transports.
     }
     let preference: string | null = null;
-    if (isLocalePreferenceAvailable()) {
+    try {
         preference = localStorage.getItem(LOCALE_PREFERENCE_KEY);
+    } catch {
+        // Storage may be unavailable; a page-lifetime selection remains possible.
     }
     const locale = negotiateLocale(
         preference,
@@ -27,31 +33,26 @@ export const applyInitialLocale = async (): Promise<{ locale: SupportedLocale; s
         navigator.languages?.length ? navigator.languages : [navigator.language],
         settings
     );
-    applyLocaleToDocument(document.documentElement, locale);
-    document.cookie = `${LOCALE_COOKIE_NAME}=${locale}; Path=/; SameSite=Lax; Max-Age=31536000${window.location.protocol === 'https:' ? '; Secure' : ''}`;
+    applySelectedLocale(locale);
     return { locale, settings };
 };
 
-/** A language switch requires durable storage; a transport cookie is not a preference. */
-export const isLocalePreferenceAvailable = (): boolean => {
+/** Update document and browser transports together, including a page-lifetime-only selection. */
+export const applySelectedLocale = (locale: SupportedLocale): void => {
+    activeLocale = locale;
+    applyLocaleToDocument(document.documentElement, locale);
     try {
-        const probe = `${LOCALE_PREFERENCE_KEY}.probe`;
-        localStorage.setItem(probe, probe);
-        localStorage.getItem(probe);
-        localStorage.removeItem(probe);
-        return true;
+        document.cookie = `${LOCALE_COOKIE_NAME}=${locale}; Path=/; SameSite=Lax; Max-Age=31536000${window.location.protocol === 'https:' ? '; Secure' : ''}`;
     } catch {
-        return false;
+        // Cookies can also be disabled; HTTP still uses the per-tab Arc header.
     }
 };
 
-/** Explicit user preference wins over link hints on the next load. */
+/** Explicit user preference wins over link hints on the next load when storage is available. */
 export const saveLocalePreference = (locale: SupportedLocale): void => {
     try {
         localStorage.setItem(LOCALE_PREFERENCE_KEY, locale);
     } catch {
-        // Storage was disabled after the menu opened; do not reload into the previous locale.
-        return;
+        // A disabled storage API does not prevent changing the language for this page.
     }
-    window.location.reload();
 };

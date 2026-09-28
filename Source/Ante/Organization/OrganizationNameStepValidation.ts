@@ -6,6 +6,7 @@ import type { FieldValidationInfo } from '@cratis/arc.react/commands';
 import type { ValidationResult } from '@cratis/arc/validation';
 import type { OrganizationNameCommand } from './OrganizationNameCommand';
 import type { OrganizationNameValidationState } from './OrganizationNameValidationState';
+import { validateNameField } from '../Invitations/NameFieldValidation';
 
 const nameError = (results: ValidationResult[]): string | undefined =>
     results.find(result => result.members.some(member => member.toLowerCase() === 'organizationname'))?.message;
@@ -63,7 +64,7 @@ export class OrganizationNameStepValidation<TCommand extends OrganizationNameCom
         }
 
         this._validatedName = undefined;
-        const clientError = nameError(command.validateClientSide().validationResults);
+        const clientError = validateNameField('organizationName', organizationName) ?? nameError(command.validateClientSide().validationResults);
         if (clientError || !organizationName) {
             this.cancel();
             this.update({ isValidating: false, error: clientError });

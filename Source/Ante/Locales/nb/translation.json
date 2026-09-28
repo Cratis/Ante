@@ -28,7 +28,6 @@
         "title": "Visningsinnstillinger",
         "description": "Disse innstillingene endrer hvordan siden vises. De påvirker ikke kontoen din.",
         "language": "Språk",
-        "languageReload": "Når du bytter språk, lastes siden på nytt. Opplysninger du ikke har lagret, går tapt.",
         "english": "Engelsk",
         "bokmal": "Norsk bokmål",
         "textSize": {
@@ -72,6 +71,10 @@
             "privacyPolicy": "personvernerklæringen"
         },
         "close": "Lukk"
+    },
+    "nameValidation": {
+        "required": "{field} er påkrevd.",
+        "length": "{field} kan ikke være lengre enn {maximum} tegn."
     },
     "registration": {
         "subtitle": "Registrer organisasjonen din",

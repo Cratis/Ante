@@ -70,6 +70,28 @@ public class when_a_request_supplies_a_locale : Specification
     }
 
     [Fact]
+    public async Task should_use_the_cookie_for_a_websocket_upgrade_in_the_production_pipeline_order()
+    {
+        var builder = new ApplicationBuilder(new ServiceCollection().AddLogging().BuildServiceProvider());
+        builder.UseWebSockets();
+        builder.UseRequestLocalization(LocaleNegotiation.CreateOptions(new AnteOptions()));
+        string? culture = null;
+        builder.Run(_ =>
+        {
+            culture = CultureInfo.CurrentUICulture.Name;
+            return Task.CompletedTask;
+        });
+        var request = new DefaultHttpContext();
+        request.Request.Headers.Cookie = "ante-locale=nb-NO";
+        request.Request.Headers.AcceptLanguage = "en-US";
+        request.Request.Headers.Connection = "Upgrade";
+        request.Request.Headers.Upgrade = "websocket";
+        await builder.Build()(request);
+
+        Assert.Equal("nb-NO", culture);
+    }
+
+    [Fact]
     public void should_reject_a_default_outside_the_deployment_allowlist() =>
         Assert.Throws<InvalidOperationException>(() => LocaleNegotiation.CreateOptions(new AnteOptions
         {

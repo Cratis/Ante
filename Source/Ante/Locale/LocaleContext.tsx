@@ -7,22 +7,27 @@ import { LocaleSettings } from './negotiateLocale';
 
 const LocaleReactContext = createContext<SupportedLocale>(DEFAULT_LOCALE);
 const LocaleSettingsContext = createContext<LocaleSettings>({ defaultLocale: 'en', supportedLocales: ['en', 'nb-NO'] });
+const LocaleChangeContext = createContext<(locale: SupportedLocale) => void>(() => {
+    throw new Error('Language selection requires a LocaleProvider');
+});
 
 interface LocaleProviderProps {
     /** The resolved locale to make available to descendants. */
     locale: SupportedLocale;
     settings: LocaleSettings;
-    children: ReactNode;
+    onChange: (locale: SupportedLocale) => void;
+    children?: ReactNode;
 }
 
 /**
- * Makes the resolved locale (`Cratis/Ante#21`) available to any component that needs it for
- * locale-aware formatting - e.g. `useAccessibleStepper`'s number-formatted step announcements -
- * without prop-drilling it through every page. Mounted once in `index.tsx`, above `<App />`.
+ * Makes the active locale (`Cratis/Ante#21`) available for locale-aware formatting and
+ * language changes without prop-drilling it through every page. Mounted in `index.tsx` above `<App />`.
  */
-export const LocaleProvider = ({ locale, settings, children }: LocaleProviderProps) => (
+export const LocaleProvider = ({ locale, settings, onChange, children }: LocaleProviderProps) => (
     <LocaleSettingsContext.Provider value={settings}>
-        <LocaleReactContext.Provider value={locale}>{children}</LocaleReactContext.Provider>
+        <LocaleReactContext.Provider value={locale}>
+            <LocaleChangeContext.Provider value={onChange}>{children}</LocaleChangeContext.Provider>
+        </LocaleReactContext.Provider>
     </LocaleSettingsContext.Provider>
 );
 
@@ -31,3 +36,6 @@ export const useLocale = (): SupportedLocale => useContext(LocaleReactContext);
 
 /** Reads the deployment's configured language allowlist. */
 export const useLocaleSettings = (): LocaleSettings => useContext(LocaleSettingsContext);
+
+/** Change the language without discarding this page's unsaved form state. */
+export const useChangeLocale = (): ((locale: SupportedLocale) => void) => useContext(LocaleChangeContext);

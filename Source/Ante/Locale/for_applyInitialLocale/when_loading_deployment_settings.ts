@@ -3,7 +3,7 @@
 
 import sinon from 'sinon';
 import { afterEach, beforeEach, vi } from 'vitest';
-import { applyInitialLocale } from '../applyInitialLocale';
+import { applyInitialLocale, applySelectedLocale } from '../applyInitialLocale';
 
 describe('when loading the deployment locale before the first render', () => {
     let fetchSettings: sinon.SinonStub;
@@ -22,6 +22,7 @@ describe('when loading the deployment locale before the first render', () => {
     });
 
     afterEach(() => {
+        applySelectedLocale('en');
         sinon.restore();
         vi.unstubAllGlobals();
     });

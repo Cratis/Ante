@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Localization;
 
 namespace Ante.Locale;
@@ -81,7 +82,10 @@ public static class LocaleNegotiation
             // cookie carries the resolved choice even when the browser sends its own language.
             var acceptsEvents = httpContext.Request.GetTypedHeaders().Accept?.Any(value =>
                 string.Equals(value.MediaType.Value, "text/event-stream", StringComparison.OrdinalIgnoreCase)) == true;
-            if (acceptsEvents || httpContext.WebSockets.IsWebSocketRequest)
+            var isWebSocketUpgrade = string.Equals(httpContext.Request.Headers.Upgrade, "websocket", StringComparison.OrdinalIgnoreCase)
+                || httpContext.Features.Get<IHttpUpgradeFeature>()?.IsUpgradableRequest == true
+                || httpContext.Features.Get<IHttpExtendedConnectFeature>()?.IsExtendedConnect == true;
+            if (acceptsEvents || isWebSocketUpgrade)
             {
                 var cookie = Normalize(httpContext.Request.Cookies[CookieName]);
                 if (cookie is not null && supported.Contains(cookie))

@@ -12,6 +12,9 @@ import { registrationValidationFailure } from './registrationValidationFailure';
 import { shouldResumeRegistrationAfterFailure } from './shouldResumeRegistrationAfterFailure';
 import { OrganizationNameStepValidation } from '../OrganizationNameStepValidation';
 import { OrganizationNameStepError } from '../OrganizationNameStepError';
+import { InitialNameErrors } from '../../Invitations/InitialNameErrors';
+import { validateChangedName } from '../../Invitations/NameFieldValidation';
+import { localeHttpHeaders } from '../../Locale/localeHttpHeaders';
 import { useOrganizationSetupHandoff } from '../../Invitations/OrganizationSetup/useOrganizationSetupHandoff';
 import { OrganizationSetupFrame } from '../../Invitations/OrganizationSetup/OrganizationSetupFrame';
 import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
@@ -42,6 +45,7 @@ export const RegistrationPage = () => {
         () => {
             const probe = new RegisterOrganization();
             probe.registrationId = registrationId;
+            probe.setHttpHeadersCallback(localeHttpHeaders);
             return probe;
         },
         strings.organizationSetup.nameValidationUnavailable,
@@ -54,7 +58,7 @@ export const RegistrationPage = () => {
     // recreate this object: CommandForm reasserts initialValues/currentValues onto the command whenever
     // their identity changes, and a fresh literal on every render would otherwise silently uncheck the
     // acceptance box or blank the version as often as the page re-renders.
-    const initialValues = useMemo(() => ({ registrationId }), [registrationId]);
+    const initialValues = useMemo(() => ({ registrationId, organizationName: '', firstName: '', middleName: '', lastName: '', acceptedLegalTerms: false, acceptedLegalVersion: '' }), [registrationId]);
 
     // The legal version comes from a query, so it arrives after mount - it has to be a reactive overlay
     // rather than part of the synchronous baseline, or the command would submit an empty version and be
@@ -151,6 +155,7 @@ export const RegistrationPage = () => {
                 <CommandStepper<RegisterOrganization>
                     command={RegisterOrganization}
                     validateOnInit
+                    onFieldValidate={validateChangedName}
                     isBusy={isNameValidating}
                     onFieldChange={nameValidation.onFieldChange}
                     okLabel={strings.registration.register}
@@ -164,6 +169,7 @@ export const RegistrationPage = () => {
                     {...registrationValidationFailure(handoff.markSubmitted)}
                 >
                     <StepperPanel header={strings.organizationSetup.stepOrganization}>
+                        <InitialNameErrors includeOrganization />
                         <InputTextField<RegisterOrganization>
                             value={c => c.organizationName}
                             title={strings.registration.organizationName}

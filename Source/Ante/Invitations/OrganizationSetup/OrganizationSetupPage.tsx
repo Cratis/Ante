@@ -12,6 +12,9 @@ import { SetupOrganization } from './OrganizationSetup';
 import { useOrganizationSetupHandoff } from './useOrganizationSetupHandoff';
 import { OrganizationNameStepValidation } from '../../Organization/OrganizationNameStepValidation';
 import { OrganizationNameStepError } from '../../Organization/OrganizationNameStepError';
+import { InitialNameErrors } from '../InitialNameErrors';
+import { validateChangedName } from '../NameFieldValidation';
+import { localeHttpHeaders } from '../../Locale/localeHttpHeaders';
 import { HostOutcomeStatus } from '../HostOutcome/HostOutcomeStatus';
 import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
 import { OrganizationSetupFrame } from './OrganizationSetupFrame';
@@ -54,6 +57,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
         () => {
             const probe = new SetupOrganization();
             probe.invitationId = Guid.parse(invitationIdText);
+            probe.setHttpHeadersCallback(localeHttpHeaders);
             return probe;
         },
         strings.organizationSetup.nameValidationUnavailable
@@ -65,7 +69,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
     // recreate this object: CommandForm reasserts initialValues/currentValues onto the command whenever
     // their identity changes, and a fresh literal on every render would otherwise silently uncheck the
     // acceptance box or blank the version as often as the page re-renders.
-    const initialValues = useMemo(() => ({ invitationId: resolvedInvitationId }), [resolvedInvitationId]);
+    const initialValues = useMemo(() => ({ invitationId: resolvedInvitationId, organizationName: '', firstName: '', middleName: '', lastName: '', acceptedLegalTerms: false, acceptedLegalVersion: '' }), [resolvedInvitationId]);
 
     // The legal version comes from a query, so it arrives after mount - it has to be a reactive overlay
     // rather than part of the synchronous baseline, or the command would submit an empty version and be
@@ -189,6 +193,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
                 <CommandStepper<SetupOrganization>
                     command={SetupOrganization}
                     validateOnInit
+                    onFieldValidate={validateChangedName}
                     isBusy={isNameValidating}
                     onFieldChange={nameValidation.onFieldChange}
                     okLabel={strings.organizationSetup.setupOrganization}
@@ -201,6 +206,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
                     onSuccess={async () => { handoff.markSubmitted(); }}
                 >
                     <StepperPanel header={strings.organizationSetup.stepOrganization}>
+                        <InitialNameErrors includeOrganization />
                         <InputTextField<SetupOrganization>
                             value={c => c.organizationName}
                             title={strings.organizationSetup.organizationName}
