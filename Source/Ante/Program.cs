@@ -36,6 +36,8 @@ var anteOptions = builder.Configuration.GetSection("Ante").Get<AnteOptions>() ??
 AnteRoutingValidator.Validate(anteOptions);
 var invitationTokenOptions = builder.Configuration.GetSection("Ante:Invitations:Token").Get<InvitationTokenConfig>() ?? new InvitationTokenConfig();
 InvitationTokenConfigurationValidator.Validate(invitationTokenOptions);
+var invitationExchangeOptions = builder.Configuration.GetSection("Ante:Invitations:Exchange").Get<InvitationExchangeConfig>() ?? new InvitationExchangeConfig();
+InvitationExchangeConfigurationValidator.Validate(invitationExchangeOptions, invitationTokenOptions);
 
 builder.AddCratis(
     options =>
@@ -62,6 +64,7 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o => o.S
 
 builder.Services.Configure<AnteOptions>(builder.Configuration.GetSection("Ante"));
 builder.Services.Configure<InvitationTokenConfig>(builder.Configuration.GetSection("Ante:Invitations:Token"));
+builder.Services.Configure<InvitationExchangeConfig>(builder.Configuration.GetSection("Ante:Invitations:Exchange"));
 builder.Services.Configure<IdentityProviderOptions>(builder.Configuration.GetSection(IdentityProviderOptions.ConfigurationSection));
 
 builder.Services.AddSingleton<IIdentityProviderResolver, IdentityProviderResolver>();

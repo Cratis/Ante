@@ -5,6 +5,7 @@ using System.Security.Claims;
 using Ante.IdentityProviders;
 using Ante.Invitations.Issuing;
 using Cratis.Arc.Identity;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using MongoDB.Driver;
 
@@ -165,13 +166,25 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
     /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
     /// <param name="tokenValidator">The invitation token verifier.</param>
     /// <param name="logger">Logger for rejected unresolved provider evidence.</param>
+    /// <param name="exchangeConfig">The selected exchange protocol.</param>
     public async Task InvokeAsync(
         HttpContext context,
         IMongoCollection<AcceptedInvitation> acceptedInvitations,
         IIdentityProviderResolver identityProviderResolver,
         IInvitationTokenValidator tokenValidator,
-        ILogger<InviteExchangeBypassMiddleware> logger)
+        ILogger<InviteExchangeBypassMiddleware> logger,
+        IOptions<InvitationExchangeConfig> exchangeConfig)
     {
+        if (HttpMethods.IsPost(context.Request.Method) &&
+            exchangeConfig.Value.Mode == InvitationExchangeMode.Attested &&
+            (context.Request.Path.Equals("/_invite/exchange", StringComparison.OrdinalIgnoreCase) ||
+             context.Request.Path.Equals("/_invite/stage", StringComparison.OrdinalIgnoreCase)))
+        {
+            // Never pass an attested request through the legacy processor, even during rollout.
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return;
+        }
+
         if (HttpMethods.IsPost(context.Request.Method)
             && context.Request.Path.Equals("/_invite/exchange", StringComparison.OrdinalIgnoreCase))
         {
@@ -218,13 +231,15 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
 /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
 /// <param name="tokenValidator">The invitation token verifier.</param>
 /// <param name="logger">Logger for rejected unresolved provider evidence.</param>
+/// <param name="exchangeConfig">The selected exchange protocol.</param>
 [Route("_invite/exchange")]
 [ApiController]
 public class InviteExchangeController(
     IMongoCollection<AcceptedInvitation> acceptedInvitations,
     IIdentityProviderResolver identityProviderResolver,
     IInvitationTokenValidator tokenValidator,
-    ILogger<InviteExchangeBypassMiddleware> logger) : ControllerBase
+    ILogger<InviteExchangeBypassMiddleware> logger,
+    IOptions<InvitationExchangeConfig>? exchangeConfig = null) : ControllerBase
 {
     /// <summary>
     /// Exchanges an invitation token for a recorded acceptance session.
@@ -234,6 +249,11 @@ public class InviteExchangeController(
     [HttpPost]
     public async Task<IActionResult> Exchange([FromBody] ExchangeInviteRequest? request)
     {
+        if (exchangeConfig?.Value.Mode == InvitationExchangeMode.Attested)
+        {
+            return BadRequest();
+        }
+
         if (request is null)
         {
             return BadRequest();
