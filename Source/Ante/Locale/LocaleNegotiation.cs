@@ -95,7 +95,12 @@ public static class LocaleNegotiation
             }
 
             // Arc HTTP sends each tab's resolved choice; a shared cookie must not override it.
-            foreach (var item in httpContext.Request.GetTypedHeaders().AcceptLanguage ?? [])
+            // q=0 means "not acceptable"; the rest are tried by descending quality (missing = 1),
+            // keeping the header's order for equal quality. OrderByDescending is a stable sort.
+            var acceptable = (httpContext.Request.GetTypedHeaders().AcceptLanguage ?? [])
+                .Where(value => (value.Quality ?? 1) > 0)
+                .OrderByDescending(value => value.Quality ?? 1);
+            foreach (var item in acceptable)
             {
                 var locale = Normalize(item.Value.Value);
                 if (locale is not null && supported.Contains(locale))
