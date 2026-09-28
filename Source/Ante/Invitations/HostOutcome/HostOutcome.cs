@@ -181,6 +181,14 @@ public record HostOutcomeView(InvitationId AttemptId, bool IsConfigured, HostOut
         }
 
         var (status, reasonCode) = await backchannel.GetOutcome(attemptId);
+
+        // Acceptance may commit while the host is answering. Only the current committed owner can
+        // receive the answer, even if this caller was the owner before the backchannel request.
+        if (!signedInIdentity.IsVerifiedRecoveryOwnerOf(attemptId, eventStore))
+        {
+            return new(attemptId, isConfigured, HostOutcomeStatus.Unknown, string.Empty);
+        }
+
         return new(attemptId, isConfigured, status, reasonCode);
     }
 }

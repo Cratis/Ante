@@ -49,16 +49,18 @@ export const RegistrationPage = () => {
         isRegistration: true,
         recoveringRegistration: operation.isRecovered,
     });
+    const markSubmittedRef = useRef(handoff.markSubmitted);
+    markSubmittedRef.current = handoff.markSubmitted;
     useEffect(() => {
         if (!handoff.hasStatus || handoff.phase !== 'form') return;
         let active = true;
-        void startRegistration(registrationId).then(succeeded => {
-            if (active) setStartState(succeeded ? 'started' : 'failed');
+        void startRegistration(registrationId).then(outcome => {
+            if (!active) return;
+            if (outcome === 'resume') markSubmittedRef.current();
+            else setStartState(outcome);
         });
         return () => { active = false; };
     }, [registrationId, handoff.hasStatus, handoff.phase, startAttempt]);
-    const markSubmittedRef = useRef(handoff.markSubmitted);
-    markSubmittedRef.current = handoff.markSubmitted;
     const nameValidation = useMemo(() => new OrganizationNameStepValidation(
         () => {
             const probe = new RegisterOrganization();

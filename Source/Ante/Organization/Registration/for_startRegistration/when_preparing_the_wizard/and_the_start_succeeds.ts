@@ -8,16 +8,16 @@ import { startRegistration } from '../../startRegistration';
 
 describe('when preparing the wizard and the start succeeds', () => {
     const id = Guid.create();
-    const execute = sinon.stub().resolves({ isSuccess: true });
+    const execute = sinon.stub().resolves({ isSuccess: true, validationResults: [] });
     const command = { registrationId: Guid.empty, execute };
-    let succeeded: boolean;
+    let outcome: string;
 
     beforeEach(async () => {
         execute.resetHistory();
-        succeeded = await startRegistration(id, () => command);
+        outcome = await startRegistration(id, () => command);
     });
 
     it('should record the current operation id before executing', () => command.registrationId.toString().should.equal(id.toString()));
     it('should execute once', () => execute.calledOnce.should.be.true);
-    it('should unlock the wizard', () => succeeded.should.be.true);
+    it('should unlock the wizard', () => outcome.should.equal('started'));
 });

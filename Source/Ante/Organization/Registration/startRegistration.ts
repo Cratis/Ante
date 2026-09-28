@@ -2,20 +2,25 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Guid } from '@cratis/fundamentals';
+import { ValidationResult } from '@cratis/arc/validation';
 import { BeginRegistration } from './Start/BeginningRegistration';
+import { shouldResumeRegistrationAfterFailure } from './shouldResumeRegistrationAfterFailure';
 
-type RegistrationStartCommand = { registrationId: Guid; execute: () => Promise<{ isSuccess: boolean }> };
+type RegistrationStartCommand = { registrationId: Guid; execute: () => Promise<{ isSuccess: boolean; validationResults: ValidationResult[] }> };
+type RegistrationStartOutcome = 'started' | 'resume' | 'failed';
 
 /** Start an operation before rendering the wizard; a failed command must never unlock submission. */
 export const startRegistration = async (
     registrationId: Guid,
     createCommand: () => RegistrationStartCommand = () => new BeginRegistration()
-): Promise<boolean> => {
+): Promise<RegistrationStartOutcome> => {
     const command = createCommand();
     command.registrationId = registrationId;
     try {
-        return (await command.execute()).isSuccess;
+        const result = await command.execute();
+        if (result.isSuccess) return 'started';
+        return shouldResumeRegistrationAfterFailure(result.validationResults) ? 'resume' : 'failed';
     } catch {
-        return false;
+        return 'failed';
     }
 };

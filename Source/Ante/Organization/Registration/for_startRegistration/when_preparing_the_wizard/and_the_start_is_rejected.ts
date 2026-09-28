@@ -8,12 +8,12 @@ import { startRegistration } from '../../startRegistration';
 
 describe('when preparing the wizard and the start is rejected', () => {
     it('should not unlock the wizard after a command rejection', async () => {
-        const command = { registrationId: Guid.empty, execute: sinon.stub().resolves({ isSuccess: false }) };
-        (await startRegistration(Guid.create(), () => command)).should.be.false;
+        const command = { registrationId: Guid.empty, execute: sinon.stub().resolves({ isSuccess: false, validationResults: [] }) };
+        (await startRegistration(Guid.create(), () => command)).should.equal('failed');
     });
 
     it('should not unlock the wizard after a transport error', async () => {
         const command = { registrationId: Guid.empty, execute: sinon.stub().rejects(new Error('offline')) };
-        (await startRegistration(Guid.create(), () => command)).should.be.false;
+        (await startRegistration(Guid.create(), () => command)).should.equal('failed');
     });
 });
