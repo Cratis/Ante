@@ -14,8 +14,9 @@ import { OrganizationNameStepValidation } from '../OrganizationNameStepValidatio
 import { OrganizationNameStepError } from '../OrganizationNameStepError';
 import { useOrganizationSetupHandoff } from '../../Invitations/OrganizationSetup/useOrganizationSetupHandoff';
 import { OrganizationSetupFrame } from '../../Invitations/OrganizationSetup/OrganizationSetupFrame';
-import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
+import { useFreshLegalDocuments } from '../../Legal/useFreshLegalDocuments';
 import { LegalAcceptanceField } from '../../Legal/LegalAcceptanceField';
+import { LegalDocumentsUnavailable } from '../../Legal/LegalDocumentsUnavailable';
 import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
 import { ErrorSummary } from '../../Accessibility/ErrorSummary';
 import { LiveRegion } from '../../Accessibility/LiveRegion';
@@ -28,7 +29,7 @@ export const RegistrationPage = () => {
     // RegistrationOperation.ts for what is, and is never, stored.
     const operation = useMemo(() => getOrCreateRegistrationOperation(), []);
     const registrationId = operation.id;
-    const [legalStatus] = LegalDocumentsCurrent.use();
+    const { documents: availableDocuments, isChecking: checkingLegalDocuments, refresh: refreshLegalDocuments } = useFreshLegalDocuments();
 
     const handoff = useOrganizationSetupHandoff({
         invitationId: registrationId,
@@ -67,14 +68,14 @@ export const RegistrationPage = () => {
     // undefined and any previously accepted value is left as-is on the command; that submission is
     // rejected server-side as unsolicited acceptance rather than silently recorded or silently dropped.
     const currentValues = useMemo(
-        () => (legalStatus.data?.isConfigured
-            ? { acceptedLegalTerms: false, acceptedLegalVersion: legalStatus.data.version }
+        () => (availableDocuments?.isConfigured
+            ? { acceptedLegalTerms: false, acceptedLegalVersion: availableDocuments.version }
             : undefined),
-        [legalStatus.data?.isConfigured, legalStatus.data?.version]);
+        [availableDocuments?.isConfigured, availableDocuments?.version]);
 
     const legalDocuments = useLegalDocumentViewer({
-        termsAndConditions: legalStatus.data?.termsAndConditions ?? '',
-        privacyPolicy: legalStatus.data?.privacyPolicy ?? ''
+        termsAndConditions: availableDocuments?.termsAndConditions ?? '',
+        privacyPolicy: availableDocuments?.privacyPolicy ?? ''
     });
 
     const stepperContainerRef = useRef<HTMLDivElement>(null);
@@ -145,6 +146,26 @@ export const RegistrationPage = () => {
         );
     }
 
+    if (checkingLegalDocuments) {
+        return (
+            <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+                <div className='organization-setup-card__content'>
+                    <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
+    if (!availableDocuments) {
+        return (
+            <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+                <div className='organization-setup-card__content'>
+                    <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
     return (
         <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
             <div className='organization-setup-card__content organization-setup-card__content--stepper' ref={stepperContainerRef}>
@@ -192,7 +213,7 @@ export const RegistrationPage = () => {
                             pt={{ root: { autoComplete: 'family-name' } }}
                         />
                     </StepperPanel>
-                    {legalStatus.data?.isConfigured && (
+                    {availableDocuments.isConfigured && (
                         <StepperPanel header={strings.organizationSetup.stepTermsConditions}>
                             <LegalAcceptanceField<RegisterOrganization> value={c => c.acceptedLegalTerms} onShowDocument={legalDocuments.showDocument} />
                         </StepperPanel>

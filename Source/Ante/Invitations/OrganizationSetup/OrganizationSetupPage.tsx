@@ -13,11 +13,12 @@ import { useOrganizationSetupHandoff } from './useOrganizationSetupHandoff';
 import { OrganizationNameStepValidation } from '../../Organization/OrganizationNameStepValidation';
 import { OrganizationNameStepError } from '../../Organization/OrganizationNameStepError';
 import { HostOutcomeStatus } from '../HostOutcome/HostOutcomeStatus';
-import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
+import { useFreshLegalDocuments } from '../../Legal/useFreshLegalDocuments';
 import { OrganizationSetupFrame } from './OrganizationSetupFrame';
 import { InvitationIdentityDetails } from '../Accepting/Accepting';
 import { getInvitationIdFromToken } from '../Accepting/invitationToken';
 import { LegalAcceptanceField } from '../../Legal/LegalAcceptanceField';
+import { LegalDocumentsUnavailable } from '../../Legal/LegalDocumentsUnavailable';
 import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
 import { ErrorSummary } from '../../Accessibility/ErrorSummary';
 import { LiveRegion } from '../../Accessibility/LiveRegion';
@@ -43,7 +44,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
     }, [identity.isSet, invitationIdentityDetails, invitationToken]);
     const resolvedInvitationId = invitationId ?? Guid.empty;
     const invitationIdText = resolvedInvitationId.toString();
-    const [legalStatus] = LegalDocumentsCurrent.use();
+    const { documents: availableDocuments, isChecking: checkingLegalDocuments, refresh: refreshLegalDocuments } = useFreshLegalDocuments();
 
     const handoff = useOrganizationSetupHandoff({
         invitationId: resolvedInvitationId,
@@ -78,14 +79,14 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
     // undefined and any previously accepted value is left as-is on the command; that submission is
     // rejected server-side as unsolicited acceptance rather than silently recorded or silently dropped.
     const currentValues = useMemo(
-        () => (legalStatus.data?.isConfigured
-            ? { acceptedLegalTerms: false, acceptedLegalVersion: legalStatus.data.version }
+        () => (availableDocuments?.isConfigured
+            ? { acceptedLegalTerms: false, acceptedLegalVersion: availableDocuments.version }
             : undefined),
-        [legalStatus.data?.isConfigured, legalStatus.data?.version]);
+        [availableDocuments?.isConfigured, availableDocuments?.version]);
 
     const legalDocuments = useLegalDocumentViewer({
-        termsAndConditions: legalStatus.data?.termsAndConditions ?? '',
-        privacyPolicy: legalStatus.data?.privacyPolicy ?? ''
+        termsAndConditions: availableDocuments?.termsAndConditions ?? '',
+        privacyPolicy: availableDocuments?.privacyPolicy ?? ''
     });
 
     const stepperContainerRef = useRef<HTMLDivElement>(null);
@@ -183,6 +184,26 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
         );
     }
 
+    if (checkingLegalDocuments) {
+        return (
+            <OrganizationSetupFrame>
+                <div className='organization-setup-card__content'>
+                    <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
+    if (!availableDocuments) {
+        return (
+            <OrganizationSetupFrame>
+                <div className='organization-setup-card__content'>
+                    <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
     return (
         <OrganizationSetupFrame>
             <div className='organization-setup-card__content organization-setup-card__content--stepper' ref={stepperContainerRef}>
@@ -229,7 +250,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
                             pt={{ root: { autoComplete: 'family-name' } }}
                         />
                     </StepperPanel>
-                    {legalStatus.data?.isConfigured && (
+                    {availableDocuments.isConfigured && (
                         <StepperPanel header={strings.organizationSetup.stepTermsConditions}>
                             <LegalAcceptanceField<SetupOrganization> value={c => c.acceptedLegalTerms} onShowDocument={legalDocuments.showDocument} />
                         </StepperPanel>

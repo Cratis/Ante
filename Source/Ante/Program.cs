@@ -11,6 +11,7 @@ using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.Receiving;
 using Ante.Invitations.UserSetup;
 using Ante.Legal;
+using Ante.Legal.Receiving;
 using Cratis.Arc;
 using Cratis.Arc.MongoDB;
 using Microsoft.AspNetCore.Builder;
@@ -34,6 +35,7 @@ var builder = WebApplication.CreateBuilder(args);
 var anteConfiguration = builder.Configuration.GetSection("Ante");
 var anteOptions = anteConfiguration.Get<AnteOptions>() ?? new AnteOptions();
 AnteRoutingValidator.Validate(anteOptions, anteConfiguration);
+LegalOptions.Validate(anteOptions);
 var invitationTokenOptions = builder.Configuration.GetSection("Ante:Invitations:Token").Get<InvitationTokenConfig>() ?? new InvitationTokenConfig();
 InvitationTokenConfigurationValidator.Validate(invitationTokenOptions);
 
@@ -81,7 +83,14 @@ builder.Services.AddSingleton<OrganizationSetupStatusSubscriptions>();
 // ILegalDocumentSource - before or after this call, either order works because the last registration
 // wins when Arc resolves the single implementation. Without one, this default reports nothing to
 // present and every wizard skips the legal step entirely.
-builder.Services.TryAddSingleton<ILegalDocumentSource, NoLegalDocumentSource>();
+if (anteOptions.Legal.Source == "Inbox")
+{
+    builder.Services.AddScoped<ILegalDocumentSource, InboxLegalDocumentSource>();
+}
+else
+{
+    builder.Services.TryAddSingleton<ILegalDocumentSource, NoLegalDocumentSource>();
+}
 
 builder.Services.AddAuthorization();
 

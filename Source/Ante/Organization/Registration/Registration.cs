@@ -112,7 +112,7 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
     /// forwarded to the outbox. <see cref="OrganizationRegistrationOutbox"/> marks it once registration is
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
-    public async Task<Result<ValidationResult, IEnumerable<object>>> Handle(
+    public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
         IHttpContextAccessor httpContextAccessor,
         IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
         IIdentityProviderResolver identityProviderResolver,
@@ -146,14 +146,14 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
 
         var subject = owner.Subject.Value;
         var identityProviderValue = owner.Provider;
-        var legalResolution = await LegalAcceptanceEvidence.Resolve(
+        var legalResolution = await LegalAcceptanceEvidence.ResolveWithScope(
             legalDocumentSource,
             AcceptedLegalTerms,
             AcceptedLegalVersion,
             OrganizationName,
             identityProviderValue,
             subject);
-        if (!legalResolution.TryGetResult(out var legalEvents))
+        if (!legalResolution.TryGetResult(out var legalEvidence))
         {
             legalResolution.TryGetError(out var legalError);
             return legalError;
@@ -167,9 +167,10 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             new OrganizationRegistrationCompleted(OrganizationName, subject, identityProviderValue, FirstName, MiddleName ?? Contracts.Invitations.MiddleName.NotSet, LastName, email),
             new RegistrationOwnerRecorded(owner.Subject, owner.Provider),
         };
-        events.AddRange(legalEvents);
+        events.AddRange(legalEvidence.Events);
 
-        return events;
+        return (new Cratis.Chronicle.Subject(subject),
+            await LegalAcceptanceEvidence.ForAppend(eventStore, RegistrationId, events, legalEvidence));
     }
 }
 

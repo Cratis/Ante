@@ -15,11 +15,12 @@ import { useHostOutcome } from '../useHostOutcome';
 import { resolveHostOutcomeGate } from '../HostOutcomeGate';
 import { HostOutcomeStatus } from '../HostOutcome/HostOutcomeStatus';
 import { HostUrl } from '../../Configuration/Configuration';
-import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
+import { useFreshLegalDocuments } from '../../Legal/useFreshLegalDocuments';
 import { UserSetupFrame } from './UserSetupFrame';
 import { InvitationIdentityDetails } from '../Accepting/Accepting';
 import { getInvitationIdFromToken } from '../Accepting/invitationToken';
 import { LegalAcceptanceField } from '../../Legal/LegalAcceptanceField';
+import { LegalDocumentsUnavailable } from '../../Legal/LegalDocumentsUnavailable';
 import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
 import { ErrorSummary } from '../../Accessibility/ErrorSummary';
 import { LiveRegion } from '../../Accessibility/LiveRegion';
@@ -47,7 +48,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     const resolvedInvitationId = invitationId ?? Guid.empty;
     const [statusResult] = StatusForInvitation.use({ invitationId: resolvedInvitationId });
     const [hostUrlResult] = HostUrl.use();
-    const [legalStatus] = LegalDocumentsCurrent.use();
+    const { documents: availableDocuments, isChecking: checkingLegalDocuments, refresh: refreshLegalDocuments } = useFreshLegalDocuments();
 
     const isRecorded = statusResult.hasData && statusResult.data.status !== UserSetupAcceptanceStatus.pending;
     const isAccepted = statusResult.hasData && statusResult.data.status === UserSetupAcceptanceStatus.accepted;
@@ -75,14 +76,14 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     // undefined and any previously accepted value is left as-is on the command; that submission is
     // rejected server-side as unsolicited acceptance rather than silently recorded or silently dropped.
     const currentValues = useMemo(
-        () => (legalStatus.data?.isConfigured
-            ? { acceptedLegalTerms: false, acceptedLegalVersion: legalStatus.data.version }
+        () => (availableDocuments?.isConfigured
+            ? { acceptedLegalTerms: false, acceptedLegalVersion: availableDocuments.version }
             : undefined),
-        [legalStatus.data?.isConfigured, legalStatus.data?.version]);
+        [availableDocuments?.isConfigured, availableDocuments?.version]);
 
     const legalDocuments = useLegalDocumentViewer({
-        termsAndConditions: legalStatus.data?.termsAndConditions ?? '',
-        privacyPolicy: legalStatus.data?.privacyPolicy ?? ''
+        termsAndConditions: availableDocuments?.termsAndConditions ?? '',
+        privacyPolicy: availableDocuments?.privacyPolicy ?? ''
     });
 
     const stepperContainerRef = useRef<HTMLDivElement>(null);
@@ -207,6 +208,26 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
         );
     }
 
+    if (checkingLegalDocuments) {
+        return (
+            <UserSetupFrame>
+                <div className='user-setup-card__content'>
+                    <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
+                </div>
+            </UserSetupFrame>
+        );
+    }
+
+    if (!availableDocuments) {
+        return (
+            <UserSetupFrame>
+                <div className='user-setup-card__content'>
+                    <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />
+                </div>
+            </UserSetupFrame>
+        );
+    }
+
     const userInformationPanel = (
         <StepperPanel header={strings.userSetup.stepUserInformation}>
             <InputTextField<AcceptInvitation>
@@ -253,7 +274,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
                         into the position the wizard treats as the last one — so Next would submit the
                         invitation with the terms still unaccepted instead of showing them. */}
                     {userInformationPanel}
-                    {legalStatus.data?.isConfigured && (
+                    {availableDocuments.isConfigured && (
                         <StepperPanel header={strings.userSetup.stepTermsConditions}>
                             <LegalAcceptanceField<AcceptInvitation> value={c => c.acceptedLegalTerms} onShowDocument={legalDocuments.showDocument} />
                         </StepperPanel>

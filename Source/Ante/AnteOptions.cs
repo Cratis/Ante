@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Ante.Legal;
+
 namespace Ante;
 
 /// <summary>
@@ -35,6 +37,12 @@ public class AnteOptions
     /// be mistaken for an explicit Direct setting when the new list is configured.
     /// </summary>
     public string? InboxSourceStore { get; set; }
+
+    /// <summary>
+    /// Gets the legal document source and the host publication route. InProcess preserves the
+    /// existing ILegalDocumentSource integration; Inbox requires both publisher and set id.
+    /// </summary>
+    public LegalOptions Legal { get; set; } = new();
 
     /// <summary>
     /// Gets or sets the base URL of the host application. Once an invitation is accepted or a

@@ -3,6 +3,8 @@
 
 using System.Linq.Expressions;
 using Ante.Contracts.Legal;
+using Ante.Legal.Receiving;
+using Cratis.Chronicle.EventSequences.Concurrency;
 using FluentValidation;
 
 namespace Ante.Legal;
@@ -25,6 +27,18 @@ public interface ILegalDocumentSource
     /// </summary>
     /// <returns>The current documents, or <see langword="null"/> when the host has nothing to present.</returns>
     Task<LegalDocumentSet?> GetCurrent();
+}
+
+/// <summary>
+/// Marks a source for which no activated documents means temporarily unavailable, not no legal step.
+/// Existing in-process source implementations need not implement this interface.
+/// </summary>
+public interface ILegalDocumentAvailability
+{
+    /// <summary>
+    /// Gets whether this source requires an activated document set before onboarding may proceed.
+    /// </summary>
+    bool RequiresDocuments { get; }
 }
 
 /// <summary>
@@ -64,6 +78,11 @@ public static class LegalTermsRules
     public const string StaleVersionMessage = "The terms and conditions and privacy policy have changed. Reload the page and accept the current version.";
 
     /// <summary>
+    /// The retryable message when an inbox has not activated its first usable document set.
+    /// </summary>
+    public const string UnavailableMessage = "Legal documents are not available yet. Check again before continuing.";
+
+    /// <summary>
     /// The message shown when a command claims acceptance of a legal document set the host has not
     /// configured - there is nothing for the claim to refer to, so it is rejected rather than recorded.
     /// </summary>
@@ -88,6 +107,11 @@ public static class LegalTermsRules
         Expression<Func<TCommand, LegalVersion>> version)
     {
         validator.RuleFor(accepted)
+            .MustAsync(async (_, _) => await legalDocumentSource.GetCurrent() is not null)
+            .WithMessage(UnavailableMessage)
+            .When(_ => legalDocumentSource is ILegalDocumentAvailability { RequiresDocuments: true });
+
+        validator.RuleFor(accepted)
             .Equal(true)
             .WithMessage(MustAcceptMessage)
             .WhenAsync(async (_, _) => await legalDocumentSource.GetCurrent() is not null);
@@ -95,7 +119,8 @@ public static class LegalTermsRules
         validator.RuleFor(accepted)
             .Equal(false)
             .WithMessage(UnsolicitedAcceptanceMessage)
-            .WhenAsync(async (_, _) => await legalDocumentSource.GetCurrent() is null);
+            .WhenAsync(async (_, _) => await legalDocumentSource.GetCurrent() is null &&
+                legalDocumentSource is not ILegalDocumentAvailability { RequiresDocuments: true });
 
         validator.RuleFor(version)
             .MustAsync(async (accepted, _) => accepted is not null && accepted == (await legalDocumentSource.GetCurrent())?.Version)
@@ -143,13 +168,49 @@ public static class LegalAcceptanceEvidence
         IdentityProviderName identityProvider,
         string subject)
     {
-        var current = await legalDocumentSource.GetCurrent();
+        var resolution = await ResolveWithScope(
+            legalDocumentSource, acceptedLegalTerms, acceptedLegalVersion, tenantName, identityProvider, subject);
+        if (!resolution.TryGetResult(out var evidence))
+        {
+            resolution.TryGetError(out var error);
+            return error;
+        }
+
+        return Result<IEnumerable<object>, ValidationResult>.Success(evidence.Events);
+    }
+
+    /// <summary>
+    /// Resolves authoritative content and its exact legal-stream append fence in one read.
+    /// </summary>
+    /// <param name="legalDocumentSource">The source to read once.</param>
+    /// <param name="acceptedLegalTerms">Whether the user accepted both documents.</param>
+    /// <param name="acceptedLegalVersion">The version the user saw.</param>
+    /// <param name="tenantName">The organization receiving acceptance.</param>
+    /// <param name="identityProvider">The user's identity provider.</param>
+    /// <param name="subject">The accepting subject.</param>
+    /// <returns>Either a rejection or the acceptance event and its optional concurrency fence.</returns>
+    public static async Task<Result<LegalAcceptanceSnapshot, ValidationResult>> ResolveWithScope(
+        ILegalDocumentSource legalDocumentSource,
+        bool acceptedLegalTerms,
+        LegalVersion acceptedLegalVersion,
+        TenantName tenantName,
+        IdentityProviderName identityProvider,
+        string subject)
+    {
+        var activated = legalDocumentSource is InboxLegalDocumentSource inbox ? await inbox.GetActivated() : null;
+        var current = activated?.Documents ?? (activated is null ? await legalDocumentSource.GetCurrent() : null);
+        var scope = activated?.Scope;
 
         if (current is null)
         {
+            if (legalDocumentSource is ILegalDocumentAvailability { RequiresDocuments: true })
+            {
+                return ValidationResult.Error(LegalTermsRules.UnavailableMessage);
+            }
+
             return acceptedLegalTerms
                 ? ValidationResult.Error(LegalTermsRules.UnsolicitedAcceptanceMessage)
-                : Result<IEnumerable<object>, ValidationResult>.Success([]);
+                : Result<LegalAcceptanceSnapshot, ValidationResult>.Success(new([], null));
         }
 
         if (!acceptedLegalTerms)
@@ -162,10 +223,44 @@ public static class LegalAcceptanceEvidence
             return ValidationResult.Error(LegalTermsRules.StaleVersionMessage);
         }
 
-        return Result<IEnumerable<object>, ValidationResult>.Success(
-            [new LegalTermsAccepted(tenantName, identityProvider, subject, current.Version)]);
+        return Result<LegalAcceptanceSnapshot, ValidationResult>.Success(
+            new([new LegalTermsAccepted(tenantName, identityProvider, subject, current.Version)], scope));
+    }
+
+    /// <summary>
+    /// Composes the onboarding facts with exact scopes for both the onboarding and legal streams.
+    /// </summary>
+    /// <param name="store">The local event store.</param>
+    /// <param name="id">The onboarding event source.</param>
+    /// <param name="events">The onboarding and acceptance facts.</param>
+    /// <param name="legal">The legal snapshot read for this command.</param>
+    /// <returns>The atomic append, rejected if the activated legal set changes before it commits.</returns>
+    public static async Task<EventsWithConcurrencyScopes> ForAppend(
+        IEventStore store,
+        EventSourceId id,
+        IEnumerable<object> events,
+        LegalAcceptanceSnapshot legal)
+    {
+        var tail = await store.EventLog.GetTailSequenceNumber(id);
+        var scopes = new List<KeyValuePair<EventSourceId, ConcurrencyScope>>
+        {
+            new(id, new(tail.IsActualValue ? tail : EventSequenceNumber.BeforeFirst, id)),
+        };
+        if (legal.Scope is not null)
+        {
+            scopes.Add(new(legal.Scope.EventSourceId!, legal.Scope));
+        }
+
+        return new([.. events.Select(@event => new EventForEventSourceId(id, @event))], scopes);
     }
 }
+
+/// <summary>
+/// The acceptance evidence and the exact legal-stream scope observed alongside it.
+/// </summary>
+/// <param name="Events">The acceptance facts.</param>
+/// <param name="Scope">The legal stream fence, only in inbox mode.</param>
+public record LegalAcceptanceSnapshot(IEnumerable<object> Events, ConcurrencyScope? Scope);
 
 /// <summary>
 /// The default <see cref="ILegalDocumentSource"/> registered when a host supplies none of its own -
@@ -186,8 +281,9 @@ public class NoLegalDocumentSource : ILegalDocumentSource
 /// <param name="TermsAndConditions">The terms and conditions, empty when not configured.</param>
 /// <param name="PrivacyPolicy">The privacy policy, empty when not configured.</param>
 /// <param name="Version">The version currently presented, empty when not configured.</param>
+/// <param name="IsUnavailable">Whether the required inbox source has not activated a usable set.</param>
 [ReadModel]
-public record LegalDocumentStatus(bool IsConfigured, LegalDocumentBody TermsAndConditions, LegalDocumentBody PrivacyPolicy, LegalVersion Version)
+public record LegalDocumentStatus(bool IsConfigured, LegalDocumentBody TermsAndConditions, LegalDocumentBody PrivacyPolicy, LegalVersion Version, bool IsUnavailable = false)
 {
     /// <summary>
     /// Gets the current legal document status.
@@ -198,7 +294,12 @@ public record LegalDocumentStatus(bool IsConfigured, LegalDocumentBody TermsAndC
     {
         var current = await legalDocumentSource.GetCurrent();
         return current is null
-            ? new(false, LegalDocumentBody.NotSet, LegalDocumentBody.NotSet, LegalVersion.NotSet)
+            ? new(
+                false,
+                LegalDocumentBody.NotSet,
+                LegalDocumentBody.NotSet,
+                LegalVersion.NotSet,
+                legalDocumentSource is ILegalDocumentAvailability { RequiresDocuments: true })
             : new(true, current.TermsAndConditions, current.PrivacyPolicy, current.Version);
     }
 }

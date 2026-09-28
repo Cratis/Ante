@@ -22,11 +22,13 @@ namespace Ante.Integration.given;
 /// <param name="eventStore">Ante's event store name (<c>Ante:EventStore</c>).</param>
 /// <param name="hostStores">The trusted host stores (<c>Ante:HostStores</c>).</param>
 /// <param name="legalDocuments">Optional legal document source, standing in for a host-provided one.</param>
+/// <param name="legalDocumentSetId">When set, selects the first host's inbox legal stream.</param>
 public sealed class AnteApplication(
     ChronicleInfrastructure infrastructure,
     string eventStore,
     IReadOnlyList<string> hostStores,
-    ILegalDocumentSource? legalDocuments = default) : WebApplicationFactory<Program>
+    ILegalDocumentSource? legalDocuments = default,
+    string? legalDocumentSetId = default) : WebApplicationFactory<Program>
 {
     public const string IdentityProvider = "integration-idp";
 
@@ -87,6 +89,13 @@ public sealed class AnteApplication(
             .UseSetting("Cratis:MongoDB:Database", EventStore)
             .UseSetting("Ante:EventStore", EventStore)
             .UseSetting("IdentityProviders:Providers:0:Name", IdentityProvider);
+        if (legalDocumentSetId is not null)
+        {
+            builder.UseSetting("Ante:Legal:Source", "Inbox")
+                .UseSetting("Ante:Legal:PublisherStore", hostStores[0])
+                .UseSetting("Ante:Legal:DocumentSetId", legalDocumentSetId);
+        }
+
         for (var index = 0; index < hostStores.Count; index++)
         {
             builder.UseSetting($"Ante:HostStores:{index}", hostStores[index]);
