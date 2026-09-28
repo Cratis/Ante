@@ -3,6 +3,7 @@
 
 using System.Linq.Expressions;
 using Ante.Contracts.Legal;
+using Ante.Resources;
 using FluentValidation;
 
 namespace Ante.Legal;
@@ -89,17 +90,17 @@ public static class LegalTermsRules
     {
         validator.RuleFor(accepted)
             .Equal(true)
-            .WithMessage(MustAcceptMessage)
+            .WithMessage(_ => Messages.Get(nameof(MustAcceptMessage)))
             .WhenAsync(async (_, _) => await legalDocumentSource.GetCurrent() is not null);
 
         validator.RuleFor(accepted)
             .Equal(false)
-            .WithMessage(UnsolicitedAcceptanceMessage)
+            .WithMessage(_ => Messages.Get(nameof(UnsolicitedAcceptanceMessage)))
             .WhenAsync(async (_, _) => await legalDocumentSource.GetCurrent() is null);
 
         validator.RuleFor(version)
             .MustAsync(async (accepted, _) => accepted is not null && accepted == (await legalDocumentSource.GetCurrent())?.Version)
-            .WithMessage(StaleVersionMessage)
+            .WithMessage(_ => Messages.Get(nameof(StaleVersionMessage)))
             .WhenAsync(async (_, _) => await legalDocumentSource.GetCurrent() is not null);
     }
 }
@@ -148,18 +149,18 @@ public static class LegalAcceptanceEvidence
         if (current is null)
         {
             return acceptedLegalTerms
-                ? ValidationResult.Error(LegalTermsRules.UnsolicitedAcceptanceMessage)
+                ? ValidationResult.Error(Messages.Get(nameof(LegalTermsRules.UnsolicitedAcceptanceMessage)))
                 : Result<IEnumerable<object>, ValidationResult>.Success([]);
         }
 
         if (!acceptedLegalTerms)
         {
-            return ValidationResult.Error(LegalTermsRules.MustAcceptMessage);
+            return ValidationResult.Error(Messages.Get(nameof(LegalTermsRules.MustAcceptMessage)));
         }
 
         if (acceptedLegalVersion != current.Version)
         {
-            return ValidationResult.Error(LegalTermsRules.StaleVersionMessage);
+            return ValidationResult.Error(Messages.Get(nameof(LegalTermsRules.StaleVersionMessage)));
         }
 
         return Result<IEnumerable<object>, ValidationResult>.Success(

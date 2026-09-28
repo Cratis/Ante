@@ -7,6 +7,8 @@ import { Dialog } from '@cratis/components/Dialogs';
 import { DisplayContrast, DisplayControlSize, DisplayMotion, DisplaySpacing, DisplayTextSize } from './DisplayPreferences';
 import { useDisplayPreferences } from './useDisplayPreferences';
 import strings from 'Strings';
+import { useChangeLocale, useLocale, useLocaleSettings } from '../Locale/LocaleContext';
+import { allowedLocales } from '../Locale/negotiateLocale';
 import './DisplayPreferencesMenu.css';
 
 /**
@@ -24,6 +26,9 @@ export const DisplayPreferencesMenu = () => {
     const { preferences, setTextSize, setContrast, setSpacing, setControlSize, setMotion, reset } = useDisplayPreferences();
     const s = strings.displayPreferences;
     const groupNamePrefix = useId();
+    const locale = useLocale();
+    const settings = useLocaleSettings();
+    const changeLocale = useChangeLocale();
 
     return (
         <>
@@ -38,6 +43,16 @@ export const DisplayPreferencesMenu = () => {
                 <Dialog title={s.title} width='28rem' buttons={null} onCancel={() => setVisible(false)}>
                     <div className='display-preferences-menu__content'>
                         <p className='display-preferences-menu__description'>{s.description}</p>
+                        <OptionGroup
+                            name={`${groupNamePrefix}-language`}
+                            legend={s.language}
+                            value={locale}
+                            onChange={changeLocale}
+                            options={allowedLocales(settings).map(value => ({
+                                value,
+                                label: value === 'en' ? s.english : s.bokmal
+                            }))}
+                        />
                         <OptionGroup<DisplayTextSize>
                             name={`${groupNamePrefix}-text-size`}
                             legend={s.textSize.label}

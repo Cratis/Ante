@@ -40,7 +40,7 @@ describe('when leaving the name step after a later field becomes invalid client-
         command = new NameCommand();
         command.firstName = 'x'.repeat(101);
         probe = new NameCommand();
-        validation = new OrganizationNameStepValidation(() => probe, 'Could not validate');
+        validation = new OrganizationNameStepValidation(() => probe, () => 'Could not validate');
         command.organizationName = 'Bad Name';
         validation.onFieldChange(command, 'organizationName', '', 'Bad Name');
         await vi.runAllTimersAsync();

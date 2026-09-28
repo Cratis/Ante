@@ -28,7 +28,7 @@ describe('when leaving the name step with a valid name and incomplete later step
     beforeEach(async () => {
         vi.useFakeTimers();
         command = new NameCommand();
-        validation = new OrganizationNameStepValidation(() => new NameCommand(), 'Could not validate');
+        validation = new OrganizationNameStepValidation(() => new NameCommand(), () => 'Could not validate');
         command.organizationName = 'Acme';
         validation.onFieldChange(command, 'organizationName', '', 'Acme');
         await vi.runAllTimersAsync();
