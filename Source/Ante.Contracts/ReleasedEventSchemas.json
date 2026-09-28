@@ -1,5 +1,6 @@
 [
   "InvitationRejected:1",
+  "InvitationRejected:2",
   "InvitationRevoked:1",
   "InvitationToCreateTenantAccepted:1",
   "InvitationToJoinTenantAccepted:1",

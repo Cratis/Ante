@@ -21,7 +21,7 @@ public class and_the_store_is_empty : Specification
     }
 
     [Fact] void should_make_transaction_and_actor_and_assertion_unique() => Assert.Equal(
-        ["UniqueAttestedActor", "UniqueCompletionAssertion"],
+        ["UniqueAttestedActor", "UniqueCompletionAssertion", "UniqueCompletionTransaction"],
         _indexes.Where(index => index.Options.Unique == true).Select(index => index.Options.Name));
     [Fact] void should_install_expiry_cleanup() => Assert.Equal(TimeSpan.Zero,
         _indexes.Single(index => index.Options.Name == "AttestedSessionExpiry").Options.ExpireAfter);

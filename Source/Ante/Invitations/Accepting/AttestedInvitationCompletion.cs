@@ -95,7 +95,7 @@ public record AttestedInvitationSession(
 public static class AttestedInvitationSessionIndexes
 {
     /// <summary>
-    /// Creates completion, actor and replay uniqueness plus eventual expiry cleanup.
+    /// Creates completion, actor, transaction and replay uniqueness plus eventual expiry cleanup.
     /// </summary>
     /// <param name="sessions">The attested-session collection.</param>
     /// <returns>The index creation operation.</returns>
@@ -108,6 +108,15 @@ public static class AttestedInvitationSessionIndexes
         new CreateIndexModel<AttestedInvitationSession>(
             Builders<AttestedInvitationSession>.IndexKeys.Ascending(row => row.AssertionIds),
             new CreateIndexOptions { Name = "UniqueCompletionAssertion", Unique = true }),
+        new CreateIndexModel<AttestedInvitationSession>(
+            Builders<AttestedInvitationSession>.IndexKeys.Ascending($"{nameof(AttestedInvitationSession.AssertionClaims)}.{nameof(AttestedAssertionClaim.TransactionId)}"),
+            new CreateIndexOptions<AttestedInvitationSession>
+            {
+                Name = "UniqueCompletionTransaction",
+                Unique = true,
+                PartialFilterExpression = Builders<AttestedInvitationSession>.Filter.Exists(
+                    $"{nameof(AttestedInvitationSession.AssertionClaims)}.{nameof(AttestedAssertionClaim.TransactionId)}"),
+            }),
         new CreateIndexModel<AttestedInvitationSession>(
             Builders<AttestedInvitationSession>.IndexKeys.Ascending(row => row.ExpiresAtUtc),
             new CreateIndexOptions { Name = "AttestedSessionExpiry", ExpireAfter = TimeSpan.Zero }),
@@ -123,7 +132,9 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
     /// <inheritdoc/>
     public async Task<AttestedSessionOutcome> Retry(StagedInvitationTransaction stage, VerifiedInvitationAttestation assertion)
     {
-        var existing = await sessions.Find(row => row.Id == stage.Id || row.LatestTransactionId == stage.Id).FirstOrDefaultAsync();
+        var filter = Builders<AttestedInvitationSession>.Filter;
+        var transactionClaim = filter.ElemMatch(row => row.AssertionClaims, claim => claim.TransactionId == stage.Id);
+        var existing = await sessions.Find(filter.Eq(row => row.Id, stage.Id) | transactionClaim).FirstOrDefaultAsync();
         if (existing is null)
         {
             return AttestedSessionOutcome.Missing;
@@ -140,10 +151,9 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
 
         try
         {
-            // The multikey unique index claims this jti globally, including on retries. A failed
-            // $addToSet cannot yield a successful response. No field other than AssertionIds changes.
+            // Unique multikey indexes bind both the transaction and jti to one session. The
+            // assertion and its transaction binding are written together in the same document.
             var now = DateTime.UtcNow;
-            var filter = Builders<AttestedInvitationSession>.Filter;
             var binding = filter.Eq(row => row.Id, existing.Id) & filter.Gt(row => row.ExpiresAtUtc, now) &
                 filter.Eq(row => row.ProviderKey, assertion.ProviderKey) &
                 filter.Eq(row => row.ProviderIssuer, assertion.ProviderIssuer) &
@@ -160,7 +170,7 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
 
             if (existing.Id != stage.Id)
             {
-                binding &= filter.Eq(row => row.LatestTransactionId, stage.Id);
+                binding &= transactionClaim;
             }
 
             var updated = await sessions.UpdateOneAsync(
@@ -190,8 +200,10 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
     public async Task<bool> Complete(StagedInvitationTransaction stage, VerifiedInvitationAttestation assertion)
     {
         // The session document IS the completion record. Inserting it atomically creates the
-        // transaction claim, actor binding and first jti claim. Unique _id, actor and multikey jti
-        // indexes prevent concurrent competing commits; a crash before insertion grants nothing,
+        // transaction claim, actor binding and first jti claim. Unique _id, actor, transaction
+        // and jti indexes prevent competing commits even after multiple restagings. Each retry
+        // appends the assertion and transaction binding in one document update; a failed unique
+        // index check cannot grant access. A crash before insertion grants nothing,
         // and a crash after insertion leaves a complete, retryable session. The stage document is
         // never consumed or marked complete independently, so MongoDB transactions are unnecessary.
         var session = new AttestedInvitationSession(
@@ -240,24 +252,31 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
         {
             // The TTL sweeper is asynchronous. Replace an expired actor atomically instead of
             // waiting for it, and never overwrite a session that another request has renewed.
-            var replaced = await sessions.FindOneAndReplaceAsync(
-                actor & filter.Eq(row => row.Id, existing.Id) & filter.Lte(row => row.ExpiresAtUtc, now),
-                new AttestedInvitationSession(
-                    existing.Id,
-                    stage.LobbyScope,
-                    stage.InvitationId,
-                    stage.FlowType,
-                    assertion.ProviderKey!,
-                    assertion.ProviderIssuer!,
-                    assertion.ProviderSubject!,
-                    [assertion.AssertionId],
-                    AttestedSessionExpiry.For(stage))
-                {
-                    LatestTransactionId = stage.Id,
-                    LatestAssertionId = assertion.AssertionId,
-                    AssertionClaims = [new(stage.Id, assertion.AssertionId)],
-                });
-            return replaced is not null;
+            try
+            {
+                var replaced = await sessions.FindOneAndReplaceAsync(
+                    actor & filter.Eq(row => row.Id, existing.Id) & filter.Lte(row => row.ExpiresAtUtc, now),
+                    new AttestedInvitationSession(
+                        existing.Id,
+                        stage.LobbyScope,
+                        stage.InvitationId,
+                        stage.FlowType,
+                        assertion.ProviderKey!,
+                        assertion.ProviderIssuer!,
+                        assertion.ProviderSubject!,
+                        [assertion.AssertionId],
+                        AttestedSessionExpiry.For(stage))
+                    {
+                        LatestTransactionId = stage.Id,
+                        LatestAssertionId = assertion.AssertionId,
+                        AssertionClaims = [new(stage.Id, assertion.AssertionId)],
+                    });
+                return replaced is not null;
+            }
+            catch (MongoWriteException exception) when (exception.WriteError.Category == ServerErrorCategory.DuplicateKey)
+            {
+                return false;
+            }
         }
 
         // A newly staged transaction may recover a lost completion response for this actor.

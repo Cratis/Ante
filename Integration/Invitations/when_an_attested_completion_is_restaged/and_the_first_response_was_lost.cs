@@ -15,14 +15,18 @@ public class and_the_first_response_was_lost : Specification
     IMongoCollection<AttestedInvitationSession> _collection;
     StagedInvitationTransaction _original;
     StagedInvitationTransaction _restaged;
+    StagedInvitationTransaction _restagedAgain;
     VerifiedInvitationAttestation _firstAssertion;
     VerifiedInvitationAttestation _secondAssertion;
+    VerifiedInvitationAttestation _thirdAssertion;
     bool _firstCommitted;
     bool _recovered;
-    bool _retried;
-    bool _replayRejected;
+    bool _recoveredAgain;
+    bool _originalRetried;
+    bool _restagedRetried;
     bool _freshOriginalAccepted;
     bool _freshRestagedAccepted;
+    bool _replayRejected;
     bool _freshReplayRejected;
     AttestedInvitationSession _stored;
 
@@ -51,6 +55,13 @@ public class and_the_first_response_was_lost : Specification
             Challenge = "second-challenge",
             ExpiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(16),
         };
+        _restagedAgain = _original with
+        {
+            Id = "5:lobby:third",
+            Transaction = "third",
+            Challenge = "third-challenge",
+            ExpiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(17),
+        };
         _firstAssertion = new VerifiedInvitationAttestation(
             "jti-first",
             InvitationAttestationPurpose.Complete,
@@ -72,26 +83,36 @@ public class and_the_first_response_was_lost : Specification
             Transaction = "second",
             Challenge = "second-challenge",
         };
+        _thirdAssertion = _firstAssertion with
+        {
+            AssertionId = "jti-third",
+            Transaction = "third",
+            Challenge = "third-challenge",
+        };
     }
 
     async Task Because()
     {
         _firstCommitted = await _sessions.Complete(_original, _firstAssertion);
-        _freshOriginalAccepted = await _sessions.Retry(_original, _firstAssertion with { AssertionId = "jti-fresh-original" }) == AttestedSessionOutcome.Accepted;
 
-        // The first success response is lost. AuthProxy stages a new transaction and re-completes it.
+        // AuthProxy restages twice after lost responses; neither restaging changes the original expiry.
         _recovered = await _sessions.Complete(_restaged, _secondAssertion);
-        _retried = await _sessions.Retry(_restaged, _secondAssertion) == AttestedSessionOutcome.Accepted;
+        _recoveredAgain = await _sessions.Complete(_restagedAgain, _thirdAssertion);
+        _originalRetried = await _sessions.Retry(_original, _firstAssertion) == AttestedSessionOutcome.Accepted;
+        _restagedRetried = await _sessions.Retry(_restaged, _secondAssertion) == AttestedSessionOutcome.Accepted;
+        _freshOriginalAccepted = await _sessions.Retry(_original, _firstAssertion with { AssertionId = "jti-fresh-original" }) == AttestedSessionOutcome.Accepted;
         _freshRestagedAccepted = await _sessions.Retry(_restaged, _secondAssertion with { AssertionId = "jti-fresh-restaged" }) == AttestedSessionOutcome.Accepted;
-        var third = _restaged with { Id = "5:lobby:third", Transaction = "third" };
-        _replayRejected = !await _sessions.Complete(third, _secondAssertion);
-        _freshReplayRejected = !await _sessions.Complete(third, _secondAssertion with { AssertionId = "jti-fresh-restaged" });
+        var fourth = _restagedAgain with { Id = "5:lobby:fourth", Transaction = "fourth" };
+        _replayRejected = !await _sessions.Complete(fourth, _secondAssertion);
+        _freshReplayRejected = !await _sessions.Complete(fourth, _secondAssertion with { AssertionId = "jti-fresh-restaged" });
         _stored = await _collection.Find(Builders<AttestedInvitationSession>.Filter.Empty).SingleAsync();
     }
 
     [Fact] void should_commit_the_initial_session() => _firstCommitted.ShouldBeTrue();
-    [Fact] void should_recover_the_new_transaction() => _recovered.ShouldBeTrue();
-    [Fact] void should_idempotently_retry_the_recovered_transaction() => _retried.ShouldBeTrue();
+    [Fact] void should_recover_the_second_transaction() => _recovered.ShouldBeTrue();
+    [Fact] void should_recover_the_third_transaction() => _recoveredAgain.ShouldBeTrue();
+    [Fact] void should_idempotently_retry_the_original_transaction() => _originalRetried.ShouldBeTrue();
+    [Fact] void should_idempotently_retry_the_second_transaction_after_the_third() => _restagedRetried.ShouldBeTrue();
     [Fact] void should_accept_a_fresh_assertion_for_the_original_transaction() => _freshOriginalAccepted.ShouldBeTrue();
     [Fact] void should_accept_a_fresh_assertion_for_the_restaged_transaction() => _freshRestagedAccepted.ShouldBeTrue();
     [Fact] void should_refuse_to_claim_a_replayed_assertion_for_another_transaction() => _replayRejected.ShouldBeTrue();
