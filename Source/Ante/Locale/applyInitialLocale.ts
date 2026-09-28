@@ -14,12 +14,14 @@ export const getActiveLocale = (): SupportedLocale => activeLocale;
 
 /** Resolve before mounting Arc, including its observable connections and validation requests. */
 export const applyInitialLocale = async (): Promise<{ locale: SupportedLocale; settings: LocaleSettings }> => {
-    let settings: LocaleSettings = { defaultLocale: 'en', supportedLocales: ['en', 'nb-NO'] };
+    // Without the deployment's policy, only English is safe: an operator may have removed Bokmål from
+    // Ante:SupportedLocales, and English is always shipped and the documented last resort.
+    let settings: LocaleSettings = { defaultLocale: 'en', supportedLocales: ['en'] };
     try {
         const response = await fetch('/api/locale-config', { credentials: 'same-origin', signal: AbortSignal.timeout(3000) });
         if (response.ok) settings = await response.json() as LocaleSettings;
     } catch {
-        // An offline bootstrap can still render English; the cookie aligns event transports.
+        // An unreachable policy keeps the English-only fallback above; the cookie aligns event transports.
     }
     let preference: string | null = null;
     try {
