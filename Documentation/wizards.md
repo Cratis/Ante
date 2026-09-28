@@ -15,7 +15,7 @@ Ante offers three journeys in one SPA. `/register` and its subpaths select self-
 
 ## Register without an invitation
 
-`RegistrationPage` at `/register` gathers the same organization and name fields through `RegisterOrganization`. Its browser `sessionStorage` pointer holds a per-tab registration id, not the form's personal data. If storage works, a reload in that tab can resume checking the same operation. Storage may be unavailable, and another tab or session need not share that pointer. Registration has no invitation-owner session and cannot use the optional host-outcome view.
+`RegistrationPage` at `/register` gathers the same organization and name fields through `RegisterOrganization`. Its browser `sessionStorage` pointer holds a per-tab registration id, not the form's personal data. If storage works, a reload in that tab can resume checking the same operation. Storage may be unavailable, and another tab or session need not share that pointer. Registration has no invitation-owner session and cannot use the optional host-outcome view. The form does not collect or verify an email address; the published registration email may be empty or an unverified address-shaped sign-in claim. A host requiring a verified contact must handle that during provisioning, not treat the wizard's completion as mailbox verification.
 
 ## Waiting and handoff
 
