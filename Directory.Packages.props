@@ -44,5 +44,12 @@
          in-memory TestServer, without a Kestrel socket or any of Ante's own infrastructure (MongoDB,
          Chronicle) - see Source/Directory.Build.props for why it is Debug-only. -->
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
+    <!-- Integration/ only: hosts Ante in-process against a real Chronicle kernel + MongoDB in a container.
+         Never referenced by Ante.slnx projects, so the default CI run does not need Docker. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
+    <PackageVersion Include="Testcontainers" Version="4.15.0" />
+    <!-- Testcontainers brings in SSH.NET 2025.1.0 (GHSA-q939-rpr3-3284); pull it forward to the patched
+         release, as Chronicle's own integration package does. -->
+    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
   </ItemGroup>
 </Project>

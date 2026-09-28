@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!--
+        Infrastructure-backed end-to-end specifications: Ante hosted in-process (WebApplicationFactory)
+        against a real Chronicle kernel and MongoDB running in a container, plus minimal host event stores
+        that exchange Ante's contract events through their outboxes and inboxes.
+
+        Deliberately NOT part of Ante.slnx, so the default `dotnet test Ante.slnx` run (and CI) never needs
+        Docker. Run with:
+
+            dotnet test Integration/Ante.Integration.Specs.csproj
+
+        See Documentation/local-development.md.
+    -->
+    <PropertyGroup>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <AssemblyName>Ante.Integration.Specs</AssemblyName>
+        <RootNamespace>Ante.Integration</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="../Source/SharedSpecificationInstance.cs" Link="SharedSpecificationInstance.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../Source/Ante/Ante.csproj" />
+        <ProjectReference Include="../Source/Ante.Contracts/Ante.Contracts.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Cratis.Fundamentals" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Cratis.Specifications.XUnit" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+        <PackageReference Include="Testcontainers" />
+        <PackageReference Include="SSH.NET" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+</Project>
