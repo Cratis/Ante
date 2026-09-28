@@ -167,18 +167,41 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
     /// <param name="tokenValidator">The invitation token verifier.</param>
     /// <param name="logger">Logger for rejected unresolved provider evidence.</param>
     /// <param name="exchangeConfig">The selected exchange protocol.</param>
+    /// <param name="staging">The attested invitation staging service.</param>
     public async Task InvokeAsync(
         HttpContext context,
         IMongoCollection<AcceptedInvitation> acceptedInvitations,
         IIdentityProviderResolver identityProviderResolver,
         IInvitationTokenValidator tokenValidator,
         ILogger<InviteExchangeBypassMiddleware> logger,
-        IOptions<InvitationExchangeConfig> exchangeConfig)
+        IOptions<InvitationExchangeConfig> exchangeConfig,
+        AttestedInvitationStaging staging)
     {
         if (HttpMethods.IsPost(context.Request.Method) &&
+            context.Request.Path.Equals("/_invite/stage", StringComparison.OrdinalIgnoreCase))
+        {
+            if (exchangeConfig.Value.Mode != InvitationExchangeMode.Attested)
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
+            var stage = await InvitationStageRequestBody.Read(context);
+            if (stage is null)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            context.Response.StatusCode = await staging.TryStage(context.Request.Headers.Authorization.ToString(), stage)
+                ? StatusCodes.Status200OK
+                : StatusCodes.Status404NotFound;
+            return;
+        }
+
+        if (HttpMethods.IsPost(context.Request.Method) &&
             exchangeConfig.Value.Mode == InvitationExchangeMode.Attested &&
-            (context.Request.Path.Equals("/_invite/exchange", StringComparison.OrdinalIgnoreCase) ||
-             context.Request.Path.Equals("/_invite/stage", StringComparison.OrdinalIgnoreCase)))
+            context.Request.Path.Equals("/_invite/exchange", StringComparison.OrdinalIgnoreCase))
         {
             // Never pass an attested request through the legacy processor, even during rollout.
             context.Response.StatusCode = StatusCodes.Status400BadRequest;

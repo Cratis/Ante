@@ -70,6 +70,8 @@ builder.Services.Configure<IdentityProviderOptions>(builder.Configuration.GetSec
 builder.Services.AddSingleton<IIdentityProviderResolver, IdentityProviderResolver>();
 builder.Services.AddSingleton<IInvitationTokenIssuer, InvitationTokenIssuer>();
 builder.Services.AddSingleton<IInvitationTokenValidator, InvitationTokenValidator>();
+builder.Services.AddSingleton<InvitationAttestationVerifier>();
+builder.Services.AddScoped<AttestedInvitationStaging>();
 builder.Services.AddScoped<ISignedInIdentity, SignedInIdentity>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient<IIdentityBackchannel, IdentityBackchannel>();
@@ -107,6 +109,10 @@ IdentityProviderConfigurationWarnings.WarnForUnattributableSignIns(
 await using (var startupScope = app.Services.CreateAsyncScope())
 {
     await AcceptedInvitationIndexes.EnsureCreated(startupScope.ServiceProvider.GetRequiredService<IMongoCollection<AcceptedInvitation>>());
+    if (invitationExchangeOptions.Mode == InvitationExchangeMode.Attested)
+    {
+        await StagedInvitationTransactionIndexes.EnsureCreated(startupScope.ServiceProvider.GetRequiredService<IMongoCollection<StagedInvitationTransaction>>());
+    }
 }
 
 app.UseRouting();
