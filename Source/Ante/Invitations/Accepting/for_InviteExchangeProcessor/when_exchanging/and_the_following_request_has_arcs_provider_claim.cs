@@ -31,7 +31,8 @@ public class and_the_following_request_has_arcs_provider_claim : Specification
             new ExchangeInviteRequest("sub-1", "GitHub", "GitHub", null),
             _fixture.Collection,
             resolver,
-            _fixture.Validator());
+            _fixture.Validator(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
         _requestProvider = ForwardedIdentityProvider.Resolve(
             [new KeyValuePair<string, string>(MicrosoftIdentityPlatformClaims.IdentityProvider, "GitHub")], resolver);
         _canonicalProvider = ForwardedIdentityProvider.Resolve(

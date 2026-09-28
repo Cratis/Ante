@@ -24,7 +24,8 @@ public class and_no_provider_is_reported_but_only_one_is_configured : Specificat
             new ExchangeInviteRequest("sub-1", string.Empty, null, null),
             _fixture.Collection,
             resolver,
-            _fixture.Validator());
+            _fixture.Validator(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
     }
 
     [Fact] void should_accept_the_token() => Assert.True(_result);

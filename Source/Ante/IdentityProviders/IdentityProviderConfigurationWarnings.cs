@@ -4,6 +4,17 @@
 namespace Ante.IdentityProviders;
 
 /// <summary>
+/// Identifies the provider-list shape that cannot attribute a sign-in without canonical identity or issuer.
+/// </summary>
+internal enum UnattributableSignInWarning
+{
+    None,
+    NoProviders,
+    SingleIssuerlessProvider,
+    MultipleProvidersWithIssuer
+}
+
+/// <summary>
 /// Warns at startup when the configured identity providers cannot attribute every sign-in the
 /// authentication proxy may forward.
 /// </summary>
@@ -24,19 +35,40 @@ public static class IdentityProviderConfigurationWarnings
     /// <param name="logger">The logger to warn through.</param>
     public static void WarnForUnattributableSignIns(IdentityProviderOptions options, ILogger<IdentityProviderOptions> logger)
     {
-        var providers = options.Providers
-            .Where(provider => !string.IsNullOrWhiteSpace(provider.Name))
-            .ToList();
-
-        if (providers.Count == 0)
+        switch (ChooseWarning(options))
         {
-            logger.LogNoIdentityProvidersConfigured();
-            return;
+            case UnattributableSignInWarning.NoProviders:
+                logger.LogNoIdentityProvidersConfigured();
+                break;
+            case UnattributableSignInWarning.SingleIssuerlessProvider:
+                logger.LogSingleProviderWithoutIssuer(options.Providers.Single(provider => !string.IsNullOrWhiteSpace(provider.Name)).Name);
+                break;
+            case UnattributableSignInWarning.MultipleProvidersWithIssuer:
+                logger.LogMultipleProvidersWithIssuer();
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Chooses the startup warning for sign-ins that lack canonical identity and an issuer.
+    /// </summary>
+    /// <param name="options">The configured identity providers.</param>
+    /// <returns>The warning to issue, or none when this configuration can attribute these sign-ins.</returns>
+    internal static UnattributableSignInWarning ChooseWarning(IdentityProviderOptions options)
+    {
+        var providers = options.Providers.Where(provider => !string.IsNullOrWhiteSpace(provider.Name)).ToArray();
+        if (providers.Length == 0)
+        {
+            return UnattributableSignInWarning.NoProviders;
         }
 
-        if (providers.Count == 1 && string.IsNullOrWhiteSpace(providers[0].Issuer))
+        if (providers.Length == 1 && string.IsNullOrWhiteSpace(providers[0].Issuer))
         {
-            logger.LogSingleProviderWithoutIssuer(providers[0].Name);
+            return UnattributableSignInWarning.SingleIssuerlessProvider;
         }
+
+        return providers.Length > 1 && providers.Any(provider => !string.IsNullOrWhiteSpace(provider.Issuer))
+            ? UnattributableSignInWarning.MultipleProvidersWithIssuer
+            : UnattributableSignInWarning.None;
     }
 }

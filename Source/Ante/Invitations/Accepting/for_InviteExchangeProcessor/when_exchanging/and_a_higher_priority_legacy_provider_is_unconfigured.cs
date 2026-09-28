@@ -26,7 +26,8 @@ public class and_a_higher_priority_legacy_provider_is_unconfigured : Specificati
             new ExchangeInviteRequest("sub-1", "UnconfiguredIssuer", null, null),
             _fixture.Collection,
             resolver,
-            _fixture.Validator());
+            _fixture.Validator(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
         _requestProvider = ForwardedIdentityProvider.Resolve(
             [
                 new KeyValuePair<string, string>("iss", "UnconfiguredIssuer"),

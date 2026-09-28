@@ -59,6 +59,7 @@ internal sealed class InvitationTokenFixture
         new ExchangeInviteRequest("subject-123", "github", null, null),
         Collection,
         Resolver,
-        Validator());
+        Validator(),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
 }
 #endif

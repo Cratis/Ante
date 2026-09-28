@@ -16,7 +16,8 @@ public class and_the_header_is_not_bearer : Specification
         new ExchangeInviteRequest("subject-123", "github", null, null),
         _fixture.Collection,
         _fixture.Resolver,
-        _fixture.Validator());
+        _fixture.Validator(),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
 
     [Fact] void should_fail() => Assert.False(_result);
     [Fact] void should_not_record_anything() => Assert.Empty(_fixture.Collection.ReceivedCalls());

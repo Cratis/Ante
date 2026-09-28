@@ -30,7 +30,8 @@ public class and_the_following_request_has_legacy_provider_claims : Specificatio
             new ExchangeInviteRequest("sub-1", "GitHub", null, null),
             fixture.Collection,
             resolver,
-            fixture.Validator());
+            fixture.Validator(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
         var requestProvider = ForwardedIdentityProvider.Resolve(
             [
                 new KeyValuePair<string, string>(claimType, "GitHub"),

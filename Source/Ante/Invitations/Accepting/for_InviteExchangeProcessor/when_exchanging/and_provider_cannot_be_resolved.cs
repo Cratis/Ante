@@ -18,7 +18,8 @@ public class and_provider_cannot_be_resolved : Specification
             new ExchangeInviteRequest("sub-1", string.Empty, null, null),
             _fixture.Collection,
             _fixture.Resolver,
-            _fixture.Validator());
+            _fixture.Validator(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
     }
 
     [Fact] void should_reject_the_exchange() => Assert.False(_result);

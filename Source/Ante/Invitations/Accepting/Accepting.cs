@@ -64,13 +64,15 @@ public static class InviteExchangeProcessor
     /// <param name="acceptedInvitations">The collection accepted invitation sessions are recorded in.</param>
     /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
     /// <param name="tokenValidator">Verifier of invitation signatures and claims.</param>
+    /// <param name="logger">Logger for rejected unresolved provider evidence.</param>
     /// <returns>True when the token was valid and the session was recorded.</returns>
     public static async Task<bool> TryStoreAcceptedInvitation(
         string authorizationHeader,
         ExchangeInviteRequest request,
         IMongoCollection<AcceptedInvitation> acceptedInvitations,
         IIdentityProviderResolver identityProviderResolver,
-        IInvitationTokenValidator tokenValidator)
+        IInvitationTokenValidator tokenValidator,
+        ILogger<InviteExchangeBypassMiddleware> logger)
     {
         if (string.IsNullOrWhiteSpace(request.Subject))
         {
@@ -85,10 +87,12 @@ public static class InviteExchangeProcessor
 
         // Resolved on the way in, so the session records the provider the user actually authenticated
         // with rather than a placeholder that has to be un-guessed everywhere it is later read.
-        var normalizedIdentityProvider = ForwardedIdentityProvider.ResolveReported([request.ProviderKey, request.Issuer, request.IdentityProvider], identityProviderResolver);
+        var normalizedIdentityProvider = identityProviderResolver.ResolveFrom(
+            new AuthProxySignInReport(request.ProviderKey, request.Issuer, request.IdentityProvider).Candidates());
         if (string.IsNullOrWhiteSpace(normalizedIdentityProvider) ||
             normalizedIdentityProvider.Equals(IdentityProviderResolver.Unidentified, StringComparison.OrdinalIgnoreCase))
         {
+            logger.LogUnresolvedExchangeProvider();
             return false;
         }
 
@@ -160,11 +164,13 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
     /// <param name="acceptedInvitations">The collection accepted invitation sessions are recorded in.</param>
     /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
     /// <param name="tokenValidator">The invitation token verifier.</param>
+    /// <param name="logger">Logger for rejected unresolved provider evidence.</param>
     public async Task InvokeAsync(
         HttpContext context,
         IMongoCollection<AcceptedInvitation> acceptedInvitations,
         IIdentityProviderResolver identityProviderResolver,
-        IInvitationTokenValidator tokenValidator)
+        IInvitationTokenValidator tokenValidator,
+        ILogger<InviteExchangeBypassMiddleware> logger)
     {
         if (HttpMethods.IsPost(context.Request.Method)
             && context.Request.Path.Equals("/_invite/exchange", StringComparison.OrdinalIgnoreCase))
@@ -191,7 +197,8 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
                 request,
                 acceptedInvitations,
                 identityProviderResolver,
-                tokenValidator);
+                tokenValidator,
+                logger);
 
             context.Response.StatusCode = success
                 ? StatusCodes.Status200OK
@@ -210,12 +217,14 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
 /// <param name="acceptedInvitations">The collection accepted invitation sessions are recorded in.</param>
 /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
 /// <param name="tokenValidator">The invitation token verifier.</param>
+/// <param name="logger">Logger for rejected unresolved provider evidence.</param>
 [Route("_invite/exchange")]
 [ApiController]
 public class InviteExchangeController(
     IMongoCollection<AcceptedInvitation> acceptedInvitations,
     IIdentityProviderResolver identityProviderResolver,
-    IInvitationTokenValidator tokenValidator) : ControllerBase
+    IInvitationTokenValidator tokenValidator,
+    ILogger<InviteExchangeBypassMiddleware> logger) : ControllerBase
 {
     /// <summary>
     /// Exchanges an invitation token for a recorded acceptance session.
@@ -235,7 +244,8 @@ public class InviteExchangeController(
             request,
             acceptedInvitations,
             identityProviderResolver,
-            tokenValidator);
+            tokenValidator,
+            logger);
 
         return success ? Ok() : BadRequest();
     }

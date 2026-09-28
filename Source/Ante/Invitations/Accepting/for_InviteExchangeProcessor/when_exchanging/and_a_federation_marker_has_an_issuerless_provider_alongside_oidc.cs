@@ -27,7 +27,8 @@ public class and_a_federation_marker_has_an_issuerless_provider_alongside_oidc :
             new ExchangeInviteRequest("sub-1", "AuthenticationTypes.Federation", null, null),
             _fixture.Collection,
             resolver,
-            _fixture.Validator());
+            _fixture.Validator(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
     }
 
     [Fact] void should_reject_the_exchange() => Assert.False(_result);

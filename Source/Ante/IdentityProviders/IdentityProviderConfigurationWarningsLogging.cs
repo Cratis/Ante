@@ -10,4 +10,7 @@ internal static partial class IdentityProviderConfigurationWarningsLogging
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "IdentityProviders:Providers has a single provider ({ProviderName}) without an Issuer; OIDC sign-ins forwarded with only a federation marker and no iss claim are rejected at invitation exchange and registration. Configure the provider's Issuer or forward canonical identity claims")]
     internal static partial void LogSingleProviderWithoutIssuer(this ILogger<IdentityProviderOptions> logger, string providerName);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "IdentityProviders:Providers has multiple providers including at least one with an Issuer; OIDC sign-ins forwarded with only a federation marker and no canonical identity or iss claim cannot be attributed and are rejected at invitation exchange and registration. Forward canonical identity claims or ensure each OIDC sign-in carries its issuer")]
+    internal static partial void LogMultipleProvidersWithIssuer(this ILogger<IdentityProviderOptions> logger);
 }

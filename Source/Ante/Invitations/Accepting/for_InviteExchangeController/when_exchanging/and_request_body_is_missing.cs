@@ -18,7 +18,8 @@ public class and_request_body_is_missing : Specification
         var controller = new InviteExchangeController(
             Substitute.For<IMongoCollection<AcceptedInvitation>>(),
             Substitute.For<IIdentityProviderResolver>(),
-            Substitute.For<IInvitationTokenValidator>());
+            Substitute.For<IInvitationTokenValidator>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
         _result = await controller.Exchange(null);
     }
 
