@@ -88,7 +88,12 @@ var app = builder.Build();
 // Installed before the pipeline (and therefore any traffic) is wired up, so the exchange endpoint and
 // InvitationIdentityProvider never run against a collection that is missing the indexes their
 // retry-safety and expiry guarantees rely on.
-await AcceptedInvitationIndexes.EnsureCreated(app.Services.GetRequiredService<IMongoCollection<AcceptedInvitation>>());
+// IMongoCollection<T> is scoped (its database follows the current tenant), so it is resolved from a
+// scope rather than the root provider; Development's scope validation rejects the root resolution.
+await using (var startupScope = app.Services.CreateAsyncScope())
+{
+    await AcceptedInvitationIndexes.EnsureCreated(startupScope.ServiceProvider.GetRequiredService<IMongoCollection<AcceptedInvitation>>());
+}
 
 app.UseRouting();
 app.UseAuthentication();
