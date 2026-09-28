@@ -116,7 +116,7 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
 
         if (existing.ExpiresAtUtc <= DateTime.UtcNow || existing.LobbyScope != stage.LobbyScope ||
             existing.InvitationId != stage.InvitationId || existing.FlowType != stage.FlowType ||
-            existing.ExpiresAtUtc != stage.ExpiresAtUtc.UtcDateTime ||
+            existing.ExpiresAtUtc != SessionExpiry(stage) ||
             existing.ProviderKey != assertion.ProviderKey || existing.ProviderIssuer != assertion.ProviderIssuer ||
             existing.ProviderSubject != assertion.ProviderSubject)
         {
@@ -160,7 +160,7 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
             assertion.ProviderIssuer!,
             assertion.ProviderSubject!,
             [assertion.AssertionId],
-            stage.ExpiresAtUtc.UtcDateTime);
+            SessionExpiry(stage));
         try
         {
             await sessions.InsertOneAsync(session);
@@ -171,6 +171,11 @@ public class AttestedInvitationSessions(IMongoCollection<AttestedInvitationSessi
             return await Retry(stage, assertion) == AttestedSessionOutcome.Accepted;
         }
     }
+
+    // BSON datetime stores milliseconds, while the staged DateTimeOffset may retain ticks.
+    // Normalize once for both insertion and retry comparison; rounding down never extends authority.
+    static DateTime SessionExpiry(StagedInvitationTransaction stage) =>
+        DateTimeOffset.FromUnixTimeMilliseconds(stage.ExpiresAtUtc.ToUnixTimeMilliseconds()).UtcDateTime;
 }
 
 /// <summary>

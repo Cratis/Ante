@@ -52,7 +52,7 @@ public class a_recorded_completion : Specification
             "https://identity.example.com",
             "CaseSensitive",
             ["jti-1"],
-            Stage.ExpiresAtUtc.UtcDateTime);
+            DateTimeOffset.FromUnixTimeMilliseconds(Stage.ExpiresAtUtc.ToUnixTimeMilliseconds()).UtcDateTime);
         Collection = Substitute.For<IMongoCollection<AttestedInvitationSession>>();
         var cursor = Substitute.For<IAsyncCursor<AttestedInvitationSession>>();
         cursor.MoveNextAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(true), Task.FromResult(false));

@@ -10,6 +10,6 @@ public class and_a_new_assertion_is_presented : a_recorded_completion
 {
     async Task Because() => Outcome = await Sessions.Retry(Stage, Assertion with { AssertionId = "new-jti" });
     [Fact] void should_accept_the_same_actor_without_extending_expiry() => Assert.Equal(AttestedSessionOutcome.Accepted, Outcome);
-    [Fact] void should_retain_the_original_expiry() => Assert.Equal(Stage.ExpiresAtUtc.UtcDateTime, Existing.ExpiresAtUtc);
+    [Fact] void should_retain_the_original_expiry() => Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(Stage.ExpiresAtUtc.ToUnixTimeMilliseconds()).UtcDateTime, Existing.ExpiresAtUtc);
 }
 #endif

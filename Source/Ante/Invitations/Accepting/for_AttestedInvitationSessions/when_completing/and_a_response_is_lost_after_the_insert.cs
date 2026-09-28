@@ -27,6 +27,6 @@ public class and_a_response_is_lost_after_the_insert : a_recorded_completion
 
     [Fact] void should_propagate_the_unknown_first_outcome() => Assert.IsType<IOException>(_error);
     [Fact] void should_recover_the_committed_result_for_a_fresh_assertion() => Assert.Equal(AttestedSessionOutcome.Accepted, _retry);
-    [Fact] void should_keep_the_committed_expiry() => Assert.Equal(Stage.ExpiresAtUtc.UtcDateTime, Existing.ExpiresAtUtc);
+    [Fact] void should_keep_the_committed_expiry() => Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(Stage.ExpiresAtUtc.ToUnixTimeMilliseconds()).UtcDateTime, Existing.ExpiresAtUtc);
 }
 #endif
