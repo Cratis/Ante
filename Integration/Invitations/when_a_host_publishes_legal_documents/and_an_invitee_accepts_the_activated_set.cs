@@ -9,6 +9,7 @@ using Ante.Invitations.Receiving;
 using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Legal.Receiving;
+using Ante.Resources;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Ante.Integration.Invitations.when_a_host_publishes_legal_documents;
@@ -102,6 +103,10 @@ public class and_an_invitee_accepts_the_activated_set : a_running_ante
     [Fact] void should_publish_the_accepted_version() => _accepted.Version.Value.ShouldEqual("2026-02");
     [Fact] void should_exercise_activation_during_command_execution() => _raceTriggered.ShouldBeTrue();
     [Fact] void should_reject_the_command_when_activation_races_its_append() => IsSuccess(_raceResult).ShouldBeFalse();
+    [Fact] void should_report_the_race_as_a_concurrency_violation() => FirstValidationResult(_raceResult).GetProperty("reason").GetString().ShouldEqual("concurrencyViolation");
+    [Fact] void should_show_the_localized_retry_message() => FirstValidationResult(_raceResult).GetProperty("message").GetString().ShouldEqual(Messages.Get("ConcurrentChange"));
+
+    static JsonElement FirstValidationResult(JsonDocument result) => result.RootElement.GetProperty("validationResults")[0];
     [Fact] void should_not_append_onboarding_or_acceptance_facts_for_the_rejected_command() => _raceFactsCount.ShouldEqual(0);
 
     class activating_during_acceptance(
