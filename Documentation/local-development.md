@@ -3,7 +3,7 @@ title: Work on Ante locally
 description: Run the repository's exact backend and frontend checks and understand local runtime prerequisites.
 ---
 
-The repository does not include a runnable Chronicle + MongoDB + host + verifying-proxy fixture. You can build and test the source without claiming a complete invitation journey; to exercise one, provision those services and use [Host integration](./host-integration.md). The committed Development RSA keypair is throwaway and must never be reused outside local development.
+The repository includes an end-to-end fixture with a real Chronicle kernel, MongoDB and a minimal host store (see [Run the end-to-end specifications](#run-the-end-to-end-specifications)), but no verifying proxy. You can build and test the source without it; to exercise a complete journey through a proxy, provision one and use [Host integration](./host-integration.md). The committed Development RSA keypair is throwaway and must never be reused outside local development.
 
 ## Check backend and frontend
 
@@ -35,6 +35,27 @@ yarn build
 ```
 
 CI supplies `ANTE_PRIMEUI_LICENSE` as a secret for `yarn build`; Vite reads it in `.frontend/index.tsx` and passes it to PrimeReact. A local build without a valid license is not a verified equivalent of that CI build. Use `lint:ci` for checking: `yarn lint` includes `--fix` and changes files. Specs and frontend helpers do not replace a cross-system invitation test. When editing wizard JSX, keep `StepperPanel` as a direct child expression of `CommandStepper`; wrapping a panel in a component that returns it breaks step detection (see the comment in `Invitations/UserSetup/UserSetupPage.tsx`).
+
+## Run the end-to-end specifications
+
+`Integration/Ante.Integration.Specs.csproj` hosts Ante's real `Program` in-process against a Chronicle kernel with its embedded MongoDB, started in Docker, and gives each specification its own Ante store, host stores and read-model database. A minimal host store publishes invitations to its outbox and receives Ante's contracts in `inbox-{ante store}`. The specifications cover token issuance back to the host, rejection of a non-canonical id, id reuse after revocation, join and organization setup with legal acceptance, self-registration, PII read back decrypted in the host inbox, and two host stores configured together.
+
+The project is not part of `Ante.slnx`, so the backend commands above never need Docker. With Docker running, from the repository root:
+
+```bash
+docker pull cratis/chronicle:19.13.1-development
+dotnet test Integration/Ante.Integration.Specs.csproj
+```
+
+A run takes a few minutes and removes its container afterwards. Three environment variables help when something fails:
+
+| Variable | Effect |
+| --- | --- |
+| `ANTE_CHRONICLE_IMAGE` | Kernel image to run instead of `cratis/chronicle:19.13.1-development`, for example `cratis/chronicle:19.4.7-development`. |
+| `ANTE_INTEGRATION_KEEP_CONTAINER=true` | Leaves the container running for inspection, for example with `docker exec <id> mongosh`. Remove it yourself afterwards. |
+| `ANTE_INTEGRATION_DEBUG_LOG` | A logging category, such as `Cratis`, to log at Debug level. |
+
+The fixture does not cover the authentication proxy's token verification, host provisioning or the frontend. The command posts use the forwarded identity headers the proxy would set.
 
 ## Run a development server
 
