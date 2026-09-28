@@ -20,7 +20,16 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 | `Ante:LogoUrl` | string | empty | empty / empty | Optional image URL; failed image loads fall back to wordmark. |
 | `Ante:CustomCssUrl` | string | empty | empty / empty | Optional CSS URL; same-origin HTTP(S) or cross-origin HTTPS only. See [Customization](./customization.md). |
 | `Ante:IdentityBackchannelUrl` | string | empty | empty / unset | Optional host base URL for join-invitation `/in-use` GET. |
-| `Ante:HostOutcomeUrl` | string | empty | unset / unset | Optional host base URL for invited-flow `/outcome` GET. |
+| `Ante:HostOutcomeUrl` | string | empty | unset / unset | Optional host base URL for the `/outcome` GET after invited creation, join and self-service registration. |
+| `Ante:Registration:Enabled` | bool | `true` | unset / unset | `false` closes `/register`: the page shows a notice and the server rejects registration commands. |
+| `Ante:Registration:ClosedUrl` | string | empty | unset / unset | Optional https (or same-origin path) link shown when registration is closed. |
+| `Ante:Registration:MaxPerIdentity` | int | `0` (unlimited) | unset / unset | Most organizations one sign-in (provider + subject) may register within `Window`. Negative fails startup. |
+| `Ante:Registration:Window` | TimeSpan | `30.00:00:00` | unset / unset | Sliding window for `MaxPerIdentity`; must be positive when a limit is set. |
+| `Ante:Registration:RequestsPerMinutePerClient` | int | `0` (off) | unset / unset | Fixed-window rate limit per client address on `/api/organization/registration*`. |
+| `Ante:Registration:TrustForwardedFor` | bool | `false` | unset / unset | Use the first `X-Forwarded-For` entry as the client address. Enable only behind a proxy that overwrites the header. |
+| `Ante:Registration:ContextKeys` | string array | empty | unset / unset | Query-string keys carried from `/register` into `OrganizationRegistrationCompleted.SignupContext`. At most 16, letters/digits/`_-.` only. |
+| `Ante:Registration:Content:{locale}:*` | object | none | unset / unset | `Title`, `Intro`, `Highlights` (array), `PricingUrl`, `LoginUrl`, `CompletionMessage`. Resolved by exact locale, then language, then `en`. Links must be https or same-origin paths. |
+| `Ante:Organization:ReservedNames` | string array | empty | unset / unset | Names nobody can claim, compared ignoring case (for example `admin`, `app`, `api`). |
 | `Ante:DefaultLocale` | string | `en` | unset / unset | Default when no stored preference, allowed link hint, or browser language matches. `en`, `nb-NO` (also `nb` or `no` aliases); must be in the allowlist. |
 | `Ante:SupportedLocales` | string array | `en`, `nb-NO` when unset | unset / unset | Deployment allowlist, restricted to the bundled languages; nonempty, distinct. Set only `Ante__SupportedLocales__0=en` for an English-only deployment; configured entries replace the fallback rather than extending it. Unknown entries or a default outside the list fail startup. See [Customization](./customization.md#choose-the-lobby-language). |
 

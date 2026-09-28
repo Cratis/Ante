@@ -1,0 +1,122 @@
+# Reference deployment of Ante. Replace every <...> placeholder before applying.
+# The environment variable names are the configuration contract; see Documentation/configuration.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ante
+data:
+  # Ante's own Chronicle store and namespace. Use a store no other service writes to.
+  Ante__EventStore: "<HostLobby>"
+  Ante__Namespace: "Default"
+  Cratis__Chronicle__ConnectionString: "chronicle://<chronicle-service>:35000"
+  Cratis__MongoDB__Server: "mongodb://<mongodb-service>:27017"
+  Cratis__MongoDB__Database: "<HostLobby>"
+
+  # Host stores whose outbox Ante receives invitations, revocations, reissues and name reservations from.
+  Ante__HostStores__0: "<HostStore>"
+
+  # Where people land after onboarding. {tenant} is replaced only for organization-creating journeys.
+  Ante__HostAppUrl: "https://<app.example.com>/"
+
+  # Token issuer and audience must be unique per deployment.
+  Ante__Invitations__Token__Issuer: "https://<lobby.example.com>"
+  Ante__Invitations__Token__Audience: "<host>-lobby"
+
+  # Identity providers, mirroring the fronting proxy.
+  IdentityProviders__Providers__0__Name: "GitHub"
+  IdentityProviders__Providers__0__Issuers__0: "https://github.com"
+
+  # Legal documents published by a host store (remove for InProcess mode).
+  Ante__Legal__Source: "Inbox"
+  Ante__Legal__PublisherStore: "<HostStore>"
+  Ante__Legal__DocumentSetId: "<host>-legal"
+
+  # Optional host backchannels (cluster-internal URLs only).
+  Ante__IdentityBackchannelUrl: "http://<host-service>/api/internal/identity-providers"
+  Ante__HostOutcomeUrl: "http://<host-service>/api/internal/onboarding"
+
+  # Self-service registration. Set Enabled to "false" for invitation-only deployments.
+  Ante__Registration__Enabled: "true"
+  Ante__Registration__MaxPerIdentity: "3"
+  Ante__Registration__Window: "30.00:00:00"
+  Ante__Registration__RequestsPerMinutePerClient: "30"
+  Ante__Registration__TrustForwardedFor: "true"
+  Ante__Registration__ContextKeys__0: "offer"
+  Ante__Registration__ContextKeys__1: "utm_source"
+  Ante__Organization__ReservedNames__0: "admin"
+  Ante__Organization__ReservedNames__1: "app"
+  Ante__Organization__ReservedNames__2: "api"
+  Ante__Organization__ReservedNames__3: "lobby"
+
+  # Branding and languages.
+  Ante__LogoUrl: ""
+  Ante__CustomCssUrl: ""
+  Ante__SupportedLocales__0: "en"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ante-signing-key
+type: Opaque
+stringData:
+  # Generate a dedicated RSA key pair for this deployment; never reuse the development key.
+  Ante__Invitations__Token__PrivateKeyPem: |
+    <-----BEGIN PRIVATE KEY----- ... ----->
+  Ante__Invitations__Token__PublicKeyPem: |
+    <-----BEGIN PUBLIC KEY----- ... ----->
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ante
+  labels:
+    app: ante
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ante
+  template:
+    metadata:
+      labels:
+        app: ante
+    spec:
+      containers:
+        - name: ante
+          image: ghcr.io/cratis/ante:<version>
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: ante
+            - secretRef:
+                name: ante-signing-key
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ante
+spec:
+  selector:
+    app: ante
+  ports:
+    - port: 80
+      targetPort: 8080
