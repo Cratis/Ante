@@ -20,13 +20,16 @@ type StoredRegistrationOperation = {
  * silently sharing - or colliding on - one.
  * @returns The registration id to use for this tab's registration attempt.
  */
-export const getOrCreateRegistrationId = (): Guid => {
+export const getOrCreateRegistrationId = (): Guid => getOrCreateRegistrationOperation().id;
+
+/** Returns the operation and whether its pointer already existed before this page loaded. */
+export const getOrCreateRegistrationOperation = (): { id: Guid; isRecovered: boolean } => {
     const stored = readStoredOperation();
-    if (stored) return Guid.parse(stored.id);
+    if (stored) return { id: Guid.parse(stored.id), isRecovered: true };
 
     const id = Guid.create();
     writeStoredOperation(id);
-    return id;
+    return { id, isRecovered: false };
 };
 
 /**

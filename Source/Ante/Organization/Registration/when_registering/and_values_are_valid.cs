@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 #if DEBUG
+using System.Security.Claims;
 using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
 using Ante.IdentityProviders;
@@ -27,8 +28,15 @@ public class and_values_are_valid : Specification
         acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
 
         _scenario.Services.AddSingleton(acceptedNames);
-        _scenario.Services.AddSingleton(Substitute.For<IHttpContextAccessor>());
-        _scenario.Services.AddSingleton(Substitute.For<IIdentityProviderResolver>());
+        var accessor = Substitute.For<IHttpContextAccessor>();
+        accessor.HttpContext.Returns(new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "sub-1"), new Claim("iss", "github")], "proxy")),
+        });
+        var resolver = Substitute.For<IIdentityProviderResolver>();
+        resolver.ResolveFrom(Arg.Any<IEnumerable<string?>>()).Returns("github");
+        _scenario.Services.AddSingleton(accessor);
+        _scenario.Services.AddSingleton(resolver);
         _scenario.Services.AddSingleton<ILegalDocumentSource>(new NoLegalDocumentSource());
         _scenario.Services.AddSingleton(new OrganizationSetupStatusSubscriptions());
     }
@@ -43,6 +51,15 @@ public class and_values_are_valid : Specification
         await _scenario.ShouldHaveAppendedEvent<RegisterOrganization, OrganizationRegistrationCompleted>(
             _registrationId,
             e => e.TenantName == "Acme" && e.FirstName == "Jane" && e.LastName == "Doe");
+
+    [Fact]
+    async Task should_claim_the_organization_attempt() =>
+        await _scenario.ShouldHaveAppendedEvent<RegisterOrganization, OnboardingAttemptClaimed>(_registrationId);
+
+    [Fact]
+    async Task should_record_the_owner_only_locally() =>
+        await _scenario.ShouldHaveAppendedEvent<RegisterOrganization, RegistrationOwnerRecorded>(
+            _registrationId, e => e.OwnerSubject.Value == "sub-1" && e.OwnerProvider == "github");
 
     [Fact]
     void should_not_have_appended_a_legal_terms_accepted_event() =>

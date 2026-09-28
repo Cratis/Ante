@@ -14,6 +14,7 @@ using Cratis.Arc;
 using Cratis.Arc.MongoDB;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
 // Force invariant culture for the backend.
@@ -33,6 +34,8 @@ var builder = WebApplication.CreateBuilder(args);
 // see Documentation/configuration.md.
 var anteOptions = builder.Configuration.GetSection("Ante").Get<AnteOptions>() ?? new AnteOptions();
 AnteRoutingValidator.Validate(anteOptions);
+var invitationTokenOptions = builder.Configuration.GetSection("Ante:Invitations:Token").Get<InvitationTokenConfig>() ?? new InvitationTokenConfig();
+InvitationTokenConfigurationValidator.Validate(invitationTokenOptions);
 
 builder.AddCratis(
     options =>
@@ -63,6 +66,7 @@ builder.Services.Configure<IdentityProviderOptions>(builder.Configuration.GetSec
 
 builder.Services.AddSingleton<IIdentityProviderResolver, IdentityProviderResolver>();
 builder.Services.AddSingleton<IInvitationTokenIssuer, InvitationTokenIssuer>();
+builder.Services.AddSingleton<IInvitationTokenValidator, InvitationTokenValidator>();
 builder.Services.AddScoped<ISignedInIdentity, SignedInIdentity>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient<IIdentityBackchannel, IdentityBackchannel>();
@@ -84,11 +88,23 @@ builder.Services.AddAuthorization();
 builder.Services.AddAnteHealthChecks();
 
 var app = builder.Build();
+InvitationTokenConfigurationValidator.WarnForMissingClaims(
+    invitationTokenOptions,
+    app.Environment.IsDevelopment(),
+    app.Services.GetRequiredService<ILogger<InvitationTokenConfigurationValidator>>());
+IdentityProviderConfigurationWarnings.WarnForUnattributableSignIns(
+    app.Services.GetRequiredService<IOptions<IdentityProviderOptions>>().Value,
+    app.Services.GetRequiredService<ILogger<IdentityProviderOptions>>());
 
 // Installed before the pipeline (and therefore any traffic) is wired up, so the exchange endpoint and
 // InvitationIdentityProvider never run against a collection that is missing the indexes their
 // retry-safety and expiry guarantees rely on.
-await AcceptedInvitationIndexes.EnsureCreated(app.Services.GetRequiredService<IMongoCollection<AcceptedInvitation>>());
+// IMongoCollection<T> is scoped (its database follows the current tenant), so it is resolved from a
+// scope rather than the root provider; Development's scope validation rejects the root resolution.
+await using (var startupScope = app.Services.CreateAsyncScope())
+{
+    await AcceptedInvitationIndexes.EnsureCreated(startupScope.ServiceProvider.GetRequiredService<IMongoCollection<AcceptedInvitation>>());
+}
 
 app.UseRouting();
 app.UseAuthentication();

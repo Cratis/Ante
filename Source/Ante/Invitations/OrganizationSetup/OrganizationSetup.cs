@@ -5,8 +5,10 @@ using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.Receiving;
+using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Organization;
+using Ante.Organization.Registration;
 using Ante.Outbox;
 using Cratis.Chronicle.Keys;
 using Cratis.Types;
@@ -211,6 +213,8 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// </summary>
     /// <param name="httpContextAccessor">Accessor for the current request, used to clear the stale identity cookie.</param>
     /// <param name="pendingInvitation">Read model for validating the command.</param>
+    /// <param name="existingSetup">Durable evidence that this stream was already used before the shared claim event existed.</param>
+    /// <param name="existingJoin">Durable join acceptance on a reused id predating the shared claim event.</param>
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
     /// <param name="signedInIdentity">The identity the user is signed in with for this request.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
@@ -227,6 +231,8 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, IEnumerable<object>)>> Handle(
         IHttpContextAccessor httpContextAccessor,
         PendingInvitationToCreateOrganization? pendingInvitation,
+        OrganizationSetupProgress? existingSetup,
+        UserSetupProgress? existingJoin,
         IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
         ISignedInIdentity signedInIdentity,
         ILegalDocumentSource legalDocumentSource)
@@ -241,12 +247,16 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
             return ValidationResult.Error("Organization name is already in use.", ["organizationName"]);
         }
 
-        if (pendingInvitation is null)
+        if (pendingInvitation is null || existingSetup is not null || existingJoin is not null)
         {
             return ValidationResult.Error("Invitation is no longer pending and cannot be used for organization setup.");
         }
 
         var (identityProviderValue, complianceSubject) = signedInIdentity.Resolve(InvitationId, (Cratis.Chronicle.Subject)pendingInvitation.Subject);
+        if (string.IsNullOrWhiteSpace(identityProviderValue.Value))
+        {
+            return ValidationResult.Error("A signed-in subject and provider are required to set up an organization.");
+        }
 
         var legalResolution = await LegalAcceptanceEvidence.Resolve(
             legalDocumentSource,
@@ -265,6 +275,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
 
         var events = new List<object>
         {
+            new OnboardingAttemptClaimed(),
             new InvitationToCreateTenantAccepted(
                 OrganizationName,
                 identityProviderValue,
@@ -302,17 +313,24 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
     /// recorded anything and may safely (re)submit; one that sees Recorded has already submitted and must
     /// keep waiting rather than resubmitting, even if the local browser tab restarted in between.
     /// </remarks>
-    /// <param name="invitationId">The invitation or registration identifier.</param>
+    /// <param name="invitationId">The invitation identifier.</param>
+    /// <param name="signedInIdentity">Verifier of invitation ownership.</param>
     /// <param name="subscriptions">The subscription tracker.</param>
     /// <param name="recordedCollection">The durable setup-record collection.</param>
     /// <param name="publishedCollection">The durable outbox-publication collection.</param>
     /// <returns>An observable status stream for the invitation.</returns>
     public static ISubject<OrganizationSetupAcceptanceStatusView> StatusForInvitation(
         InvitationId invitationId,
+        ISignedInIdentity signedInIdentity,
         OrganizationSetupStatusSubscriptions subscriptions,
         IMongoCollection<OrganizationSetupProgress> recordedCollection,
         IMongoCollection<OrganizationSetupPublished> publishedCollection)
     {
+        if (!signedInIdentity.IsVerifiedOwnerOf(invitationId))
+        {
+            return new BehaviorSubject<OrganizationSetupAcceptanceStatusView>(new(invitationId, OrganizationSetupAcceptanceStatus.Pending, TenantName.NotSet));
+        }
+
         var recorded = recordedCollection.Find(Builders<OrganizationSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
         var published = publishedCollection.Find(Builders<OrganizationSetupPublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
         return subscriptions.GetStatus(
@@ -321,20 +339,52 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
             isRecorded: recorded is not null,
             isFullyPublished: OrganizationSetupPublication.IsFullyPublished(recorded, published));
     }
+
+    /// <summary>
+    /// Returns a snapshot of a self-service registration only to the owner recorded with it.
+    /// A missing owner (including registrations created before ownership was recorded) is unknown.
+    /// </summary>
+    /// <param name="registrationId">The registration identifier.</param>
+    /// <param name="signedInIdentity">Verifier of the current login.</param>
+    /// <param name="subscriptions">The subscription tracker.</param>
+    /// <param name="eventStore">The scoped event store that releases protected registration owner data.</param>
+    /// <param name="publishedCollection">The durable outbox-publication collection.</param>
+    /// <returns>Current status or the same pending response as an unknown registration.</returns>
+    public static async Task<OrganizationSetupAcceptanceStatusView> StatusForRegistration(
+        InvitationId registrationId,
+        ISignedInIdentity signedInIdentity,
+        OrganizationSetupStatusSubscriptions subscriptions,
+        IEventStore eventStore,
+        IMongoCollection<OrganizationSetupPublished> publishedCollection)
+    {
+        var unknown = new OrganizationSetupAcceptanceStatusView(registrationId, OrganizationSetupAcceptanceStatus.Pending, TenantName.NotSet);
+        var recorded = await eventStore.ReadModels.GetInstanceById<OrganizationSetupProgress>(registrationId.Value);
+        if (recorded?.OwnerSubject is not { } ownerSubject || recorded.OwnerProvider is not { } ownerProvider ||
+            !signedInIdentity.IsVerifiedRegistrationOwner(new RegistrationOwner(ownerSubject, ownerProvider)))
+        {
+            return unknown;
+        }
+
+        var published = await publishedCollection.Find(Builders<OrganizationSetupPublished>.Filter.Eq(progress => progress.Id, registrationId)).FirstOrDefaultAsync();
+        return ((BehaviorSubject<OrganizationSetupAcceptanceStatusView>)subscriptions.GetStatus(
+            registrationId,
+            recorded.OrganizationName,
+            isRecorded: true,
+            isFullyPublished: OrganizationSetupPublication.IsFullyPublished(recorded, published))).Value;
+    }
 }
 
 /// <summary>
 /// Forwards <see cref="InvitationToCreateTenantAccepted"/> to the outbox so the host can subscribe.
 /// </summary>
 /// <remarks>
-/// Pinned to <see cref="EventLogAttribute"/> deliberately - see the remarks on <c language="csharp">LegalTermsAcceptanceOutbox</c>
+/// Pinned to the event log deliberately - see the remarks on <c language="csharp">LegalTermsAcceptanceOutbox</c>
 /// for why an unattributed reactor handling a <c language="csharp">Cratis.Ante.Contracts</c> event is unsafe to route once a
 /// deployment renames its store away from the compiled "Ante" literal.
 /// </remarks>
 /// <param name="eventStore">The event store.</param>
 /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>, given a chance to accelerate a live status subscription once this fact is durably published.</param>
-[Reactor]
-[EventLog]
+[Reactor(eventSequence: EventSequenceId.LogId)]
 public class OrganizationSetupOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers) : IReactor
 {
     /// <summary>

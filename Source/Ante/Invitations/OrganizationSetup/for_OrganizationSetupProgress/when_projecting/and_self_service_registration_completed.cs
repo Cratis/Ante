@@ -3,6 +3,7 @@
 
 #if DEBUG
 using Ante.Contracts.Organization;
+using Ante.Organization.Registration;
 
 namespace Ante.Invitations.OrganizationSetup.for_OrganizationSetupProgress.when_projecting;
 
@@ -22,10 +23,13 @@ public class and_self_service_registration_completed : Specification
         await _scenario.Given
             .ForEventSource(_registrationId)
             .Events(new OrganizationRegistrationCompleted(
-                "Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
+                "Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"),
+                new RegistrationOwnerRecorded((RegistrationOwnerSubject)"sub-1", "github"));
     }
 
     [Fact] void should_have_the_organization_name() => Assert.Equal((TenantName)"Acme", _scenario.Instance!.OrganizationName);
     [Fact] void should_not_have_recorded_a_legal_fact() => Assert.False(_scenario.Instance!.LegalRecorded);
+    [Fact] void should_project_the_owner_subject() => Assert.Equal("sub-1", _scenario.Instance!.OwnerSubject?.Value);
+    [Fact] void should_project_the_owner_provider() => Assert.Equal((IdentityProviderName)"github", _scenario.Instance!.OwnerProvider);
 }
 #endif

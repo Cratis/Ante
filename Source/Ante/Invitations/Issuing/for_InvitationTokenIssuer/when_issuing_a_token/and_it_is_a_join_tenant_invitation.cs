@@ -13,7 +13,7 @@ public class and_it_is_a_join_tenant_invitation : Specification
 {
     static readonly Guid _invitationId = Guid.NewGuid();
 
-    string _token = string.Empty;
+    IssuedInvitationToken _issued = null!;
 
     void Establish()
     {
@@ -21,23 +21,30 @@ public class and_it_is_a_join_tenant_invitation : Specification
         var config = new InvitationTokenConfig { PrivateKeyPem = rsa.ExportPkcs8PrivateKeyPem() };
         var issuer = new InvitationTokenIssuer(Options.Create(config));
 
-        _token = issuer.IssueJoinTenantInvitation(_invitationId);
+        _issued = issuer.IssueJoinTenantInvitation(_invitationId);
     }
 
     [Fact]
-    public void should_produce_a_token() => Assert.False(string.IsNullOrWhiteSpace(_token));
+    public void should_produce_a_token() => Assert.False(string.IsNullOrWhiteSpace(_issued.Token));
 
     [Fact]
     public void should_embed_the_invitation_id_as_the_jti_claim()
     {
-        var jwt = new JsonWebTokenHandler().ReadJsonWebToken(_token);
+        var jwt = new JsonWebTokenHandler().ReadJsonWebToken(_issued.Token);
         Assert.Equal(_invitationId.ToString(), jwt.Id);
+    }
+
+    [Fact]
+    public void should_return_the_exact_jwt_expiry()
+    {
+        var jwt = new JsonWebTokenHandler().ReadJsonWebToken(_issued.Token);
+        Assert.Equal(jwt.ValidTo, _issued.ExpiresAt.UtcDateTime);
     }
 
     [Fact]
     public void should_embed_the_join_tenant_flow_type()
     {
-        var jwt = new JsonWebTokenHandler().ReadJsonWebToken(_token);
+        var jwt = new JsonWebTokenHandler().ReadJsonWebToken(_issued.Token);
         var claim = jwt.Claims.First(c => c.Type == InvitationClaims.InvitationType).Value;
         Assert.Equal(nameof(InvitationFlowType.JoinTenant), claim);
     }

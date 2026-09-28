@@ -22,13 +22,19 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 
 | Suffix | Type | Code default | Base / Development setting | When needed |
 | --- | --- | --- | --- | --- |
-| `PrivateKeyPem` | string (PEM) | empty | empty / committed throwaway RSA key | Required to issue tokens; never reuse Development key outside local development. |
-| `PublicKeyPem` | string (PEM) | empty | empty / committed throwaway public key | Needed by **external verifiers** as distributed key material, not used by Ante to issue or exchange tokens. |
-| `Issuer` | string | empty | empty / empty | Optional `iss` claim written at issuance; does not enable Ante exchange validation. Coordinate verifier policy. |
-| `Audience` | string | empty | empty / empty | Optional `aud` claim written at issuance; does not enable Ante exchange validation. Coordinate verifier policy. |
-| `Expiry` | `TimeSpan` | 7 days | `7.00:00:00` / `7.00:00:00` | Token validity duration; coordinate verifier policy. |
+| `PrivateKeyPem` | string (PEM) | empty | empty / committed throwaway RSA key | Required to issue invitations and accept exchanges, but empty is allowed at startup for existing deployments: startup warns and all exchanges are rejected, even if `PublicKeyPem` is set. A configured key must parse as an RSA private key. Never reuse the Development key elsewhere. Making it mandatory at startup is tracked in [Ante #69](https://github.com/Cratis/Ante/issues/69). |
+| `PublicKeyPem` | string (PEM) | empty | empty / committed throwaway public key | **Additional** trusted exchange-verification key, for overlap during rotation. The public key derived from `PrivateKeyPem` is always trusted; this value does not change which key signs tokens. Distribute the current signing public key separately to external verifiers. |
+| `Issuer` | string | empty | empty / empty | Recommended per deployment; written as `iss` at issuance and checked at exchange when set. Empty skips the issuer check and logs a startup warning outside Development. |
+| `Audience` | string | empty | empty / empty | Recommended per deployment; written as `aud` at issuance and checked at exchange when set. Empty skips the audience check and logs a startup warning outside Development. |
+| `Expiry` | `TimeSpan` | 7 days | `7.00:00:00` / `7.00:00:00` | Issued token lifetime; exchange requires `exp` and validates it with up to 30 seconds of clock skew, but the accepted session expires at the signed `exp`. |
+
+**Upgrade warning:** `PublicKeyPem` was previously ignored by Ante at exchange and is now trusted to verify invitation signatures. Remove any non-Ante key from this setting before upgrading. Supply a second key only when tokens signed with that key should be accepted (for example the outgoing Ante signing key during a rotation). An invalid configured public key prevents startup. Without a private key, an additional public key cannot enable exchange.
+
+Setting `Issuer` or `Audience` on an existing deployment makes links minted before the switch without those claims fail exchange. Tokens live seven days by default; plan the transition around outstanding links. Empty values remain permitted (with production warnings) for this release; requiring them is tracked in [Ante #69](https://github.com/Cratis/Ante/issues/69) for the next major release.
 
 ## Identity and infrastructure
+
+**Upgrade note:** invitation exchange and registration reject a sign-in whose identity provider cannot be resolved, instead of recording it with an empty provider. Exchange and subsequent requests use the same AuthProxy precedence. With canonical identity, AuthProxy sends `providerKey` and normalized `issuer` in the body and forwards `urn:cratis:identity:provider-key` / `urn:cratis:identity:issuer` on requests; Ante resolves only those two candidates (not raw legacy claims or Arc metadata). Without canonical identity, AuthProxy chooses one exchange value in order: `iss`, `identity_provider`, the Microsoft access-control-service identity-provider claim, then `AuthenticationType` (also forwarded as Arc provider metadata on requests). Ante selects that same first present value on requests, so a later configured claim cannot override an earlier unconfigured one. Without an identifying value, one configured provider can be inferred; with only an `AuthenticationTypes.Federation` marker, that sole provider must have an issuer. Startup warns when the provider list is empty, the only provider has no `Issuer`, or multiple providers include any issuer-bearing provider (a marker alone cannot distinguish those OIDC sign-ins). An unresolved exchange is also logged without personal or token data. Mirror the proxy's providers here, including each OIDC provider's `Issuer`, or configure canonical identity forwarding.
 
 | Key | Type | Code default | Base / Development setting | When needed |
 | --- | --- | --- | --- | --- |
