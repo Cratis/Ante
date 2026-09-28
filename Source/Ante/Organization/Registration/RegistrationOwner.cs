@@ -51,4 +51,4 @@ public record RegistrationOwner(RegistrationOwnerSubject Subject, IdentityProvid
 /// <param name="OwnerSubject">The person who registered.</param>
 /// <param name="OwnerProvider">The identity provider for that login.</param>
 [EventType]
-public record RegistrationOwnerRecorded([property: Subject] RegistrationOwnerSubject OwnerSubject, IdentityProviderName OwnerProvider);
+public record RegistrationOwnerRecorded(RegistrationOwnerSubject OwnerSubject, IdentityProviderName OwnerProvider);
