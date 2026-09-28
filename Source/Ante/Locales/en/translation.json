@@ -73,6 +73,7 @@
         "stepTermsConditions": "Terms & Privacy",
         "organizationName": "Organization Name",
         "organizationNamePlaceholder": "Acme Corporation",
+        "nameValidationUnavailable": "We couldn't check that name right now. Please try again.",
         "firstName": "First Name",
         "firstNamePlaceholder": "Enter your first name",
         "middleName": "Middle Name",
