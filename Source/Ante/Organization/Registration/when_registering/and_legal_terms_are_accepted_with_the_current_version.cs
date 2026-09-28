@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 #if DEBUG
+using System.Security.Claims;
 using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
 using Ante.IdentityProviders;
@@ -33,8 +34,15 @@ public class and_legal_terms_are_accepted_with_the_current_version : Specificati
         acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
 
         _scenario.Services.AddSingleton(acceptedNames);
-        _scenario.Services.AddSingleton(Substitute.For<IHttpContextAccessor>());
-        _scenario.Services.AddSingleton(Substitute.For<IIdentityProviderResolver>());
+        var accessor = Substitute.For<IHttpContextAccessor>();
+        accessor.HttpContext.Returns(new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "sub-1")], "proxy")),
+        });
+        var resolver = Substitute.For<IIdentityProviderResolver>();
+        resolver.ResolveFrom(Arg.Any<IEnumerable<string?>>()).Returns("github");
+        _scenario.Services.AddSingleton(accessor);
+        _scenario.Services.AddSingleton(resolver);
         _scenario.Services.AddSingleton<ILegalDocumentSource>(new configured_legal_source(_currentDocuments));
         _scenario.Services.AddSingleton(new OrganizationSetupStatusSubscriptions());
     }

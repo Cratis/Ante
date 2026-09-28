@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Ante.Invitations.Accepting;
 using Ante.Invitations.Issuing;
 using Ante.Outbox;
 using Cratis.Chronicle.EventSequences.Concurrency;
@@ -249,12 +250,23 @@ public class InvitationTokenIssuingReactor(IInvitationTokenIssuer tokenIssuer, I
 public record PendingInvitationToCreateOrganization(InvitationId Id, [SetFromContext<CreateTenantInvitationReceived>("Subject")] Guid Subject, Email Email, IReadOnlyList<RoleName> Roles)
 {
     /// <summary>
-    /// Gets all pending create-organization invitations.
+    /// Gets only the pending create-organization invitation owned by this request.
     /// </summary>
-    /// <param name="collection">The MongoDB collection.</param>
-    /// <returns>Observable of all pending create-organization invitations.</returns>
-    public static ISubject<IEnumerable<PendingInvitationToCreateOrganization>> AllPendingInvitationsToCreateOrganization(IMongoCollection<PendingInvitationToCreateOrganization> collection) =>
-        collection.Observe();
+    /// <param name="eventStore">The scoped event store used to release personal data in the read model.</param>
+    /// <param name="signedInIdentity">The current invitation identity.</param>
+    /// <returns>The caller's invitation, or null when no owned pending invitation exists.</returns>
+    public static async Task<PendingInvitationToCreateOrganization?> PendingCreateOrganizationForCurrentInvitee(
+        IEventStore eventStore,
+        ISignedInIdentity signedInIdentity)
+    {
+        var invitationId = signedInIdentity.CurrentInvitationId();
+        if (!signedInIdentity.IsVerifiedOwnerOf(invitationId))
+        {
+            return null;
+        }
+
+        return await eventStore.ReadModels.GetInstanceById<PendingInvitationToCreateOrganization>(invitationId.Value);
+    }
 }
 
 /// <summary>
@@ -272,10 +284,21 @@ public record PendingInvitationToCreateOrganization(InvitationId Id, [SetFromCon
 public record PendingInvitationToJoin(InvitationId Id, [SetFromContext<JoinTenantInvitationReceived>("Subject")] Guid Subject, Email Email, TenantName TenantName, IReadOnlyList<RoleName> Roles)
 {
     /// <summary>
-    /// Gets all pending join-tenant invitations.
+    /// Gets only the pending join invitation owned by this request.
     /// </summary>
-    /// <param name="collection">The MongoDB collection.</param>
-    /// <returns>Observable of all pending join-tenant invitations.</returns>
-    public static ISubject<IEnumerable<PendingInvitationToJoin>> AllPendingInvitationsToJoin(IMongoCollection<PendingInvitationToJoin> collection) =>
-        collection.Observe();
+    /// <param name="eventStore">The scoped event store used to release personal data in the read model.</param>
+    /// <param name="signedInIdentity">The current invitation identity.</param>
+    /// <returns>The caller's invitation, or null when no owned pending invitation exists.</returns>
+    public static async Task<PendingInvitationToJoin?> PendingJoinForCurrentInvitee(
+        IEventStore eventStore,
+        ISignedInIdentity signedInIdentity)
+    {
+        var invitationId = signedInIdentity.CurrentInvitationId();
+        if (!signedInIdentity.IsVerifiedOwnerOf(invitationId))
+        {
+            return null;
+        }
+
+        return await eventStore.ReadModels.GetInstanceById<PendingInvitationToJoin>(invitationId.Value);
+    }
 }

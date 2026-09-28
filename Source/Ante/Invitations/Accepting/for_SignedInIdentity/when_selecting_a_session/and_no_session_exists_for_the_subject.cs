@@ -11,7 +11,7 @@ public class and_no_session_exists_for_the_subject : Specification
     AcceptedInvitation? _result;
 
     void Because() =>
-        _result = SignedInIdentity.SelectSession([], _invitationId, "requesting-subject", DateTimeOffset.UtcNow);
+        _result = SignedInIdentity.SelectSession([], _invitationId, "requesting-subject", "github", DateTimeOffset.UtcNow);
 
     [Fact] void should_select_no_session() => Assert.Null(_result);
 }

@@ -2,74 +2,32 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 #if DEBUG
-using System.Security.Claims;
-using System.Security.Cryptography;
-using Ante.IdentityProviders;
-using Ante.Invitations.Issuing;
-using Microsoft.IdentityModel.JsonWebTokens;
-using Microsoft.IdentityModel.Tokens;
 using MongoDB.Driver;
 
 namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging;
 
 public class and_the_token_is_valid : Specification
 {
-    static readonly Guid _invitationId = Guid.NewGuid();
-
-    // A JWT exp claim only carries whole-second precision, so the expiry recorded from it has to be
-    // compared against a value truncated the same way, rather than the sub-second DateTime.UtcNow this
-    // would otherwise produce.
-    static readonly DateTime _expiresAt = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.AddDays(1).ToUnixTimeSeconds()).UtcDateTime;
-
-    IMongoCollection<AcceptedInvitation> _collection = null!;
-    IIdentityProviderResolver _resolver = null!;
-    string _token = string.Empty;
+    readonly InvitationTokenFixture _fixture = new();
     bool _result;
 
-    void Establish()
-    {
-        using var rsa = RSA.Create(2048);
-        var securityKey = new RsaSecurityKey(rsa.ExportParameters(true));
-        var handler = new JsonWebTokenHandler();
-        var descriptor = new SecurityTokenDescriptor
-        {
-            Subject = new ClaimsIdentity(
-            [
-                new Claim(InvitationClaims.InvitationType, nameof(InvitationFlowType.JoinTenant)),
-                new Claim(JwtRegisteredClaimNames.Jti, _invitationId.ToString()),
-            ]),
-            Expires = _expiresAt,
-            SigningCredentials = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256),
-        };
-        _token = handler.CreateToken(descriptor);
-
-        _collection = Substitute.For<IMongoCollection<AcceptedInvitation>>();
-        _resolver = Substitute.For<IIdentityProviderResolver>();
-        _resolver.ResolveFrom(Arg.Any<IEnumerable<string?>>()).Returns("github");
-    }
-
-    async Task Because() =>
-        _result = await InviteExchangeProcessor.TryStoreAcceptedInvitation(
-            $"Bearer {_token}",
-            new ExchangeInviteRequest("subject-123", "github", null, null),
-            _collection,
-            _resolver);
+    async Task Because() => _result = await _fixture.Exchange(_fixture.Token());
 
     [Fact] void should_succeed() => Assert.True(_result);
 
     [Fact]
     void should_record_the_accepted_invitation() =>
-        _collection.Received(1).ReplaceOneAsync(
+        _fixture.Collection.Received(1).ReplaceOneAsync(
             Arg.Any<FilterDefinition<AcceptedInvitation>>(),
-            Arg.Is<AcceptedInvitation>(a => a.InvitationId.Value == _invitationId && a.Subject == "subject-123"),
+            Arg.Is<AcceptedInvitation>(a => a.InvitationId.Value == _fixture.InvitationId && a.Subject == "subject-123"),
             Arg.Any<ReplaceOptions>(),
             Arg.Any<CancellationToken>());
 
     [Fact]
     void should_record_the_session_expiry_from_the_token() =>
-        _collection.Received(1).ReplaceOneAsync(
+        _fixture.Collection.Received(1).ReplaceOneAsync(
             Arg.Any<FilterDefinition<AcceptedInvitation>>(),
-            Arg.Is<AcceptedInvitation>(a => a.ExpiresAtUtc.UtcDateTime == _expiresAt),
+            Arg.Is<AcceptedInvitation>(a => a.ExpiresAtUtc.UtcDateTime == _fixture.ExpiresAt),
             Arg.Any<ReplaceOptions>(),
             Arg.Any<CancellationToken>());
 }

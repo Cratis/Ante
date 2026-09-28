@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using Ante.Contracts.Legal;
 using Ante.Invitations.Accepting;
+using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
 using Ante.Outbox;
@@ -144,6 +145,10 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
         }
 
         var (identityProvider, complianceSubject) = signedInIdentity.Resolve(InvitationId, (Cratis.Chronicle.Subject)pendingInvitation.Subject);
+        if (string.IsNullOrWhiteSpace(identityProvider.Value))
+        {
+            return ValidationResult.Error("A signed-in subject and provider are required to accept this invitation.");
+        }
 
         // The same person can hold several invitations to one organization - for instance one per email
         // address they were invited under. Onboarding a second one under a login that already belongs
@@ -164,6 +169,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// </summary>
     /// <param name="identity">The identity resolved for the accepting user.</param>
     /// <param name="pendingInvitation">The current state of the pending invitation, resolved from the Chronicle projection.</param>
+    /// <param name="existingSetup">Durable organization setup evidence from a reused id predating the one-use marker.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
     /// <returns>The compliance subject the events are appended under, and the events to append.</returns>
     /// <remarks>
@@ -175,9 +181,10 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, IEnumerable<object>)>> Handle(
         AcceptingUserIdentity identity,
         PendingInvitationToJoin? pendingInvitation,
+        OrganizationSetupProgress? existingSetup,
         ILegalDocumentSource legalDocumentSource)
     {
-        if (pendingInvitation is null)
+        if (pendingInvitation is null || existingSetup is not null)
         {
             return ValidationResult.Error("Invitation is no longer pending and cannot be used to accept the invitation.");
         }
@@ -200,6 +207,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
 
         var events = new List<object>
         {
+            new OnboardingAttemptClaimed(),
             new InvitationToJoinTenantAccepted(
                 pendingInvitation.TenantName,
                 identity.Provider,
@@ -237,16 +245,23 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
     /// local browser tab restarted in between.
     /// </remarks>
     /// <param name="invitationId">The invitation identifier.</param>
+    /// <param name="signedInIdentity">Verifier of invitation ownership.</param>
     /// <param name="subscriptions">The subscription tracker.</param>
     /// <param name="recordedCollection">The durable acceptance-record collection.</param>
     /// <param name="publishedCollection">The durable outbox-publication collection.</param>
     /// <returns>An observable status stream for the invitation.</returns>
     public static ISubject<UserSetupAcceptanceStatusView> StatusForInvitation(
         InvitationId invitationId,
+        ISignedInIdentity signedInIdentity,
         UserSetupStatusSubscriptions subscriptions,
         IMongoCollection<UserSetupProgress> recordedCollection,
         IMongoCollection<JoinTenantAcceptancePublished> publishedCollection)
     {
+        if (!signedInIdentity.IsVerifiedOwnerOf(invitationId))
+        {
+            return new BehaviorSubject<UserSetupAcceptanceStatusView>(new(invitationId, UserSetupAcceptanceStatus.Pending));
+        }
+
         var recorded = recordedCollection.Find(Builders<UserSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
         var published = publishedCollection.Find(Builders<JoinTenantAcceptancePublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
         return subscriptions.GetStatus(
