@@ -9,6 +9,7 @@ using Ante.Invitations.Receiving;
 using Ante.Legal;
 using Ante.Outbox;
 using Cratis.Arc.Validation;
+using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Types;
 using MongoDB.Driver;
 
@@ -171,18 +172,20 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// <param name="pendingInvitation">The current state of the pending invitation, resolved from the Chronicle projection.</param>
     /// <param name="existingSetup">Durable organization setup evidence from a reused id predating the one-use marker.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
-    /// <returns>The compliance subject the events are appended under, and the events to append.</returns>
+    /// <param name="acceptanceFence">The authoritative invitation revision used to fence revocation.</param>
+    /// <returns>The compliance subject and a batch scoped to the invitation's read revision.</returns>
     /// <remarks>
     /// Does not mark the invitation as accepted here - that would be a pre-append success signal, visible
     /// to a polling client before the event this method returns has even been appended, let alone
     /// forwarded to the outbox. <see cref="JoinTenantAcceptanceOutbox"/> marks it once the acceptance is
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
-    public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, IEnumerable<object>)>> Handle(
+    public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
         AcceptingUserIdentity identity,
         PendingInvitationToJoin? pendingInvitation,
         OrganizationSetupProgress? existingSetup,
-        ILegalDocumentSource legalDocumentSource)
+        ILegalDocumentSource legalDocumentSource,
+        IInvitationAcceptanceFence acceptanceFence)
     {
         if (pendingInvitation is null || existingSetup is not null)
         {
@@ -220,7 +223,16 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
         };
         events.AddRange(legalEvents);
 
-        return (identity.Subject, events);
+        var scope = await acceptanceFence.For(InvitationId, InvitationFlowType.JoinTenant);
+        if (scope is null)
+        {
+            return ValidationResult.Error("Invitation is no longer pending and cannot be used to accept the invitation.");
+        }
+
+        var source = (EventSourceId)InvitationId.Value.ToString("D");
+        return (identity.Subject, new EventsWithConcurrencyScopes(
+            [.. events.Select(@event => new EventForEventSourceId(source, @event) { Subject = identity.Subject })],
+            [new KeyValuePair<EventSourceId, ConcurrencyScope>(source, scope)]));
     }
 }
 

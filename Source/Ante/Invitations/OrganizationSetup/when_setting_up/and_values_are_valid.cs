@@ -4,6 +4,7 @@
 #if DEBUG
 using Ante.Contracts.Legal;
 using Ante.Invitations.Accepting;
+using Ante.Invitations.Accepting.for_InvitationAcceptanceFence;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
 using Microsoft.AspNetCore.Http;
@@ -34,6 +35,7 @@ public class and_values_are_valid : Specification
 
         _scenario.Services.AddSingleton(acceptedNames);
         _scenario.Services.AddSingleton(signedInIdentity);
+        _scenario.Services.AddSingleton(AcceptanceFenceForSpecs.Allow(_invitationId, InvitationFlowType.CreateTenant));
         _scenario.Services.AddSingleton<ILegalDocumentSource>(new NoLegalDocumentSource());
         _scenario.Services.AddSingleton(Substitute.For<IHttpContextAccessor>());
         _scenario.Services.AddSingleton(new OrganizationSetupStatusSubscriptions());

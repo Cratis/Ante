@@ -10,6 +10,7 @@ using Ante.Legal;
 using Ante.Organization;
 using Ante.Organization.Registration;
 using Ante.Outbox;
+using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Chronicle.Keys;
 using Cratis.Types;
 using MongoDB.Driver;
@@ -223,6 +224,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
     /// <param name="signedInIdentity">The identity the user is signed in with for this request.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
+    /// <param name="acceptanceFence">The authoritative invitation revision used to fence revocation.</param>
     /// <returns>
     /// A <see cref="Result{T0, T1}"/> containing either a failed <see cref="ValidationResult"/> or the
     /// compliance subject and events to append.
@@ -233,14 +235,15 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// forwarded to the outbox. <see cref="OrganizationSetupOutbox"/> marks it once the acceptance is
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
-    public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, IEnumerable<object>)>> Handle(
+    public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
         IHttpContextAccessor httpContextAccessor,
         PendingInvitationToCreateOrganization? pendingInvitation,
         OrganizationSetupProgress? existingSetup,
         UserSetupProgress? existingJoin,
         IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
         ISignedInIdentity signedInIdentity,
-        ILegalDocumentSource legalDocumentSource)
+        ILegalDocumentSource legalDocumentSource,
+        IInvitationAcceptanceFence acceptanceFence)
     {
         // Re-read rather than trust the validator: the name can be claimed between the two, and this is
         // the last look before the events are composed. The member is named the way the client names
@@ -276,8 +279,6 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
             return legalError;
         }
 
-        httpContextAccessor.HttpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
-
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
@@ -293,7 +294,18 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         };
         events.AddRange(legalEvents);
 
-        return (complianceSubject, events);
+        var scope = await acceptanceFence.For(InvitationId, InvitationFlowType.CreateTenant);
+        if (scope is null)
+        {
+            return ValidationResult.Error("Invitation is no longer pending and cannot be used for organization setup.");
+        }
+
+        httpContextAccessor.HttpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
+
+        var source = (EventSourceId)InvitationId.Value.ToString("D");
+        return (complianceSubject, new EventsWithConcurrencyScopes(
+            [.. events.Select(@event => new EventForEventSourceId(source, @event) { Subject = complianceSubject })],
+            [new KeyValuePair<EventSourceId, ConcurrencyScope>(source, scope)]));
     }
 }
 

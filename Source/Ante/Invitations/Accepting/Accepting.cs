@@ -320,13 +320,37 @@ public record InvitationIdentityDetails(InvitationId InvitationId, InvitationFlo
 /// </summary>
 /// <param name="acceptedInvitations">Collection used to resolve accepted invitation sessions for fallback identity resolution.</param>
 /// <param name="identityProviderResolver">Resolver for the forwarded request's identity provider.</param>
+/// <param name="exchangeConfig">The exchange mode.</param>
+/// <param name="attestedSessions">The attested session collection.</param>
 public class InvitationIdentityProvider(
     IMongoCollection<AcceptedInvitation> acceptedInvitations,
-    IIdentityProviderResolver identityProviderResolver) : IProvideIdentityDetails<InvitationIdentityDetails>
+    IIdentityProviderResolver identityProviderResolver,
+    IOptions<InvitationExchangeConfig>? exchangeConfig = null,
+    IMongoCollection<AttestedInvitationSession>? attestedSessions = null) : IProvideIdentityDetails<InvitationIdentityDetails>
 {
     /// <inheritdoc/>
     public async Task<IdentityDetails> Provide(IdentityProviderContext context)
     {
+        if (exchangeConfig?.Value.Mode == InvitationExchangeMode.Attested)
+        {
+            var report = AuthProxySignInReport.FromClaims(context.Claims);
+            var attestedSubject = context.Claims.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:subject").Value;
+            var scope = exchangeConfig.Value.Attestation.LobbyScope;
+            if (attestedSessions is null || string.IsNullOrWhiteSpace(scope) || string.IsNullOrWhiteSpace(attestedSubject) ||
+                string.IsNullOrWhiteSpace(report.ProviderKey) || string.IsNullOrWhiteSpace(report.Issuer))
+            {
+                return new IdentityDetails(true, new InvitationIdentityDetails(InvitationId.NotSet, InvitationFlowType.JoinTenant));
+            }
+
+            var candidates = await attestedSessions.Find(Builders<AttestedInvitationSession>.Filter.Eq(row => row.ProviderSubject, attestedSubject)).ToListAsync();
+            var claimed = context.Claims.FirstOrDefault(claim => claim.Key == JwtRegisteredClaimNames.Jti).Value;
+            var id = Guid.TryParse(claimed, out var guid) ? (InvitationId)guid : InvitationId.NotSet;
+            var session = SignedInIdentity.SelectAttestedSession(candidates, scope, id, report.ProviderKey, report.Issuer, attestedSubject, DateTime.UtcNow);
+            return session is null
+                ? new IdentityDetails(true, new InvitationIdentityDetails(InvitationId.NotSet, InvitationFlowType.JoinTenant))
+                : new IdentityDetails(true, new InvitationIdentityDetails(session.InvitationId, session.FlowType));
+        }
+
         var jtiValue = context.Claims
             .FirstOrDefault(c => c.Key == JwtRegisteredClaimNames.Jti).Value;
 

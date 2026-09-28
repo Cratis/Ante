@@ -74,6 +74,7 @@ builder.Services.AddSingleton<InvitationAttestationVerifier>();
 builder.Services.AddScoped<AttestedInvitationStaging>();
 builder.Services.AddScoped<AttestedInvitationCompletion>();
 builder.Services.AddScoped<IAttestedInvitationSessions, AttestedInvitationSessions>();
+builder.Services.AddScoped<IInvitationAcceptanceFence, InvitationAcceptanceFence>();
 builder.Services.AddScoped<ISignedInIdentity, SignedInIdentity>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient<IIdentityBackchannel, IdentityBackchannel>();

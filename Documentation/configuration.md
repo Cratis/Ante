@@ -34,7 +34,7 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 
 ## Invitation exchange (`Ante:Invitations:Exchange`)
 
-`Mode` defaults to `Legacy`. `Attested` requires complete, separate AuthProxy trust configuration and issues recipient-bound capabilities with `email` and `tenant_id` claims. **Do not switch live traffic yet:** staging is implemented, but signed completion and attested ownership are not; `POST /_invite/exchange` rejects signed-mode traffic until those steps ship. There is no fallback to Legacy on attestation failure.
+`Mode` defaults to `Legacy`; keep it for the released body-authored exchange while existing links drain. Choose `Attested` only after your AuthProxy signs staged exchanges, forwards canonical identity on subsequent requests and consumes generation-3 tokens. Attested mode issues recipient-bound capabilities with `email` and `tenant_id` claims. It rejects legacy exchange bodies and never falls back to Legacy after failed attestation. Both stage and completion require MongoDB and Chronicle availability; only an exact live attested session grants later invitation ownership. See the [cutover procedure](./deployment.md#switch-an-invitation-proxy-to-attested-mode).
 
 | Suffix | Type | Code default | When needed |
 | --- | --- | --- | --- |
@@ -44,8 +44,10 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 | `Attestation:LobbyScope` | string | empty | Lobby authentication scope shared with AuthProxy's resolved tenant; never derive it from the invited organization name. Required for Attested. |
 | `Attestation:MaximumLifetimeSeconds` | integer | `60` | Maximum AuthProxy assertion lifetime (10–60); not the transaction lifetime. |
 | `Attestation:MaximumAuthenticationAgeSeconds` | integer | `900` | Maximum acceptable provider authentication age (1–900) for completion. |
-| `Attestation:PublicKeys` | list `{KeyId, PublicKeyPem}` | empty | Pin each AuthProxy RS256 attestation `kid` and **public** RSA key, ≥ 2048 bits. Keep this separate from the invitation-capability signing key. |
-| `Attestation:Providers` | list `{Key, Issuer, AcceptableAssurances}` | empty | Pin canonical provider key, exact authority and approved provider-derived assurance values for completion; no guessed issuer or arbitrary nonempty assurance. |
+| `Attestation:PublicKeys` | list `{KeyId, PublicKeyPem}` | empty | At least one key in Attested mode. Pin each AuthProxy RS256 attestation `kid` and **public** RSA key, ≥ 2048 bits. Keep this separate from the invitation-capability signing key. |
+| `Attestation:Providers` | list `{Key, Issuer, AcceptableAssurances}` | empty | At least one provider in Attested mode. Pin canonical provider key, exact authority and approved provider-derived assurance values for completion; no guessed issuer or arbitrary nonempty assurance. |
+
+`Mode=Attested` fails startup unless `Ante:Invitations:Token:PrivateKeyPem`, `Issuer` and `Audience` and the separate attestation trust settings are populated and valid. The configured lobby scope is an **authentication scope**, not an organization membership id. AuthProxy's `Invite:TenantClaim` must read the `tenant_id` claim issued from this scope; `Invite:EmailClaim` must read `email`. `MaximumLifetimeSeconds` bounds the assertion, whereas `MaximumAuthenticationAgeSeconds` bounds the sign-in and the staged transaction expires within 15 minutes (or sooner with the capability). In Legacy mode the attestation settings do not authorize an upgrade of legacy sessions.
 
 ## Identity and infrastructure
 

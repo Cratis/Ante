@@ -5,6 +5,7 @@ using System.Security.Claims;
 using Ante.IdentityProviders;
 using Ante.Organization.Registration;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using MongoDB.Driver;
 
@@ -31,9 +32,8 @@ public interface ISignedInIdentity
     IdentityProviderName ResolveProvider();
 
     /// <summary>
-    /// Determines whether the current request is a verified owner of an invitation - either the invite
-    /// token's own <c language="csharp">jti</c> claim names it directly, or the request's subject and resolved provider
-    /// match a live exchange session for this exact invitation.
+    /// Determines whether the current actor owns an invitation. In attested mode only an exact, live
+    /// attested session grants access; in legacy mode the forwarded invitation jti or legacy session does.
     /// </summary>
     /// <remarks>
     /// This is the authorization gate every invitation-bound onboarding command must pass before acting:
@@ -60,7 +60,7 @@ public interface ISignedInIdentity
     bool IsVerifiedRegistrationOwner(RegistrationOwner owner);
 
     /// <summary>
-    /// Resolves the invitation belonging to this request's forwarded claim or most recent live exchange session.
+    /// Resolves the invitation belonging to the current actor's live session (or forwarded jti in legacy mode).
     /// </summary>
     /// <returns>The invitation id, or <see cref="InvitationId.NotSet"/> when there is no verified session.</returns>
     InvitationId CurrentInvitationId();
@@ -79,14 +79,28 @@ public interface ISignedInIdentity
 /// <param name="httpContextAccessor">Accessor for the current HTTP request.</param>
 /// <param name="acceptedInvitations">Collection of accepted invitation sessions.</param>
 /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
+/// <param name="exchangeConfig">The selected exchange trust mode.</param>
+/// <param name="attestedSessions">The dedicated attested session store.</param>
 public class SignedInIdentity(
     IHttpContextAccessor httpContextAccessor,
     IMongoCollection<AcceptedInvitation> acceptedInvitations,
-    IIdentityProviderResolver identityProviderResolver) : ISignedInIdentity
+    IIdentityProviderResolver identityProviderResolver,
+    IOptions<InvitationExchangeConfig>? exchangeConfig = null,
+    IMongoCollection<AttestedInvitationSession>? attestedSessions = null) : ISignedInIdentity
 {
+    bool IsAttested => exchangeConfig?.Value.Mode == InvitationExchangeMode.Attested;
+
     /// <inheritdoc/>
     public (IdentityProviderName Provider, Cratis.Chronicle.Subject Subject) Resolve(InvitationId invitationId, Cratis.Chronicle.Subject fallbackSubject)
     {
+        if (IsAttested)
+        {
+            var attested = AttestedSessionFor(invitationId);
+            return attested is null
+                ? ((IdentityProviderName)string.Empty, fallbackSubject)
+                : ((IdentityProviderName)attested.ProviderKey, (Cratis.Chronicle.Subject)attested.ProviderSubject);
+        }
+
         var subject = SubjectOfCurrentRequest();
         var session = SessionFor(invitationId, subject, ProviderOf(null));
 
@@ -96,6 +110,11 @@ public class SignedInIdentity(
     /// <inheritdoc/>
     public IdentityProviderName ResolveProvider()
     {
+        if (IsAttested)
+        {
+            return (IdentityProviderName)(AttestedSessionFor(InvitationId.NotSet)?.ProviderKey ?? string.Empty);
+        }
+
         var subject = SubjectOfCurrentRequest();
 
         return ProviderOf(SessionFor(InvitationId.NotSet, subject, ProviderOf(null)));
@@ -109,9 +128,12 @@ public class SignedInIdentity(
             return false;
         }
 
-        // The invite token's own jti claim, forwarded directly by the authentication proxy's invite
-        // claims enricher, names the invitation outright - it comes from the token Ante itself issued
-        // rather than from a session record correlated after the fact, so it is trusted on its own.
+        // A forwarded jti is correlation, never authority, in attested mode.
+        if (IsAttested)
+        {
+            return AttestedSessionFor(invitationId) is not null;
+        }
+
         var jti = httpContextAccessor.HttpContext?.User?.FindFirstValue(JwtRegisteredClaimNames.Jti);
         if (Guid.TryParse(jti, out var jtiInvitationId) && (InvitationId)jtiInvitationId == invitationId)
         {
@@ -130,6 +152,12 @@ public class SignedInIdentity(
     /// <inheritdoc/>
     public InvitationId CurrentInvitationId()
     {
+        if (IsAttested)
+        {
+            var claimed = ForwardedInvitationId();
+            return AttestedSessionFor(claimed)?.InvitationId ?? InvitationId.NotSet;
+        }
+
         var jti = httpContextAccessor.HttpContext?.User?.FindFirstValue(JwtRegisteredClaimNames.Jti);
         if (Guid.TryParse(jti, out var invitationGuid))
         {
@@ -179,11 +207,45 @@ public class SignedInIdentity(
         return subject is null ? null : sessions.FirstOrDefault(session => session.Subject == subject);
     }
 
+    internal static AttestedInvitationSession? SelectAttestedSession(
+        IEnumerable<AttestedInvitationSession> sessions,
+        string scope,
+        InvitationId invitationId,
+        string providerKey,
+        string providerIssuer,
+        string subject,
+        DateTime now) =>
+        sessions.Where(row => row.ExpiresAtUtc > now && row.LobbyScope == scope &&
+            (invitationId == InvitationId.NotSet || row.InvitationId == invitationId) &&
+            row.ProviderKey == providerKey && row.ProviderIssuer == providerIssuer && row.ProviderSubject == subject)
+            .OrderByDescending(row => row.ExpiresAtUtc).FirstOrDefault();
+
     static Cratis.Chronicle.Subject SubjectOf(string? subject, AcceptedInvitation? session, Cratis.Chronicle.Subject fallbackSubject)
     {
         var resolved = subject ?? (string.IsNullOrWhiteSpace(session?.Subject) ? null : session.Subject);
 
         return resolved is null ? fallbackSubject : new Cratis.Chronicle.Subject(resolved);
+    }
+
+    InvitationId ForwardedInvitationId() =>
+        Guid.TryParse(httpContextAccessor.HttpContext?.User?.FindFirstValue(JwtRegisteredClaimNames.Jti), out var id)
+            ? (InvitationId)id : InvitationId.NotSet;
+
+    AttestedInvitationSession? AttestedSessionFor(InvitationId invitationId)
+    {
+        var claims = httpContextAccessor.HttpContext?.User?.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value)).ToArray() ?? [];
+        var report = AuthProxySignInReport.FromClaims(claims);
+        var subject = claims.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:subject").Value;
+        var scope = exchangeConfig?.Value.Attestation.LobbyScope;
+        if (attestedSessions is null || string.IsNullOrWhiteSpace(scope) || string.IsNullOrWhiteSpace(subject) ||
+            string.IsNullOrWhiteSpace(report.ProviderKey) || string.IsNullOrWhiteSpace(report.Issuer))
+        {
+            return null;
+        }
+
+        // Query on primitive BSON fields; compare all authority-bearing values again after decoding.
+        var sessions = attestedSessions.Find(Builders<AttestedInvitationSession>.Filter.Eq(row => row.ProviderSubject, subject)).ToList();
+        return SelectAttestedSession(sessions, scope, invitationId, report.ProviderKey, report.Issuer, subject, DateTime.UtcNow);
     }
 
     string? SubjectOfCurrentRequest() => ForwardedIdentitySubject.Resolve(httpContextAccessor);
