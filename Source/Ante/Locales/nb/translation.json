@@ -65,7 +65,7 @@
     "registration": {
         "subtitle": "Registrer organisasjonen din",
         "organizationName": "Organisasjonsnavn",
-        "organizationNamePlaceholder": "Eksempel AS",
+        "organizationNamePlaceholder": "EksempelAS",
         "register": "Registrer organisasjon",
         "hostAppUrlUnavailable": "Organisasjonen er registrert, men vi finner ikke ut hvor vi skal sende deg videre. Kontakt brukerstøtte.",
         "startNewRegistration": "Registrer en annen organisasjon"
@@ -76,7 +76,7 @@
         "stepUserInformation": "Opplysninger om deg",
         "stepTermsConditions": "Vilkår og personvern",
         "organizationName": "Organisasjonsnavn",
-        "organizationNamePlaceholder": "Eksempel AS",
+        "organizationNamePlaceholder": "EksempelAS",
         "nameValidationUnavailable": "Vi kunne ikke sjekke navnet nå. Prøv igjen.",
         "firstName": "Fornavn",
         "firstNamePlaceholder": "Skriv inn fornavnet ditt",
