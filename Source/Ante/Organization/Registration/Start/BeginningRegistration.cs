@@ -34,7 +34,8 @@ public record BeginRegistration(InvitationId RegistrationId)
     /// <param name="httpContextAccessor">Accessor for the current forwarded sign-in.</param>
     /// <param name="resolver">The canonical identity-provider resolver.</param>
     /// <param name="eventStore">The authoritative local event log and read models.</param>
-    /// <returns>A new start fact or an empty event list for an identical retry.</returns>
+    /// <returns>An empty event list after a start is recorded or the same owner retries.</returns>
+    /// <exception cref="RegistrationStartAppendFailed">The event log could not record the start.</exception>
     public async Task<Result<ValidationResult, IEnumerable<object>>> Handle(
         IHttpContextAccessor httpContextAccessor,
         IIdentityProviderResolver resolver,
@@ -62,7 +63,30 @@ public record BeginRegistration(InvitationId RegistrationId)
             return ValidationResult.Error("This registration belongs to another sign-in.");
         }
 
-        return new List<object> { new RegistrationStarted(owner.Subject, owner.Provider) };
+        // A second start can pass the history check before the first append commits. Append
+        // here so only this command can interpret the OneRegistrationStart race after re-reading
+        // the authoritative history; Arc's automatic append would return a failed command even
+        // when the winning start belongs to this same actor.
+        var append = await eventStore.EventLog.Append(
+            (EventSourceId)RegistrationId.Value.ToString("D"), new RegistrationStarted(owner.Subject, owner.Provider));
+        if (append.IsSuccess)
+        {
+            return Array.Empty<object>();
+        }
+
+        if (append.HasConstraintViolations && !append.HasErrors && !append.HasConcurrencyViolations &&
+            append.ConstraintViolations.All(violation => violation.ConstraintName == "OneRegistrationStart") &&
+            await RegistrationStartHistory.BelongsTo(RegistrationId, owner, eventStore))
+        {
+            return Array.Empty<object>();
+        }
+
+        if (append.HasErrors || append.HasConcurrencyViolations)
+        {
+            throw new RegistrationStartAppendFailed();
+        }
+
+        return ValidationResult.Error("This registration belongs to another sign-in.");
     }
 }
 
@@ -99,3 +123,6 @@ public static class RegistrationStartHistory
         return starts.Length == 1 && starts[0].OwnerSubject == owner.Subject && starts[0].OwnerProvider == owner.Provider;
     }
 }
+
+/// <summary>The event log failed to record the registration start for a reason other than an ownership conflict.</summary>
+public sealed class RegistrationStartAppendFailed() : Exception("Unable to record the registration start.");

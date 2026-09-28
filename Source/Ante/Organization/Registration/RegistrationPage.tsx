@@ -8,6 +8,7 @@ import { InputTextField } from '@cratis/components/CommandForm';
 import { CommandStepper, StepperPanel } from '@cratis/components/CommandDialog';
 import { RegisterOrganization } from './Registration';
 import { startRegistration } from './startRegistration';
+import { RegistrationStartFailed } from './RegistrationStartFailed';
 import { getOrCreateRegistrationOperation, clearRegistrationOperation } from './RegistrationOperation';
 import { registrationValidationFailure } from './registrationValidationFailure';
 import { shouldResumeRegistrationAfterFailure } from './shouldResumeRegistrationAfterFailure';
@@ -154,10 +155,10 @@ export const RegistrationPage = () => {
             <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
                 <div className='organization-setup-card__content'>
                     {startState === 'failed' ? (
-                        <div role='alert'>
-                            <p>{strings.registration.startUnavailable}</p>
-                            <Button label={strings.onboarding.checkAgain} onClick={() => { setStartState('pending'); setStartAttempt(attempt => attempt + 1); }} />
-                        </div>
+                        <RegistrationStartFailed
+                            onRetry={() => { setStartState('pending'); setStartAttempt(attempt => attempt + 1); }}
+                            onStartNew={startNewRegistration}
+                        />
                     ) : <ProgressSpinner aria-label={strings.registration.starting} />}
                 </div>
             </OrganizationSetupFrame>
