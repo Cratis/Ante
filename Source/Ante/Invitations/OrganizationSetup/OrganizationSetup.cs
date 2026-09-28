@@ -282,13 +282,13 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
 
         if (!signedInIdentity.IsVerifiedOwnerOf(InvitationId))
         {
-            return ValidationResult.Error("Invitation is no longer pending and cannot be used for organization setup.");
+            return ValidationResult.Error(Messages.Get("SetupNotPending"));
         }
 
         var owner = signedInIdentity.AttestedOwnerOf(InvitationId);
         if (signedInIdentity.IsAttestedExchange && owner is null)
         {
-            return ValidationResult.Error("Invitation is no longer pending and cannot be used for organization setup.");
+            return ValidationResult.Error(Messages.Get("SetupNotPending"));
         }
 
         var events = new List<object>
@@ -314,7 +314,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         var scope = await acceptanceFence.For(InvitationId, InvitationFlowType.CreateTenant);
         if (scope is null)
         {
-            return ValidationResult.Error("Invitation is no longer pending and cannot be used for organization setup.");
+            return ValidationResult.Error(Messages.Get("SetupNotPending"));
         }
 
         httpContextAccessor.HttpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);

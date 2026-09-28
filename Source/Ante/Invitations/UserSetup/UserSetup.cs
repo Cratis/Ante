@@ -213,13 +213,13 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
 
         if (!signedInIdentity.IsVerifiedOwnerOf(InvitationId))
         {
-            return ValidationResult.Error("Invitation is no longer pending and cannot be used to accept the invitation.");
+            return ValidationResult.Error(Messages.Get("AcceptNotPending"));
         }
 
         var owner = signedInIdentity.AttestedOwnerOf(InvitationId);
         if (signedInIdentity.IsAttestedExchange && owner is null)
         {
-            return ValidationResult.Error("Invitation is no longer pending and cannot be used to accept the invitation.");
+            return ValidationResult.Error(Messages.Get("AcceptNotPending"));
         }
 
         var events = new List<object>
@@ -245,7 +245,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
         var scope = await acceptanceFence.For(InvitationId, InvitationFlowType.JoinTenant);
         if (scope is null)
         {
-            return ValidationResult.Error("Invitation is no longer pending and cannot be used to accept the invitation.");
+            return ValidationResult.Error(Messages.Get("AcceptNotPending"));
         }
 
         var source = (EventSourceId)InvitationId.Value.ToString("D");

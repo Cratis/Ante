@@ -72,7 +72,7 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
         RuleFor(c => c.RegistrationId)
             .MustAsync(async (id, _) => await RegistrationStartHistory.BelongsTo(
                 id, RegistrationOwner.Resolve(httpContextAccessor, identityProviderResolver), eventStore))
-            .WithMessage("This registration belongs to another sign-in.");
+            .WithMessage(_ => Messages.Get("RegistrationOwnedByAnotherSignIn"));
 
         RuleFor(c => c.RegistrationId)
             .MustAsync(async (id, _) => await RegistrationSourceAvailability.IsAvailable(id, eventStore))
@@ -155,7 +155,7 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
         // id is browser-generated and therefore cannot establish ownership without this local fact.
         if (!await RegistrationStartHistory.BelongsTo(RegistrationId, owner, eventStore))
         {
-            return ValidationResult.Error("This registration belongs to another sign-in.");
+            return ValidationResult.Error(Messages.Get("RegistrationOwnedByAnotherSignIn"));
         }
 
         var subject = owner.Subject.Value;
