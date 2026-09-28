@@ -2,6 +2,17 @@
     "branding": {
         "wordmark": "Ante"
     },
+    "components": {
+        "paginator": { "navigation": "Pagination", "first": "First page", "previous": "Previous page", "next": "Next page", "last": "Last page" },
+        "datePicker": { "today": "Today", "clear": "Clear", "openCalendar": "Open calendar", "previousMonth": "Previous month", "nextMonth": "Next month", "label": "Date" },
+        "dropdown": { "showOptions": "Show options", "clearSelection": "Clear selection" },
+        "dialog": { "ok": "Ok", "cancel": "Cancel", "yes": "Yes", "no": "No", "close": "Close" },
+        "stepper": { "next": "Next", "previous": "Previous", "submit": "Submit" },
+        "notifications": { "dismiss": "Dismiss", "region": "Notifications" },
+        "dataTable": { "selectRow": "Select row", "search": "Search…", "searchAriaLabel": "Search table" },
+        "columnFilter": { "matchModeAriaLabel": "Match mode", "clear": "Clear", "apply": "Apply", "true": "True", "false": "False" },
+        "toolbar": { "label": "Tools" }
+    },
     "onboarding": {
         "notYetConfirmed": "This is taking longer than expected. Your information was saved - nothing was lost. This can happen during busy periods or a brief connection drop.",
         "checkAgain": "Check again",

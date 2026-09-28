@@ -85,5 +85,5 @@ public class AnteOptions
     /// <summary>
     /// Gets or sets the deployment's allowlist of shipped locales. Unknown locales fail startup.
     /// </summary>
-    public string[] SupportedLocales { get; set; } = ["en", "nb-NO"];
+    public string[]? SupportedLocales { get; set; }
 }

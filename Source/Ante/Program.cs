@@ -128,7 +128,7 @@ app.UseCratisChronicle();
 app.MapIdentityProvider();
 
 app.MapAnteHealthChecks();
-app.MapGet("/ante/locale-config", () => Results.Json(LocaleNegotiation.PublicOptions(anteOptions)))
+app.MapGet("/api/locale-config", () => Results.Json(LocaleNegotiation.PublicOptions(anteOptions)))
     .AllowAnonymous();
 
 // Reserved, API-shaped prefixes get a genuine 404 for anything not already matched by a real endpoint

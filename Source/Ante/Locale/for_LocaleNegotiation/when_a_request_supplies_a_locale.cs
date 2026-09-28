@@ -15,7 +15,7 @@ namespace Ante.Locale.for_LocaleNegotiation;
 public class when_a_request_supplies_a_locale : Specification
 {
     [Fact]
-    public async Task should_use_the_resolved_cookie_for_validator_and_constraint_messages()
+    public async Task should_use_the_resolved_cookie_for_event_stream_messages()
     {
         var options = LocaleNegotiation.CreateOptions(new AnteOptions());
         var builder = new ApplicationBuilder(new ServiceCollection().AddLogging().BuildServiceProvider());
@@ -35,6 +35,7 @@ public class when_a_request_supplies_a_locale : Specification
         });
         var request = new DefaultHttpContext();
         request.Request.Headers.Cookie = "ante-locale=nb-NO";
+        request.Request.Headers.Accept = "text/event-stream";
         request.Request.Headers.AcceptLanguage = "en-US";
         await builder.Build()(request);
 
@@ -42,6 +43,30 @@ public class when_a_request_supplies_a_locale : Specification
         Assert.Equal("Organisasjonsnavn er påkrevd.", validatorMessage);
         Assert.Equal("Organisasjonsnavn er påkrevd.", actualValidatorMessage);
         Assert.Contains("En organisasjon med dette navnet finnes allerede.", constraintMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task should_prefer_each_tab_header_over_the_shared_cookie_for_arc_http()
+    {
+        var builder = new ApplicationBuilder(new ServiceCollection().AddLogging().BuildServiceProvider());
+        builder.UseRequestLocalization(LocaleNegotiation.CreateOptions(new AnteOptions()));
+        var cultures = new List<string>();
+        builder.Run(_ =>
+        {
+            cultures.Add(CultureInfo.CurrentUICulture.Name);
+            return Task.CompletedTask;
+        });
+        var pipeline = builder.Build();
+        var englishTab = new DefaultHttpContext();
+        englishTab.Request.Headers.Cookie = "ante-locale=nb-NO";
+        englishTab.Request.Headers.AcceptLanguage = "en-US";
+        await pipeline(englishTab);
+        var bokmalTab = new DefaultHttpContext();
+        bokmalTab.Request.Headers.Cookie = "ante-locale=en";
+        bokmalTab.Request.Headers.AcceptLanguage = "nb-NO";
+        await pipeline(bokmalTab);
+
+        Assert.Equal(["en-US", "nb-NO"], cultures);
     }
 
     [Fact]

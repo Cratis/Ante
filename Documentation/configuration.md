@@ -18,7 +18,7 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 | `Ante:IdentityBackchannelUrl` | string | empty | empty / unset | Optional host base URL for join-invitation `/in-use` GET. |
 | `Ante:HostOutcomeUrl` | string | empty | unset / unset | Optional host base URL for invited-flow `/outcome` GET. |
 | `Ante:DefaultLocale` | string | `en` | unset / unset | Default when no stored preference, allowed link hint, or browser language matches. `en`, `nb-NO` (also `nb` or `no` aliases); must be in the allowlist. |
-| `Ante:SupportedLocales` | string array | `en`, `nb-NO` | unset / unset | Deployment allowlist, restricted to the bundled languages; nonempty, distinct. For example `Ante__SupportedLocales__0=en`, `Ante__SupportedLocales__1=nb-NO`. Unknown entries or a default outside the list fail startup. See [Customization](./customization.md#choose-the-lobby-language). |
+| `Ante:SupportedLocales` | string array | `en`, `nb-NO` when unset | unset / unset | Deployment allowlist, restricted to the bundled languages; nonempty, distinct. Set only `Ante__SupportedLocales__0=en` for an English-only deployment; configured entries replace the fallback rather than extending it. Unknown entries or a default outside the list fail startup. See [Customization](./customization.md#choose-the-lobby-language). |
 
 ## Signing options (`Ante:Invitations:Token`)
 

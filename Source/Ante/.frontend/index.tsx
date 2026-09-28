@@ -18,7 +18,7 @@ import { applyInitialLocale } from '../Locale/applyInitialLocale';
 import { LocaleProvider } from '../Locale/LocaleContext';
 import { LOCALE_TAGS } from '../Locale/Locale';
 import { RenderRecoveryBoundary } from '../RenderRecovery/RenderRecoveryBoundary';
-import { selectStrings } from '../Locales/Strings';
+import strings, { selectStrings } from '../Locales/Strings';
 
 // Applied synchronously, before the first render, so the stored display preferences (Cratis/Ante#20)
 // are already on the document by the time the first frame paints - never a flash of the wrong text
@@ -43,7 +43,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <RenderRecoveryBoundary>
             <PrimeReactProvider license={primeUiLicense} theme={primeReactTheme}>
                 <CratisComponentsProvider
-                    value={{ locale: LOCALE_TAGS[locale] }}
+                    value={{ locale: LOCALE_TAGS[locale], messages: strings.components }}
                     library={primeReactUiLibrary}
                     rendererSetup={{ 'cratis-primereact.license-configured': Boolean(primeUiLicense) }}>
                     <LocaleProvider locale={locale} settings={settings}>

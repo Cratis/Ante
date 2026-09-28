@@ -4,6 +4,7 @@
 #if DEBUG
 using Ante.Contracts.Legal;
 using Ante.Legal;
+using Ante.Resources;
 
 namespace Ante.Legal.for_LegalAcceptanceEvidence.when_resolving;
 
@@ -26,7 +27,7 @@ public class and_no_source_is_configured_but_acceptance_is_claimed : Specificati
     void should_report_unsolicited_acceptance()
     {
         _result.TryGetError(out var error);
-        Assert.Equal(LegalTermsRules.UnsolicitedAcceptanceMessage, error.Message);
+        Assert.Equal(Messages.Get(nameof(LegalTermsRules.UnsolicitedAcceptanceMessage)), error.Message);
     }
 }
 #endif

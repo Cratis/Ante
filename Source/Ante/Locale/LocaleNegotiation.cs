@@ -77,14 +77,20 @@ public static class LocaleNegotiation
     {
         public override Task<ProviderCultureResult?> DetermineProviderCultureResult(HttpContext httpContext)
         {
-            var cookie = Normalize(httpContext.Request.Cookies[CookieName]);
-            if (cookie is not null && supported.Contains(cookie))
+            // EventSource and WebSocket cannot set application-defined request headers. Their
+            // cookie carries the resolved choice even when the browser sends its own language.
+            var acceptsEvents = httpContext.Request.GetTypedHeaders().Accept?.Any(value =>
+                string.Equals(value.MediaType.Value, "text/event-stream", StringComparison.OrdinalIgnoreCase)) == true;
+            if (acceptsEvents || httpContext.WebSockets.IsWebSocketRequest)
             {
-                return Task.FromResult<ProviderCultureResult?>(new ProviderCultureResult(ToCulture(cookie)));
+                var cookie = Normalize(httpContext.Request.Cookies[CookieName]);
+                if (cookie is not null && supported.Contains(cookie))
+                {
+                    return Task.FromResult<ProviderCultureResult?>(new ProviderCultureResult(ToCulture(cookie)));
+                }
             }
 
-            // Accept-Language is a fallback for direct HTTP clients and first navigation. The UI
-            // sends a single resolved locale; a generic client may send an ordered language list.
+            // Arc HTTP sends each tab's resolved choice; a shared cookie must not override it.
             foreach (var item in httpContext.Request.GetTypedHeaders().AcceptLanguage ?? [])
             {
                 var locale = Normalize(item.Value.Value);

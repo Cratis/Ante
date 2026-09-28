@@ -2,6 +2,17 @@
     "branding": {
         "wordmark": "Ante"
     },
+    "components": {
+        "paginator": { "navigation": "Sideinndeling", "first": "Første side", "previous": "Forrige side", "next": "Neste side", "last": "Siste side" },
+        "datePicker": { "today": "I dag", "clear": "Tøm", "openCalendar": "Åpne kalender", "previousMonth": "Forrige måned", "nextMonth": "Neste måned", "label": "Dato" },
+        "dropdown": { "showOptions": "Vis alternativer", "clearSelection": "Fjern valg" },
+        "dialog": { "ok": "OK", "cancel": "Avbryt", "yes": "Ja", "no": "Nei", "close": "Lukk" },
+        "stepper": { "next": "Neste", "previous": "Forrige", "submit": "Send inn" },
+        "notifications": { "dismiss": "Lukk varsel", "region": "Varsler" },
+        "dataTable": { "selectRow": "Velg rad", "search": "Søk …", "searchAriaLabel": "Søk i tabellen" },
+        "columnFilter": { "matchModeAriaLabel": "Søkemåte", "clear": "Tøm", "apply": "Bruk", "true": "Ja", "false": "Nei" },
+        "toolbar": { "label": "Verktøy" }
+    },
     "onboarding": {
         "notYetConfirmed": "Dette tar lengre tid enn forventet. Opplysningene dine er lagret – ingenting er gått tapt. Det kan skyldes stor pågang eller et kortvarig brudd i forbindelsen.",
         "checkAgain": "Sjekk igjen",
