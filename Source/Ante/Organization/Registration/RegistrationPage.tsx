@@ -1,12 +1,13 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Button } from '@cratis/components/Common';
 import { ProgressSpinner } from '@cratis/components/Display';
 import { InputTextField } from '@cratis/components/CommandForm';
 import { CommandStepper, StepperPanel } from '@cratis/components/CommandDialog';
 import { RegisterOrganization } from './Registration';
+import { startRegistration } from './startRegistration';
 import { getOrCreateRegistrationOperation, clearRegistrationOperation } from './RegistrationOperation';
 import { registrationValidationFailure } from './registrationValidationFailure';
 import { shouldResumeRegistrationAfterFailure } from './shouldResumeRegistrationAfterFailure';
@@ -28,6 +29,8 @@ export const RegistrationPage = () => {
     // RegistrationOperation.ts for what is, and is never, stored.
     const operation = useMemo(() => getOrCreateRegistrationOperation(), []);
     const registrationId = operation.id;
+    const [startState, setStartState] = useState<'pending' | 'started' | 'failed'>('pending');
+    const [startAttempt, setStartAttempt] = useState(0);
     const [legalStatus] = LegalDocumentsCurrent.use();
 
     const handoff = useOrganizationSetupHandoff({
@@ -36,6 +39,14 @@ export const RegistrationPage = () => {
         isRegistration: true,
         recoveringRegistration: operation.isRecovered,
     });
+    useEffect(() => {
+        if (!handoff.hasStatus || handoff.phase !== 'form') return;
+        let active = true;
+        void startRegistration(registrationId).then(succeeded => {
+            if (active) setStartState(succeeded ? 'started' : 'failed');
+        });
+        return () => { active = false; };
+    }, [registrationId, handoff.hasStatus, handoff.phase, startAttempt]);
     const markSubmittedRef = useRef(handoff.markSubmitted);
     markSubmittedRef.current = handoff.markSubmitted;
     const nameValidation = useMemo(() => new OrganizationNameStepValidation(
@@ -140,6 +151,21 @@ export const RegistrationPage = () => {
                         <ProgressSpinner className='organization-setup-waiting__spinner' aria-label={strings.organizationSetup.settingUp} />
                         <p className='organization-setup-waiting__message'>{strings.organizationSetup.settingUp}</p>
                     </div>
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
+    if (startState !== 'started') {
+        return (
+            <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+                <div className='organization-setup-card__content'>
+                    {startState === 'failed' ? (
+                        <div role='alert'>
+                            <p>{strings.registration.startUnavailable}</p>
+                            <Button label={strings.onboarding.checkAgain} onClick={() => { setStartState('pending'); setStartAttempt(attempt => attempt + 1); }} />
+                        </div>
+                    ) : <ProgressSpinner aria-label={strings.registration.starting} />}
                 </div>
             </OrganizationSetupFrame>
         );

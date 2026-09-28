@@ -21,9 +21,10 @@ public class and_the_id_belongs_to_a_pending_invitation : Specification
     readonly CommandScenario<RegisterOrganization> _scenario = new();
     CommandResult _result = null!;
 
-    void Establish()
+    async Task Establish()
     {
         _scenario.Given.ForEventSource(_id).Events(new CreateTenantInvitationReceived("jane@example.com", ["Owner"]));
+        await _scenario.EventScenario.Given.ForEventSource(_id).Events(new CreateTenantInvitationReceived("jane@example.com", ["Owner"]));
         var names = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
         names.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
         var accessor = Substitute.For<IHttpContextAccessor>();

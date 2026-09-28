@@ -1,0 +1,101 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Ante.Contracts.Organization;
+using Ante.IdentityProviders;
+using Ante.Invitations;
+using Ante.Invitations.Receiving;
+using Ante.Organization.Registration;
+using Cratis.Arc.Validation;
+using Cratis.Types;
+
+namespace Ante.Organization.Registration.Start;
+
+/// <summary>
+/// Records the authenticated owner before a self-service registration is submitted. This local fact is
+/// never published to the host, and it does not consume the one-use onboarding attempt.
+/// </summary>
+/// <param name="OwnerSubject">The exact forwarded subject of the person starting registration.</param>
+/// <param name="OwnerProvider">The resolved provider for that subject.</param>
+[EventType]
+[Unique(name: "OneRegistrationStart", message: "This registration belongs to another sign-in.")]
+public record RegistrationStarted([property: Subject] RegistrationOwnerSubject OwnerSubject, IdentityProviderName OwnerProvider);
+
+/// <summary>
+/// Associates a client-generated registration id with its authenticated owner before showing the wizard.
+/// </summary>
+/// <param name="RegistrationId">The registration's event source identifier.</param>
+[Command]
+public record BeginRegistration(InvitationId RegistrationId)
+{
+    /// <summary>
+    /// Records a start exactly once; only the same actor can retry an already started registration.
+    /// </summary>
+    /// <param name="httpContextAccessor">Accessor for the current forwarded sign-in.</param>
+    /// <param name="resolver">The canonical identity-provider resolver.</param>
+    /// <param name="eventStore">The authoritative local event log and read models.</param>
+    /// <returns>A new start fact or an empty event list for an identical retry.</returns>
+    public async Task<Result<ValidationResult, IEnumerable<object>>> Handle(
+        IHttpContextAccessor httpContextAccessor,
+        IIdentityProviderResolver resolver,
+        IEventStore eventStore)
+    {
+        var owner = RegistrationOwner.Resolve(httpContextAccessor, resolver);
+        if (RegistrationId == InvitationId.NotSet || owner is null || string.IsNullOrWhiteSpace(owner.Provider.Value))
+        {
+            return ValidationResult.Error("A signed-in subject and provider are required to register an organization.");
+        }
+
+        if (!await RegistrationSourceAvailability.IsAvailable(RegistrationId, eventStore))
+        {
+            return ValidationResult.Error("This onboarding attempt has already been submitted.", reasonDetail: OnboardingAttemptConstraintNames.OneUseAttempt);
+        }
+
+        var starts = await RegistrationStartHistory.For(RegistrationId, eventStore);
+        if (starts.Length == 1 && starts[0].OwnerSubject == owner.Subject && starts[0].OwnerProvider == owner.Provider)
+        {
+            return Array.Empty<object>();
+        }
+
+        if (starts.Length != 0)
+        {
+            return ValidationResult.Error("This registration belongs to another sign-in.");
+        }
+
+        return new List<object> { new RegistrationStarted(owner.Subject, owner.Provider) };
+    }
+}
+
+/// <summary>
+/// Reads the event log rather than a potentially lagging projection, so a successful BeginRegistration
+/// response immediately permits submission and a different actor cannot reuse that id before projection.
+/// </summary>
+public static class RegistrationStartHistory
+{
+    /// <summary>
+    /// Gets the recorded starts for the given event source; an ambiguous history never grants authority.
+    /// </summary>
+    /// <param name="id">The registration id.</param>
+    /// <param name="eventStore">The authoritative local event store.</param>
+    /// <returns>Recorded starts, if any.</returns>
+    public static async Task<RegistrationStarted[]> For(InvitationId id, IEventStore eventStore)
+    {
+        var history = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(
+            (EventSourceId)id.Value.ToString("D"), [typeof(RegistrationStarted).GetEventType()]);
+        return [.. history.Select(entry => entry.Content).OfType<RegistrationStarted>()];
+    }
+
+    /// <summary>
+    /// Determines whether the start exists and belongs to the current exact subject/provider pair.
+    /// </summary>
+    /// <param name="id">The registration id.</param>
+    /// <param name="owner">The forwarded, resolved sign-in.</param>
+    /// <param name="eventStore">The authoritative event store.</param>
+    /// <returns>True only when exactly one matching start was recorded.</returns>
+    public static async Task<bool> BelongsTo(InvitationId id, RegistrationOwner? owner, IEventStore eventStore)
+    {
+        if (owner is null || string.IsNullOrWhiteSpace(owner.Provider.Value)) return false;
+        var starts = await For(id, eventStore);
+        return starts.Length == 1 && starts[0].OwnerSubject == owner.Subject && starts[0].OwnerProvider == owner.Provider;
+    }
+}

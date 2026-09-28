@@ -9,6 +9,7 @@ using Ante.IdentityProviders;
 using Ante.Invitations;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Legal;
+using Ante.Organization.Registration.Start;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
@@ -22,8 +23,9 @@ public class and_values_are_valid : Specification
     readonly CommandScenario<RegisterOrganization> _scenario = new();
     CommandResult _result = null!;
 
-    void Establish()
+    async Task Establish()
     {
+        await _scenario.EventScenario.Given.ForEventSource(_registrationId).Events(new RegistrationStarted((RegistrationOwnerSubject)"sub-1", "github"));
         var acceptedNames = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
         acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
 
