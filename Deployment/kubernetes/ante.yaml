@@ -24,7 +24,7 @@ data:
 
   # Identity providers, mirroring the fronting proxy.
   IdentityProviders__Providers__0__Name: "GitHub"
-  IdentityProviders__Providers__0__Issuers__0: "https://github.com"
+  IdentityProviders__Providers__0__Issuer: "https://github.com"
 
   # Legal documents published by a host store (remove for InProcess mode).
   Ante__Legal__Source: "Inbox"
