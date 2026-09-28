@@ -15,10 +15,12 @@
   <data name="AcceptNotPending" xml:space="preserve"><value>Invitasjonen er ikke lenger aktiv og kan ikke godtas.</value></data>
   <data name="InvitationAlreadyAccepted" xml:space="preserve"><value>Invitasjonen er allerede godtatt.</value></data>
   <data name="AttemptAlreadySubmitted" xml:space="preserve"><value>Dette oppsettet er allerede sendt inn.</value></data>
+  <data name="ConcurrentChange" xml:space="preserve"><value>Noe ble endret mens du sendte inn, for eksempel vilkårene. Se over siden og send inn på nytt.</value></data>
   <data name="RegisterIdentityRequired" xml:space="preserve"><value>Du må være logget inn med en identitet og en identitetsleverandør for å registrere en organisasjon.</value></data>
   <data name="SetupIdentityRequired" xml:space="preserve"><value>Du må være logget inn med en identitet og en identitetsleverandør for å opprette en organisasjon.</value></data>
   <data name="AcceptIdentityRequired" xml:space="preserve"><value>Du må være logget inn med en identitet og en identitetsleverandør for å godta invitasjonen.</value></data>
   <data name="LoginAlreadyAssociated" xml:space="preserve"><value>Denne innloggingen tilhører allerede en bruker i organisasjonen. Logg inn med den i stedet for å godta invitasjonen.</value></data>
+  <data name="UnavailableMessage" xml:space="preserve"><value>Juridiske dokumenter er ikke tilgjengelige ennå. Sjekk igjen før du fortsetter.</value></data>
   <data name="MustAcceptMessage" xml:space="preserve"><value>Du må godta vilkårene og personvernerklæringen for å fortsette.</value></data>
   <data name="StaleVersionMessage" xml:space="preserve"><value>Vilkårene og personvernerklæringen er endret. Last siden på nytt og godta den gjeldende versjonen.</value></data>
   <data name="UnsolicitedAcceptanceMessage" xml:space="preserve"><value>Det finnes ingen vilkår å godta nå. Last siden på nytt og fortsett.</value></data>

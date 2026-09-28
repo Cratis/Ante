@@ -32,6 +32,24 @@ public class when_translating_a_response : Specification
     }
 
     [Fact]
+    public void should_localize_a_concurrency_violation_as_a_retryable_message()
+    {
+        var original = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("nb-NO");
+            const string response = "{\"validationResults\":[{\"reason\":\"concurrencyViolation\",\"message\":\"Expected sequence number 4 but was 5\"}]}";
+            var result = JsonNode.Parse(LocalizedConstraintResponses.Translate(response))!;
+            Assert.Equal("Noe ble endret mens du sendte inn, for eksempel vilkårene. Se over siden og send inn på nytt.", result["validationResults"]![0]!["message"]!.GetValue<string>());
+            Assert.Equal("concurrencyViolation", result["validationResults"]![0]!["reason"]!.GetValue<string>());
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = original;
+        }
+    }
+
+    [Fact]
     public void should_preserve_unknown_validation_errors()
     {
         const string response = "{\"validationResults\":[{\"reason\":\"rule\",\"reasonDetail\":\"UniqueOrganizationName\",\"message\":\"Original\"}]}";

@@ -224,6 +224,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
     /// <param name="signedInIdentity">The identity the user is signed in with for this request.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
+    /// <param name="eventStore">The local event store for the acceptance concurrency boundary.</param>
     /// <returns>
     /// A <see cref="Result{T0, T1}"/> containing either a failed <see cref="ValidationResult"/> or the
     /// compliance subject and events to append.
@@ -234,14 +235,15 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// forwarded to the outbox. <see cref="OrganizationSetupOutbox"/> marks it once the acceptance is
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
-    public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, IEnumerable<object>)>> Handle(
+    public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
         IHttpContextAccessor httpContextAccessor,
         PendingInvitationToCreateOrganization? pendingInvitation,
         OrganizationSetupProgress? existingSetup,
         UserSetupProgress? existingJoin,
         IMongoCollection<AcceptedOrganizationName> acceptedOrganizationNames,
         ISignedInIdentity signedInIdentity,
-        ILegalDocumentSource legalDocumentSource)
+        ILegalDocumentSource legalDocumentSource,
+        IEventStore eventStore)
     {
         // Re-read rather than trust the validator: the name can be claimed between the two, and this is
         // the last look before the events are composed. The member is named the way the client names
@@ -264,14 +266,14 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
             return ValidationResult.Error(Messages.Get("SetupIdentityRequired"));
         }
 
-        var legalResolution = await LegalAcceptanceEvidence.Resolve(
+        var legalResolution = await LegalAcceptanceEvidence.ResolveWithScope(
             legalDocumentSource,
             AcceptedLegalTerms,
             AcceptedLegalVersion,
             OrganizationName,
             identityProviderValue,
             complianceSubject.ToString());
-        if (!legalResolution.TryGetResult(out var legalEvents))
+        if (!legalResolution.TryGetResult(out var legalEvidence))
         {
             legalResolution.TryGetError(out var legalError);
             return legalError;
@@ -292,9 +294,9 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
                 pendingInvitation.Email,
                 pendingInvitation.Roles),
         };
-        events.AddRange(legalEvents);
+        events.AddRange(legalEvidence.Events);
 
-        return (complianceSubject, events);
+        return (complianceSubject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence));
     }
 }
 

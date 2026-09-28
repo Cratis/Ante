@@ -172,6 +172,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// <param name="pendingInvitation">The current state of the pending invitation, resolved from the Chronicle projection.</param>
     /// <param name="existingSetup">Durable organization setup evidence from a reused id predating the one-use marker.</param>
     /// <param name="legalDocumentSource">The legal document source to resolve authoritative acceptance evidence against.</param>
+    /// <param name="eventStore">The local event store for the acceptance concurrency boundary.</param>
     /// <returns>The compliance subject the events are appended under, and the events to append.</returns>
     /// <remarks>
     /// Does not mark the invitation as accepted here - that would be a pre-append success signal, visible
@@ -179,11 +180,12 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// forwarded to the outbox. <see cref="JoinTenantAcceptanceOutbox"/> marks it once the acceptance is
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
-    public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, IEnumerable<object>)>> Handle(
+    public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
         AcceptingUserIdentity identity,
         PendingInvitationToJoin? pendingInvitation,
         OrganizationSetupProgress? existingSetup,
-        ILegalDocumentSource legalDocumentSource)
+        ILegalDocumentSource legalDocumentSource,
+        IEventStore eventStore)
     {
         if (pendingInvitation is null || existingSetup is not null)
         {
@@ -193,14 +195,14 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
         // Resolved once, authoritatively, from the host's document source as it reads right now - not
         // trusted from the command payload - so the version recorded as evidence is always the version
         // this very check just confirmed was accepted.
-        var legalResolution = await LegalAcceptanceEvidence.Resolve(
+        var legalResolution = await LegalAcceptanceEvidence.ResolveWithScope(
             legalDocumentSource,
             AcceptedLegalTerms,
             AcceptedLegalVersion,
             pendingInvitation.TenantName,
             identity.Provider,
             identity.Subject.ToString());
-        if (!legalResolution.TryGetResult(out var legalEvents))
+        if (!legalResolution.TryGetResult(out var legalEvidence))
         {
             legalResolution.TryGetError(out var legalError);
             return legalError;
@@ -219,9 +221,9 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
                 pendingInvitation.Email,
                 pendingInvitation.Roles),
         };
-        events.AddRange(legalEvents);
+        events.AddRange(legalEvidence.Events);
 
-        return (identity.Subject, events);
+        return (identity.Subject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence));
     }
 }
 

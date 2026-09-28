@@ -19,8 +19,9 @@ import { localeHttpHeaders } from '../../Locale/localeHttpHeaders';
 import { useLocale } from '../../Locale/LocaleContext';
 import { useOrganizationSetupHandoff } from '../../Invitations/OrganizationSetup/useOrganizationSetupHandoff';
 import { OrganizationSetupFrame } from '../../Invitations/OrganizationSetup/OrganizationSetupFrame';
-import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
+import { useFreshLegalDocuments } from '../../Legal/useFreshLegalDocuments';
 import { LegalAcceptanceField } from '../../Legal/LegalAcceptanceField';
+import { LegalDocumentsUnavailable } from '../../Legal/LegalDocumentsUnavailable';
 import { LegalVersionValues } from '../../Legal/LegalVersionValues';
 import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
 import { ErrorSummary } from '../../Accessibility/ErrorSummary';
@@ -34,7 +35,8 @@ export const RegistrationPage = () => {
     // RegistrationOperation.ts for what is, and is never, stored.
     const operation = useMemo(() => getOrCreateRegistrationOperation(), []);
     const registrationId = operation.id;
-    const [legalStatus] = LegalDocumentsCurrent.use();
+    const { documents: availableDocuments, lastAvailableDocuments, isChecking: checkingLegalDocuments, refresh: refreshLegalDocuments } = useFreshLegalDocuments();
+    const displayedDocuments = availableDocuments ?? lastAvailableDocuments;
     const locale = useLocale();
 
     const handoff = useOrganizationSetupHandoff({
@@ -64,8 +66,8 @@ export const RegistrationPage = () => {
     const initialValues = useMemo(() => initialRegistrationValues(registrationId), [registrationId]);
 
     const legalDocuments = useLegalDocumentViewer({
-        termsAndConditions: legalStatus.data?.termsAndConditions ?? '',
-        privacyPolicy: legalStatus.data?.privacyPolicy ?? ''
+        termsAndConditions: displayedDocuments?.termsAndConditions ?? '',
+        privacyPolicy: displayedDocuments?.privacyPolicy ?? ''
     });
 
     const stepperContainerRef = useRef<HTMLDivElement>(null);
@@ -136,9 +138,33 @@ export const RegistrationPage = () => {
         );
     }
 
+    if (checkingLegalDocuments && !displayedDocuments) {
+        return (
+            <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+                <div className='organization-setup-card__content'>
+                    <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
+    if (!displayedDocuments) {
+        return (
+            <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
+                <div className='organization-setup-card__content'>
+                    <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
     return (
         <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
             <div className='organization-setup-card__content organization-setup-card__content--stepper' ref={stepperContainerRef}>
+                {!availableDocuments && (checkingLegalDocuments
+                    ? <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
+                    : <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />)}
+                <div hidden={!availableDocuments} inert={!availableDocuments}>
                 <CommandStepper<RegisterOrganization>
                     command={RegisterOrganization}
                     validateOnInit
@@ -184,14 +210,15 @@ export const RegistrationPage = () => {
                             pt={{ root: { autoComplete: 'family-name' } }}
                         />
                     </StepperPanel>
-                    {legalStatus.data?.isConfigured && (
+                    {displayedDocuments.isConfigured && (
                         <StepperPanel header={strings.organizationSetup.stepTermsConditions}>
-                            <LegalVersionValues version={legalStatus.data.version} />
+                            <LegalVersionValues version={displayedDocuments.version} />
                             <LegalAcceptanceField<RegisterOrganization> value={c => c.acceptedLegalTerms} onShowDocument={legalDocuments.showDocument} />
                         </StepperPanel>
                     )}
                 </CommandStepper>
-                {legalDocuments.dialog}
+                </div>
+                {availableDocuments && legalDocuments.dialog}
             </div>
             <LiveRegion message={announcement} />
             <LiveRegion message={nameValidationError ?? ''} />

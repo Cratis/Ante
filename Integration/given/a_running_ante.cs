@@ -30,6 +30,12 @@ public class a_running_ante : Specification
 
     protected virtual ILegalDocumentSource? LegalDocuments => default;
 
+    protected virtual bool UseLegalInbox => false;
+
+    protected virtual Func<IServiceProvider, ILegalDocumentSource>? LegalDocumentFactory => null;
+
+    protected string LegalDocumentSetId => $"legal-documents-{Suffix}";
+
     protected string AnteStoreName => $"Ante{Suffix}";
 
     async Task Establish()
@@ -39,7 +45,13 @@ public class a_running_ante : Specification
             Hosts[name] = await HostStore.Connect(Infrastructure, name, AnteStoreName);
         }
 
-        Ante = new AnteApplication(Infrastructure, AnteStoreName, HostStoreNames, LegalDocuments);
+        Ante = new AnteApplication(
+            Infrastructure,
+            AnteStoreName,
+            HostStoreNames,
+            LegalDocuments,
+            UseLegalInbox ? LegalDocumentSetId : null,
+            LegalDocumentFactory);
 
         // Startup registers the runtime inbox reactors and subscriptions; readiness includes their kernel state.
         using var client = Ante.CreateClient();

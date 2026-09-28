@@ -18,7 +18,9 @@
         "checkAgain": "Sjekk igjen",
         "contactSupport": "Kontakt brukerstøtte hvis dette fortsetter.",
         "continueToHost": "Fortsett",
-        "hostOutcomeReference": "Referanse: {reasonCode}"
+        "hostOutcomeReference": "Referanse: {reasonCode}",
+        "legalDocumentsUnavailable": "Juridiske dokumenter er ikke tilgjengelige ennå. Sjekk igjen før du fortsetter.",
+        "legalDocumentsChecking": "Sjekker juridiske dokumenter …"
     },
     "accessibility": {
         "stepAnnouncement": "Trinn {current} av {total}: {label}"

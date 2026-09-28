@@ -264,6 +264,48 @@
     ],
     "title": "UserInvitedToJoinTenant"
   },
+  "LegalDocumentSetActivated:1": {
+    "type": "object",
+    "properties": {
+      "revision": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "version": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "revision",
+      "version"
+    ],
+    "title": "LegalDocumentSetActivated"
+  },
+  "LegalDocumentSetPublished:1": {
+    "type": "object",
+    "properties": {
+      "revision": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "version": {
+        "type": "string"
+      },
+      "termsAndConditions": {
+        "type": "string"
+      },
+      "privacyPolicy": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "revision",
+      "version",
+      "termsAndConditions",
+      "privacyPolicy"
+    ],
+    "title": "LegalDocumentSetPublished"
+  },
   "LegalTermsAccepted:1": {
     "type": "object",
     "properties": {

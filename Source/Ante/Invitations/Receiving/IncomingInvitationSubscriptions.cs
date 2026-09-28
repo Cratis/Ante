@@ -1,12 +1,15 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Ante.Contracts.Legal;
+using Ante.Legal.Receiving;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventStoreSubscriptions;
 using Cratis.Chronicle.Reactors;
 using Cratis.Chronicle.Registrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Ante.Invitations.Receiving;
 
@@ -81,14 +84,25 @@ public class IncomingInvitationSubscriptions(
         {
             if (!_registeredReactors.Contains(source))
             {
-                var handler = new IncomingInvitationReactor(store, logger, source);
+                var handler = new IncomingInvitationReactor(
+                    store,
+                    logger,
+                    source,
+                    new LegalDocumentSetReceiver(store, Options.Create(options)));
+                var receivesLegal = options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore;
                 await store.Reactors.Register(
                     ReactorIdFor(source),
-                    definition => definition
-                        .OnEventSequence(InboxFor(source))
-                        .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToJoinTenant)))
-                        .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToCreateTenant)))
-                        .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationRevoked))),
+                    definition =>
+                    {
+                        var configured = definition.OnEventSequence(InboxFor(source))
+                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToJoinTenant)))
+                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToCreateTenant)))
+                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationRevoked)));
+                        if (receivesLegal)
+                        {
+                            configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(LegalDocumentSetPublished)));
+                        }
+                    },
                     async (delivery, _) =>
                     {
                         await using var scope = scopeFactory.CreateAsyncScope();
@@ -111,10 +125,16 @@ public class IncomingInvitationSubscriptions(
             await store.Subscriptions.Subscribe(
                 SubscriptionIdFor(source),
                 source,
-                definition => definition
-                    .WithEventType<UserInvitedToJoinTenant>()
-                    .WithEventType<UserInvitedToCreateTenant>()
-                    .WithEventType<InvitationRevoked>()).WaitAsync(cancellationToken);
+                definition =>
+                {
+                    definition.WithEventType<UserInvitedToJoinTenant>()
+                        .WithEventType<UserInvitedToCreateTenant>()
+                        .WithEventType<InvitationRevoked>();
+                    if (options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore)
+                    {
+                        definition.WithEventType<LegalDocumentSetPublished>();
+                    }
+                }).WaitAsync(cancellationToken);
             lock (_readinessLock)
             {
                 _subscribed.Add(source);
