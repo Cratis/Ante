@@ -67,6 +67,12 @@ Releases v0.5.0 through v0.10.0 never forwarded acceptances, legal acceptance, o
 
 Check the observers in Chronicle after the second start: the forwarding reactors must be active and advancing, and no projection may exist under their ids.
 
+## Upgrade from a release where self-registration status stayed pending
+
+On releases before the fix for the registration owner projection, a self-registering user's status never left `Pending`. The owner fields were missing from the `OrganizationSetupProgress` read-model schema, so reads returned no owner, and the owner subject was stored unencrypted in that collection. On a deployment whose `Ante:EventStore` is not `Ante`, the setup read models (`OrganizationSetupProgress`, `UserSetupProgress`, `AcceptedOrganizationName`) also observed `inbox-Ante` instead of the event log and stayed empty, which weakened the organization-name uniqueness pre-check.
+
+After upgrading, replay those three projections from the start of the event log so every document is rebuilt under the corrected schema and sequence. This also rewrites the previously plaintext owner subjects in encrypted form.
+
 ## Cut over or roll back routing
 
 For another lobby on the same infrastructure, give it its own Ante instance, store/namespace and MongoDB database as appropriate; for example set `Ante__EventStore=DirectLobby` and `Ante__Namespace=Default`. This renames **Ante's own** store, not the compiled incoming host store `Direct`. Before a live rename, rehearse observer registrations and read-model catch-up against the destination (which may already hold history); point host observers to the destination **before** switching Ante. Changing `Ante:EventStore` or `Ante:Namespace` does not migrate events. Rollback selects the earlier routing again; facts written to the destination during the cutover are not copied back. Plan their reconciliation, rather than assuming rollback retains them.
