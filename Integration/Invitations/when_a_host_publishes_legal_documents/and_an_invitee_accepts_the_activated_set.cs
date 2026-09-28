@@ -60,7 +60,9 @@ public class and_an_invitee_accepts_the_activated_set : a_running_ante
         var legalTail = await store.EventLog.GetTailSequenceNumber(
             LegalDocumentSetId,
             filterEventTypes: LegalDocumentSetReceiver.DecisionEventTypes);
-        var staleScope = new ConcurrencyScope(legalTail, LegalDocumentSetId,
+        var staleScope = new ConcurrencyScope(
+            legalTail,
+            LegalDocumentSetId,
             EventTypes: LegalDocumentSetReceiver.DecisionEventTypes);
         await Host.Publish(LegalDocumentSetId, new LegalDocumentSetPublished(3, "2026-03", "Terms three", "Privacy three"));
         await Eventually.Until(async () =>
