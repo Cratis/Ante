@@ -21,9 +21,18 @@ namespace Ante.Invitations.OrganizationSetup;
 /// <param name="Id">The invitation or registration identifier.</param>
 /// <param name="OrganizationName">The name of the organization that was set up.</param>
 /// <param name="LegalRecorded">Whether a <see cref="LegalTermsAccepted"/> fact was recorded alongside the acceptance.</param>
-/// <param name="OwnerSubject">The self-service owner's subject, when recorded.</param>
-/// <param name="OwnerProvider">The self-service owner's identity provider, when recorded.</param>
+/// <remarks>
+/// Pinned to the local event log: most of its events are declared in <c language="csharp">Cratis.Ante.Contracts</c>,
+/// whose assembly-level <c language="csharp">[EventStore("Ante")]</c> would otherwise make Chronicle read it from
+/// <c language="csharp">inbox-Ante</c> whenever <see cref="AnteOptions.EventStore"/> is not the literal "Ante".
+/// <para>
+/// The owner is carried by init properties, not optional constructor parameters: Chronicle's schema generator
+/// drops the type and the <c language="csharp">[PII]</c> classification of a nullable concept parameter defaulted to
+/// <see langword="null"/>, and the kernel then leaves the untyped values out of every instance it returns.
+/// </para>
+/// </remarks>
 [ReadModel]
+[EventLog]
 [FromEvent<InvitationToCreateTenantAccepted>]
 [FromEvent<OrganizationRegistrationCompleted>]
 [FromEvent<RegistrationOwnerRecorded>]
@@ -33,9 +42,19 @@ public record OrganizationSetupProgress(
     [SetFrom<InvitationToCreateTenantAccepted>(nameof(InvitationToCreateTenantAccepted.TenantName))]
     [SetFrom<OrganizationRegistrationCompleted>(nameof(OrganizationRegistrationCompleted.TenantName))]
     TenantName OrganizationName,
-    [SetValue<LegalTermsAccepted>(true)] bool LegalRecorded = false,
-    [property: Subject] RegistrationOwnerSubject? OwnerSubject = null,
-    IdentityProviderName? OwnerProvider = null);
+    [SetValue<LegalTermsAccepted>(true)] bool LegalRecorded = false)
+{
+    /// <summary>
+    /// Gets the self-service owner's subject, when recorded.
+    /// </summary>
+    [Subject]
+    public RegistrationOwnerSubject? OwnerSubject { get; init; }
+
+    /// <summary>
+    /// Gets the self-service owner's identity provider, when recorded.
+    /// </summary>
+    public IdentityProviderName? OwnerProvider { get; init; }
+}
 
 /// <summary>
 /// Durable evidence that organization setup's public facts - from an invitation or from self-service

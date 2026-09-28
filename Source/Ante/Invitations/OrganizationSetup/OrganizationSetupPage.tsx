@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { Button } from '@cratis/components/Common';
 import { ProgressSpinner } from '@cratis/components/Display';
 import { InputTextField } from '@cratis/components/CommandForm';
@@ -10,6 +10,8 @@ import { useIdentity } from '@cratis/arc.react/identity';
 import { Guid } from '@cratis/fundamentals';
 import { SetupOrganization } from './OrganizationSetup';
 import { useOrganizationSetupHandoff } from './useOrganizationSetupHandoff';
+import { OrganizationNameStepValidation } from '../../Organization/OrganizationNameStepValidation';
+import { OrganizationNameStepError } from '../../Organization/OrganizationNameStepError';
 import { HostOutcomeStatus } from '../HostOutcome/HostOutcomeStatus';
 import { Current as LegalDocumentsCurrent } from '../../Legal/LegalDocuments';
 import { OrganizationSetupFrame } from './OrganizationSetupFrame';
@@ -40,6 +42,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
         return Guid.isGuid(str) ? Guid.parse(str) : null;
     }, [identity.isSet, invitationIdentityDetails, invitationToken]);
     const resolvedInvitationId = invitationId ?? Guid.empty;
+    const invitationIdText = resolvedInvitationId.toString();
     const [legalStatus] = LegalDocumentsCurrent.use();
 
     const handoff = useOrganizationSetupHandoff({
@@ -47,6 +50,16 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
         hostAppUnavailableMessage: strings.organizationSetup.hostAppUrlUnavailable,
         supportsHostOutcome: true,
     });
+    const nameValidation = useMemo(() => new OrganizationNameStepValidation(
+        () => {
+            const probe = new SetupOrganization();
+            probe.invitationId = Guid.parse(invitationIdText);
+            return probe;
+        },
+        strings.organizationSetup.nameValidationUnavailable
+    ), [invitationIdText]);
+    const { isValidating: isNameValidating, error: nameValidationError } = useSyncExternalStore(nameValidation.subscribe, nameValidation.getSnapshot);
+    useEffect(() => () => nameValidation.dispose(), [nameValidation]);
 
     // Memoized so an unrelated re-render - opening the terms dialog, a status poll tick - does not
     // recreate this object: CommandForm reasserts initialValues/currentValues onto the command whenever
@@ -176,6 +189,8 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
                 <CommandStepper<SetupOrganization>
                     command={SetupOrganization}
                     validateOnInit
+                    isBusy={isNameValidating}
+                    onFieldChange={nameValidation.onFieldChange}
                     okLabel={strings.organizationSetup.setupOrganization}
                     initialValues={initialValues}
                     currentValues={currentValues}
@@ -192,6 +207,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
                             placeholder={strings.organizationSetup.organizationNamePlaceholder}
                             pt={{ root: { autoComplete: 'organization' } }}
                         />
+                        <OrganizationNameStepError validation={nameValidation} />
                     </StepperPanel>
                     <StepperPanel header={strings.organizationSetup.stepUserInformation}>
                         <InputTextField<SetupOrganization>
@@ -222,6 +238,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
                 {legalDocuments.dialog}
             </div>
             <LiveRegion message={announcement} />
+            <LiveRegion message={nameValidationError ?? ''} />
         </OrganizationSetupFrame>
     );
 };
