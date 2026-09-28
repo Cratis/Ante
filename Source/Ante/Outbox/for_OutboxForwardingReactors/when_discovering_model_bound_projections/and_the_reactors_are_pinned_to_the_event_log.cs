@@ -28,7 +28,7 @@ public class and_the_reactors_are_pinned_to_the_event_log : Specification
 
     Type[] _discoveredAsProjections = [];
 
-    void Because() => _discoveredAsProjections = _forwardingReactors.Where(type => type.HasModelBoundProjectionAttributes()).ToArray();
+    void Because() => _discoveredAsProjections = [.. _forwardingReactors.Where(type => type.HasModelBoundProjectionAttributes())];
 
     [Fact] void should_not_discover_any_of_them_as_a_model_bound_projection() => Assert.Empty(_discoveredAsProjections);
 }

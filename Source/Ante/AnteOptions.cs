@@ -25,15 +25,16 @@ public class AnteOptions
     public string Namespace { get; set; } = EventStoreNamespaceName.Default.Value;
 
     /// <summary>
-    /// Gets or sets the name of the host product's event store Ante's inbox reactor expects to
-    /// cross-subscribe to. This does not retarget the subscription - Chronicle's <c language="csharp">[EventStore]</c>
-    /// attribute requires a compile-time constant, so the actual source store is
-    /// <see cref="Invitations.Receiving.InboxSourceStore.Name"/> and changing it requires editing that
-    /// constant and rebuilding (tracked upstream as Cratis/Chronicle#3951). This setting exists solely so
-    /// a deployment that supplies a different value here fails loudly at startup via
-    /// <see cref="AnteRoutingValidator"/> instead of the option being silently accepted and ignored.
+    /// Gets or sets the trusted host stores whose outbox invitations Ante receives. Defaults to Direct
+    /// when absent. Routing changes take effect on restart.
     /// </summary>
-    public string InboxSourceStore { get; set; } = Invitations.Receiving.InboxSourceStore.Name;
+    public IList<string>? HostStores { get; set; }
+
+    /// <summary>
+    /// Gets or sets the deprecated single-store alias for <see cref="HostStores"/>. Its absence must not
+    /// be mistaken for an explicit Direct setting when the new list is configured.
+    /// </summary>
+    public string? InboxSourceStore { get; set; }
 
     /// <summary>
     /// Gets or sets the base URL of the host application. Once an invitation is accepted or a
