@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Ante.Invitations.Accepting;
+using Ante.Invitations.OrganizationSetup;
+using Ante.Organization.Registration;
 
 namespace Ante.Invitations.HostOutcome;
 
@@ -175,7 +177,7 @@ public record HostOutcomeView(InvitationId AttemptId, bool IsConfigured, HostOut
     {
         var isConfigured = !string.IsNullOrWhiteSpace(options.Value.HostOutcomeUrl);
 
-        if (!isConfigured || !signedInIdentity.IsVerifiedRecoveryOwnerOf(attemptId, eventStore))
+        if (!isConfigured || !await IsOwner(attemptId, signedInIdentity, eventStore))
         {
             return new(attemptId, isConfigured, HostOutcomeStatus.Unknown, string.Empty);
         }
@@ -184,11 +186,25 @@ public record HostOutcomeView(InvitationId AttemptId, bool IsConfigured, HostOut
 
         // Acceptance may commit while the host is answering. Only the current committed owner can
         // receive the answer, even if this caller was the owner before the backchannel request.
-        if (!signedInIdentity.IsVerifiedRecoveryOwnerOf(attemptId, eventStore))
+        if (!await IsOwner(attemptId, signedInIdentity, eventStore))
         {
             return new(attemptId, isConfigured, HostOutcomeStatus.Unknown, string.Empty);
         }
 
         return new(attemptId, isConfigured, status, reasonCode);
+    }
+
+    // An invited attempt is owned through its verified invitation session; a self-service registration
+    // through the owner recorded with it. Either way only that exact sign-in may see the host's answer.
+    static async Task<bool> IsOwner(InvitationId attemptId, ISignedInIdentity signedInIdentity, IEventStore eventStore)
+    {
+        if (signedInIdentity.IsVerifiedRecoveryOwnerOf(attemptId, eventStore))
+        {
+            return true;
+        }
+
+        var registration = await eventStore.ReadModels.GetInstanceById<OrganizationSetupProgress>(attemptId.Value);
+        return registration?.OwnerSubject is { } ownerSubject && registration.OwnerProvider is { } ownerProvider &&
+            signedInIdentity.IsVerifiedRegistrationOwner(new RegistrationOwner(ownerSubject, ownerProvider));
     }
 }
