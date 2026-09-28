@@ -14,6 +14,7 @@ public class when_translating_a_response : Specification
     [InlineData("OneUseJoinTenantInvitation", "Invitasjonen er allerede godtatt.")]
     [InlineData("OneUseCreateTenantInvitation", "Invitasjonen er allerede godtatt.")]
     [InlineData("OneUseOnboardingAttempt", "Dette oppsettet er allerede sendt inn.")]
+    [InlineData("OneRegistrationStart", "Denne registreringen tilhører en annen innlogging.")]
     public void should_localize_the_known_constraint_without_changing_its_identity(string name, string expected)
     {
         var original = CultureInfo.CurrentUICulture;

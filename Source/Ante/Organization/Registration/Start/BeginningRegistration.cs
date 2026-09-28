@@ -6,6 +6,7 @@ using Ante.IdentityProviders;
 using Ante.Invitations;
 using Ante.Invitations.Receiving;
 using Ante.Organization.Registration;
+using Ante.Resources;
 using Cratis.Arc.Validation;
 using Cratis.Types;
 
@@ -44,12 +45,12 @@ public record BeginRegistration(InvitationId RegistrationId)
         var owner = RegistrationOwner.Resolve(httpContextAccessor, resolver);
         if (RegistrationId == InvitationId.NotSet || owner is null || string.IsNullOrWhiteSpace(owner.Provider.Value))
         {
-            return ValidationResult.Error("A signed-in subject and provider are required to register an organization.");
+            return ValidationResult.Error(Messages.Get("RegisterIdentityRequired"));
         }
 
         if (!await RegistrationSourceAvailability.IsAvailable(RegistrationId, eventStore))
         {
-            return ValidationResult.Error("This onboarding attempt has already been submitted.", reasonDetail: OnboardingAttemptConstraintNames.OneUseAttempt);
+            return ValidationResult.Error(Messages.Get("AttemptAlreadySubmitted"), reasonDetail: OnboardingAttemptConstraintNames.OneUseAttempt);
         }
 
         var starts = await RegistrationStartHistory.For(RegistrationId, eventStore);
@@ -60,7 +61,7 @@ public record BeginRegistration(InvitationId RegistrationId)
 
         if (starts.Length != 0)
         {
-            return ValidationResult.Error("This registration belongs to another sign-in.");
+            return ValidationResult.Error(Messages.Get("RegistrationOwnedByAnotherSignIn"));
         }
 
         // A second start can pass the history check before the first append commits. Append
@@ -86,7 +87,7 @@ public record BeginRegistration(InvitationId RegistrationId)
             throw new RegistrationStartAppendFailed();
         }
 
-        return ValidationResult.Error("This registration belongs to another sign-in.");
+        return ValidationResult.Error(Messages.Get("RegistrationOwnedByAnotherSignIn"));
     }
 }
 

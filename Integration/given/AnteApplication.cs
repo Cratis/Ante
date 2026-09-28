@@ -27,6 +27,7 @@ namespace Ante.Integration.given;
 /// <param name="legalDocumentSetId">When set, selects the first host's inbox legal stream.</param>
 /// <param name="legalDocumentFactory">Optional scoped test source wrapping the inbox implementation.</param>
 /// <param name="acceptanceFenceFactory">Optional scoped test fence for a deterministic revocation race.</param>
+/// <param name="chronicleConnectionString">Optional endpoint override to exercise an unavailable Chronicle.</param>
 public sealed class AnteApplication(
     ChronicleInfrastructure infrastructure,
     string eventStore,
@@ -35,7 +36,8 @@ public sealed class AnteApplication(
     bool attestedExchange = false,
     string? legalDocumentSetId = default,
     Func<IServiceProvider, ILegalDocumentSource>? legalDocumentFactory = default,
-    Func<IServiceProvider, IInvitationAcceptanceFence>? acceptanceFenceFactory = default) : WebApplicationFactory<Program>
+    Func<IServiceProvider, IInvitationAcceptanceFence>? acceptanceFenceFactory = default,
+    string? chronicleConnectionString = default) : WebApplicationFactory<Program>
 {
     public const string IdentityProvider = "integration-idp";
 
@@ -100,7 +102,7 @@ public sealed class AnteApplication(
             .UseEnvironment("Integration")
             .UseSetting("Ante:Invitations:Token:PrivateKeyPem", AttestationPrivateKeyPem)
             .UseSetting("Ante:Invitations:Token:PublicKeyPem", signingKey.ExportSubjectPublicKeyInfoPem())
-            .UseSetting("Cratis:Chronicle:ConnectionString", infrastructure.ChronicleConnectionString)
+            .UseSetting("Cratis:Chronicle:ConnectionString", chronicleConnectionString ?? infrastructure.ChronicleConnectionString)
             .UseSetting("Cratis:MongoDB:Server", infrastructure.MongoDBServer)
             .UseSetting("Cratis:MongoDB:Database", EventStore)
             .UseSetting("Ante:EventStore", EventStore)

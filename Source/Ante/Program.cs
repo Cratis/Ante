@@ -148,6 +148,17 @@ app.UseAuthorization();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+// Branch before the legacy exchange middleware so the attested handlers (which depend on Chronicle)
+// are resolved only for attested stage and completion POSTs, never for health or ordinary routes.
+if (invitationExchangeOptions.Mode == InvitationExchangeMode.Attested)
+{
+    app.MapWhen(
+        context => HttpMethods.IsPost(context.Request.Method) &&
+            (context.Request.Path.Equals("/_invite/stage", StringComparison.OrdinalIgnoreCase) ||
+             context.Request.Path.Equals("/_invite/exchange", StringComparison.OrdinalIgnoreCase)),
+        branch => branch.UseMiddleware<AttestedInviteExchangeMiddleware>());
+}
+
 app.UseMiddleware<InviteExchangeBypassMiddleware>();
 app.MapControllers();
 app.MapOpenApiInDevelopment();
