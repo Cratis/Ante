@@ -5,6 +5,7 @@
 using Ante.Contracts.Legal;
 using Ante.Invitations.Accepting;
 using Ante.Legal;
+using Ante.Organization.Names;
 using MongoDB.Driver;
 
 namespace Ante.Invitations.OrganizationSetup.when_setting_up;
@@ -17,13 +18,13 @@ public class and_names_use_diacritics_hyphens_apostrophes_and_non_latin_script :
     {
         var invitationId = InvitationId.New();
 
-        var acceptedNames = Substitute.For<IMongoCollection<AcceptedOrganizationName>>();
-        acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<AcceptedOrganizationName>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var acceptedNames = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
+        acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
 
         var signedInIdentity = Substitute.For<ISignedInIdentity>();
         signedInIdentity.IsVerifiedOwnerOf(invitationId).Returns(true);
 
-        var validator = new SetupOrganizationValidator(new NoLegalDocumentSource(), acceptedNames, signedInIdentity);
+        var validator = new SetupOrganizationValidator(new NoLegalDocumentSource(), acceptedNames, signedInIdentity, Microsoft.Extensions.Options.Options.Create(new AnteOptions()));
 
         // "Zoë-Renée" (diacritics + hyphen), "田中" (non-Latin script) and "O'Brien" (apostrophe) are all
         // real, legitimate name shapes that must not be treated as invalid input.
