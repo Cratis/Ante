@@ -53,11 +53,11 @@ The `-e` flag without a value forwards that variable from the invoking environme
 
 ## Upgrade from a release without working outbox forwarding
 
-Releases before the fix for [Ante #72](https://github.com/Cratis/Ante/issues/72) never forwarded acceptances, legal acceptance, organization setup or self-registration to the outbox. The forwarding reactors had been registered as empty projections under the same observer ids. After upgrading:
+Releases v0.5.0 through v0.10.0 never forwarded acceptances, legal acceptance, organization setup or self-registration to the outbox ([Ante #72](https://github.com/Cratis/Ante/issues/72)). Releases v0.4.x and earlier forwarded them when the store was named `Ante`, and need no second restart. The forwarding reactors had been registered as empty projections under the same observer ids. After upgrading:
 
 1. Start the new version once. The Chronicle kernel retires the stray projections on this start, which disconnects the reactors that now own those observer ids.
 2. Restart Ante a second time. The forwarding reactors become active.
-3. Expect a backlog. The reactors publish every historical `InvitationToJoinTenantAccepted`, `InvitationToCreateTenantAccepted`, `OrganizationRegistrationCompleted` and `LegalTermsAccepted` from the start of Ante's event log. Tell your hosts before the upgrade. Hosts must consume these idempotently, and should decide how to treat acceptances older than the upgrade (for example, grant membership, or ask the user to be invited again).
+3. Expect a backlog. The reactors publish every historical `InvitationToJoinTenantAccepted`, `InvitationToCreateTenantAccepted`, `OrganizationRegistrationCompleted` and `LegalTermsAccepted` from the start of Ante's event log, including facts an earlier release (v0.4.x or before) already forwarded. Tell your hosts before the upgrade. Hosts must consume these idempotently, and should decide how to treat acceptances older than the upgrade (for example, grant membership, or ask the user to be invited again).
 
 Check the observers in Chronicle after the second start: the forwarding reactors must be active and advancing, and no projection may exist under their ids.
 

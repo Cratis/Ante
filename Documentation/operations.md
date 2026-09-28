@@ -19,7 +19,7 @@ If a pending-invitations query or projection fails, inspect the local receipt ev
 
 ## Recorded but not published
 
-On a release before the [Ante #72](https://github.com/Cratis/Ante/issues/72) fix, every acceptance stays recorded but unpublished, because the forwarding reactors never ran. Upgrade as described in [Deployment](./deployment.md#upgrade-from-a-release-without-working-outbox-forwarding).
+On releases v0.5.0 through v0.10.0 ([Ante #72](https://github.com/Cratis/Ante/issues/72)), every acceptance stays recorded but unpublished, because the forwarding reactors never ran. Upgrade as described in [Deployment](./deployment.md#upgrade-from-a-release-without-working-outbox-forwarding).
 
 Check `UserSetupAcceptanceStatusView.StatusForInvitation` for joins or `OrganizationSetupAcceptanceStatusView.StatusForInvitation` for invited creation and self-registration. If it reports `Recorded`, the acceptance/registration fact committed to Ante's **local log** but the host-facing outbox is not yet confirmed. Do **not** resubmit. Compare local and outbox records under that id: the status reaches `Accepted` only when the primary fact **and any locally recorded `LegalTermsAccepted`** have reached the outbox. Inspect `JoinTenantAcceptanceOutbox`, `OrganizationSetupOutbox`, or `OrganizationRegistrationOutbox` for the main fact and `LegalTermsAcceptanceOutbox` for consent. Look for their partition errors (`OutboxPublicationFailed` when `AppendResult.IsSuccess` is false), Chronicle connectivity and observer progress; repeated forwarding may duplicate a fact, so the host must deduplicate. No independent publication-lag readiness metric is implemented.
 
