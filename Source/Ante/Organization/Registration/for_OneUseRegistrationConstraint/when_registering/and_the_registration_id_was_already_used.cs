@@ -14,13 +14,13 @@ public class and_the_registration_id_was_already_used : Specification
     IAppendResult _result = null!;
 
     async Task Establish() =>
-        await _scenario.Given.ForEventSource(_id).Events(new OrganizationRegistrationCompleted(
-            "Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
+        await _scenario.Given.ForEventSource(_id).Events(
+            new OnboardingAttemptClaimed(),
+            new OrganizationRegistrationCompleted("Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
 
-    async Task Because() => _result = await _scenario.EventLog.Append(_id, new OrganizationRegistrationCompleted(
-        "Northwind", "sub-2", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
+    async Task Because() => _result = await _scenario.EventLog.Append(_id, new OnboardingAttemptClaimed());
 
     [Fact] void should_fail() => _result.ShouldBeFailed();
-    [Fact] void should_violate_the_one_use_constraint() => _result.ShouldHaveConstraintViolationFor(RegistrationConstraintNames.OneUseRegistration);
+    [Fact] void should_violate_the_one_use_constraint() => _result.ShouldHaveConstraintViolationFor(OnboardingAttemptConstraintNames.OneUseAttempt);
 }
 #endif
