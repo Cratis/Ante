@@ -102,18 +102,17 @@ jobs:
         working-directory: Source/Ante
         run: yarn test
 
-      # PRIMEUI_LICENSE is an Actions secret, which pull requests from forks (and Dependabot, whose
-      # secrets are a separate store) never receive. Lint, compile and test above still gate those
-      # pull requests; only the production bundle is skipped, with a visible notice. On pushes and in
-      # same-repository pull requests the secret is present and the build always runs, so a
-      # missing or renamed secret there fails the build instead of being skipped silently.
+      # PRIMEUI_LICENSE is an Actions secret, which pull requests from forks never receive (nor does
+      # Dependabot, whose secrets are a separate store). Only those two are skipped, with a visible
+      # notice; lint, compile and test above still gate them. Pushes and same-repository pull
+      # requests always run the build, so a missing or renamed secret there fails loudly.
       - name: Build
         working-directory: Source/Ante
         env:
           ANTE_PRIMEUI_LICENSE: ${{ secrets.PRIMEUI_LICENSE }}
-          EVENT_NAME: ${{ github.event_name }}
+          SKIP_WITHOUT_SECRET: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]') }}
         run: |
-          if [ -z "$ANTE_PRIMEUI_LICENSE" ] && [ "$EVENT_NAME" = "pull_request" ]; then
+          if [ -z "$ANTE_PRIMEUI_LICENSE" ] && [ "$SKIP_WITHOUT_SECRET" = "true" ]; then
             echo "::notice title=Frontend build skipped::PRIMEUI_LICENSE is not available to this pull request (fork or Dependabot). Lint, compile and test still ran; the production build runs on main."
             echo "Frontend production build skipped: PRIMEUI_LICENSE is not available to this pull request." >> "$GITHUB_STEP_SUMMARY"
             exit 0
