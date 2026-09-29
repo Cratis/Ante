@@ -12,12 +12,23 @@ namespace Ante.Invitations.Issuing.for_InvitationTokenValidator.when_validating;
 
 public class a_deployment_with_isolated_tokens : Specification
 {
-    protected static readonly RSA Current = RSA.Create(2048);
-    protected static readonly RSA Previous = RSA.Create(2048);
+    // Specs of a class run in parallel with other classes' and share these keys. RSA.Create on macOS generates
+    // the key lazily on first use, so several threads using a fresh instance at once each generate their own key and
+    // export inconsistent parameters (tokens signed with them then fail verification). Materialize the key here,
+    // during type initialization, before any spec can touch it.
+    protected static readonly RSA Current = NewKey();
+    protected static readonly RSA Previous = NewKey();
 
     protected static readonly AnteOptions Deployment = new() { EventStore = "StudioLobby", Namespace = "Default" };
 
     // Issuer and audience are derived, as when nothing is configured: what a deployment upgraded from before isolation has.
+    static RSA NewKey()
+    {
+        var key = RSA.Create(2048);
+        _ = key.ExportParameters(true);
+        return key;
+    }
+
     protected static InvitationTokenConfig Config(params RSA[] previousKeys) =>
         Configure(new InvitationTokenConfig(), previousKeys);
 

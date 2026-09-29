@@ -12,7 +12,8 @@ public class and_a_legacy_token_lives_as_long_as_the_window_allows : a_deploymen
     {
         var now = DateTimeOffset.UtcNow;
         var window = new InvitationTokenUpgradeWindow(now, TimeSpan.FromDays(7));
-        var token = Token(Current, issuer: null, audience: null, issuedAt: DateTime.UtcNow.AddHours(-1), expires: DateTime.UtcNow.AddDays(6));
+        var issuedAt = DateTime.UtcNow.AddHours(-1);
+        var token = Token(Current, issuer: null, audience: null, issuedAt: issuedAt, expires: issuedAt.AddDays(7));
         _result = await ValidatorFor(Config(), window).Validate($"Bearer {token}");
     }
 
