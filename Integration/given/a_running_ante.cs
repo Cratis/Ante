@@ -39,6 +39,14 @@ public class a_running_ante : Specification
 
     protected virtual Func<IServiceProvider, IInvitationAcceptanceFence>? AcceptanceFenceFactory => null;
 
+    protected virtual IExchangeIndexReadiness? ExchangeIndexes => null;
+
+    /// <summary>Gets a read-model MongoDB connection string overriding the shared one; the shared server by default.</summary>
+    protected virtual string? MongoServer => null;
+
+    /// <summary>Gets whether <c>Establish</c> waits for <c>/healthz/ready</c>; specs about an unavailable dependency turn it off.</summary>
+    protected virtual bool WaitForReadiness => true;
+
     protected string LegalDocumentSetId => $"legal-documents-{Suffix}";
 
     protected string AnteStoreName => $"Ante{Suffix}";
@@ -58,13 +66,18 @@ public class a_running_ante : Specification
             AttestedExchange,
             UseLegalInbox ? LegalDocumentSetId : null,
             LegalDocumentFactory,
-            AcceptanceFenceFactory);
+            AcceptanceFenceFactory,
+            exchangeIndexes: ExchangeIndexes,
+            mongoServer: MongoServer);
 
         // Startup registers the runtime inbox reactors and subscriptions; readiness includes their kernel state.
-        using var client = Ante.CreateClient();
-        await Eventually.Until(
-            async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
-            what: "Ante readiness (/healthz/ready)");
+        if (WaitForReadiness)
+        {
+            using var client = Ante.CreateClient();
+            await Eventually.Until(
+                async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
+                what: "Ante readiness (/healthz/ready)");
+        }
     }
 
     async Task Destroy()
@@ -104,7 +117,9 @@ public class a_running_ante : Specification
             UseLegalInbox ? LegalDocumentSetId : null,
             LegalDocumentFactory,
             AcceptanceFenceFactory,
-            signingKeyPem: signingKey);
+            signingKeyPem: signingKey,
+            exchangeIndexes: ExchangeIndexes,
+            mongoServer: MongoServer);
         using var client = Ante.CreateClient();
         await Eventually.Until(
             async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
