@@ -150,9 +150,10 @@ public static class OutboxForwarder
         {
             logger?.LogNotifierFailed(exception, notifier, eventSourceId.Value);
         }
-        catch (Exception)
+        catch (Exception loggingFailure)
         {
             // A failing logger must not turn a successful append into a retried reactor.
+            System.Diagnostics.Debug.WriteLine($"Could not report a status notifier failure: {loggingFailure.Message}");
         }
     }
 }
