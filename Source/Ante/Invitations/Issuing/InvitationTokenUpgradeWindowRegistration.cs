@@ -12,23 +12,21 @@ namespace Ante.Invitations.Issuing;
 public static class InvitationTokenUpgradeWindowRegistration
 {
     /// <summary>
-    /// Registers <see cref="IInvitationTokenUpgradeWindow"/> as a singleton loaded, on first resolution, from a scope of its own.
+    /// Registers <see cref="IInvitationTokenUpgradeWindow"/> as a singleton that stays closed until
+    /// <see cref="DeferredInvitationTokenUpgradeWindow.Load"/> has read it from MongoDB.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="expiry">The configured token expiry, bounding the window.</param>
     /// <returns>The same collection, for chaining.</returns>
     /// <remarks>
-    /// <see cref="IMongoCollection{TDocument}"/> is scoped (its database follows the current tenant), so it is never
-    /// resolved from the root provider: Development's scope validation rejects that.
+    /// Resolving the window never touches MongoDB, so a temporarily unavailable database cannot stop the host from
+    /// starting. <see cref="Accepting.AcceptedInvitationIndexRegistration"/> loads it, with retries, from a scope of
+    /// its own (<see cref="IMongoCollection{TDocument}"/> is scoped: its database follows the current tenant).
     /// </remarks>
     public static IServiceCollection AddInvitationTokenUpgradeWindow(this IServiceCollection services, TimeSpan expiry)
     {
         services.TryAddSingleton(TimeProvider.System);
-        return services.AddSingleton<IInvitationTokenUpgradeWindow>(root =>
-        {
-            using var startupScope = root.CreateScope();
-            var database = startupScope.ServiceProvider.GetRequiredService<IMongoCollection<Accepting.AcceptedInvitation>>().Database;
-            return InvitationTokenUpgradeWindow.Load(database, root.GetRequiredService<TimeProvider>().GetUtcNow(), expiry).GetAwaiter().GetResult();
-        });
+        services.AddSingleton(provider => new DeferredInvitationTokenUpgradeWindow(expiry, provider.GetRequiredService<TimeProvider>()));
+        return services.AddSingleton<IInvitationTokenUpgradeWindow>(provider => provider.GetRequiredService<DeferredInvitationTokenUpgradeWindow>());
     }
 }

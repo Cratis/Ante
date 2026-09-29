@@ -28,7 +28,8 @@ public class and_a_federation_marker_has_an_issuerless_provider_alongside_oidc :
             _fixture.Collection,
             resolver,
             _fixture.Validator(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
+            _fixture.Indexes) == InviteExchangeOutcome.Accepted;
     }
 
     [Fact] void should_reject_the_exchange() => Assert.False(_result);

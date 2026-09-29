@@ -26,7 +26,8 @@ public class and_canonical_identity_is_unconfigured_but_legacy_claim_is_configur
             _fixture.Collection,
             resolver,
             _fixture.Validator(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
+            _fixture.Indexes) == InviteExchangeOutcome.Accepted;
         _requestProvider = ForwardedIdentityProvider.Resolve(
         [
             new("urn:cratis:identity:provider-key", "unconfigured-key"),

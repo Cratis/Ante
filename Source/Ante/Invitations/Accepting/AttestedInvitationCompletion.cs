@@ -104,8 +104,9 @@ public static class AttestedInvitationSessionIndexes
     /// Creates completion, actor, transaction and replay uniqueness plus eventual expiry cleanup.
     /// </summary>
     /// <param name="sessions">The attested-session collection.</param>
+    /// <param name="cancellationToken">Cancels a pending connection on shutdown.</param>
     /// <returns>The index creation operation.</returns>
-    public static Task EnsureCreated(IMongoCollection<AttestedInvitationSession> sessions) => sessions.Indexes.CreateManyAsync(
+    public static Task EnsureCreated(IMongoCollection<AttestedInvitationSession> sessions, CancellationToken cancellationToken = default) => sessions.Indexes.CreateManyAsync(
     [
         new CreateIndexModel<AttestedInvitationSession>(
             Builders<AttestedInvitationSession>.IndexKeys.Ascending(row => row.LobbyScope).Ascending(row => row.InvitationId)
@@ -126,7 +127,8 @@ public static class AttestedInvitationSessionIndexes
         new CreateIndexModel<AttestedInvitationSession>(
             Builders<AttestedInvitationSession>.IndexKeys.Ascending(row => row.ExpiresAtUtc),
             new CreateIndexOptions { Name = "AttestedSessionExpiry", ExpireAfter = TimeSpan.Zero }),
-    ]);
+    ],
+    cancellationToken);
 }
 
 /// <summary>

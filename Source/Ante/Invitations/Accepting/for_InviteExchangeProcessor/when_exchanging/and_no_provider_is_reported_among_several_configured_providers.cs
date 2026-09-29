@@ -28,7 +28,8 @@ public class and_no_provider_is_reported_among_several_configured_providers : Sp
             _fixture.Collection,
             resolver,
             _fixture.Validator(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
+            _fixture.Indexes) == InviteExchangeOutcome.Accepted;
     }
 
     [Fact] void should_reject_the_exchange() => Assert.False(_result);

@@ -31,7 +31,8 @@ public class and_the_following_request_has_legacy_provider_claims : Specificatio
             fixture.Collection,
             resolver,
             fixture.Validator(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
+            fixture.Indexes) == InviteExchangeOutcome.Accepted;
         var requestProvider = ForwardedIdentityProvider.Resolve(
             [
                 new KeyValuePair<string, string>(claimType, "GitHub"),

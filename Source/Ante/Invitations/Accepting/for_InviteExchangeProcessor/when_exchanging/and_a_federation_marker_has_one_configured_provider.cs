@@ -25,7 +25,8 @@ public class and_a_federation_marker_has_one_configured_provider : Specification
             _fixture.Collection,
             resolver,
             _fixture.Validator(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
+            _fixture.Indexes) == InviteExchangeOutcome.Accepted;
     }
 
     [Fact] void should_accept_the_token() => Assert.True(_result);

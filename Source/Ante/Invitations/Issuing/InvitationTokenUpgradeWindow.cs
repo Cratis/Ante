@@ -72,13 +72,14 @@ public class InvitationTokenUpgradeWindow(DateTimeOffset activatedAt, TimeSpan m
     /// <param name="database">Ante's MongoDB database.</param>
     /// <param name="now">The current time.</param>
     /// <param name="expiry">The configured token expiry.</param>
+    /// <param name="cancellationToken">Cancels a pending connection on shutdown.</param>
     /// <returns>The upgrade window, open from activation until activation plus <see cref="RolloutGrace"/> plus the expiry.</returns>
     /// <remarks>
     /// A document without a recorded end (written by 1.0.0) uses <paramref name="expiry"/>. A recorded end bounds the
     /// token lifetime by the expiry it was recorded with, so a later change of the configured expiry neither extends
     /// nor shortens what an earlier activation allowed.
     /// </remarks>
-    public static async Task<InvitationTokenUpgradeWindow> Load(IMongoDatabase database, DateTimeOffset now, TimeSpan expiry)
+    public static async Task<InvitationTokenUpgradeWindow> Load(IMongoDatabase database, DateTimeOffset now, TimeSpan expiry, CancellationToken cancellationToken = default)
     {
         var collection = database.GetCollection<InvitationTokenIsolationActivation>("invitation-token-isolation");
         var activation = await collection.FindOneAndUpdateAsync(
@@ -86,7 +87,8 @@ public class InvitationTokenUpgradeWindow(DateTimeOffset activatedAt, TimeSpan m
             Builders<InvitationTokenIsolationActivation>.Update.Combine(
                 Builders<InvitationTokenIsolationActivation>.Update.SetOnInsert(document => document.ActivatedAt, now),
                 Builders<InvitationTokenIsolationActivation>.Update.SetOnInsert(document => document.LegacyUntil, now + RolloutGrace + expiry)),
-            new FindOneAndUpdateOptions<InvitationTokenIsolationActivation> { IsUpsert = true, ReturnDocument = ReturnDocument.After });
+            new FindOneAndUpdateOptions<InvitationTokenIsolationActivation> { IsUpsert = true, ReturnDocument = ReturnDocument.After },
+            cancellationToken);
         var recordedExpiry = activation.LegacyUntil is { } legacyUntil ? legacyUntil - activation.ActivatedAt - RolloutGrace : expiry;
         return new(activation.ActivatedAt, recordedExpiry);
     }

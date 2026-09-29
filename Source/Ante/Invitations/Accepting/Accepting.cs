@@ -11,6 +11,19 @@ using MongoDB.Driver;
 
 namespace Ante.Invitations.Accepting;
 
+/// <summary>Outcome of the shared invite-exchange write boundary.</summary>
+public enum InviteExchangeOutcome
+{
+    /// <summary>The token was valid and the session was recorded.</summary>
+    Accepted,
+
+    /// <summary>The request was refused: it is malformed, unverifiable or names an unresolvable provider.</summary>
+    Rejected,
+
+    /// <summary>The exchange storage is not ready, so nothing was read or written; the caller may retry.</summary>
+    Unavailable,
+}
+
 /// <summary>
 /// The request body sent by the host's authentication proxy to the invite-exchange endpoint after the
 /// user completes OIDC login.
@@ -66,24 +79,31 @@ public static class InviteExchangeProcessor
     /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
     /// <param name="tokenValidator">Verifier of invitation signatures and claims.</param>
     /// <param name="logger">Logger for rejected unresolved provider evidence.</param>
-    /// <returns>True when the token was valid and the session was recorded.</returns>
-    public static async Task<bool> TryStoreAcceptedInvitation(
+    /// <param name="indexes">Readiness of the exchange storage; nothing is validated or written before it is ready.</param>
+    /// <returns>Whether the session was recorded, the request was rejected, or the storage was not ready.</returns>
+    public static async Task<InviteExchangeOutcome> TryStoreAcceptedInvitation(
         string authorizationHeader,
         ExchangeInviteRequest request,
         IMongoCollection<AcceptedInvitation> acceptedInvitations,
         IIdentityProviderResolver identityProviderResolver,
         IInvitationTokenValidator tokenValidator,
-        ILogger<InviteExchangeBypassMiddleware> logger)
+        ILogger<InviteExchangeBypassMiddleware> logger,
+        IExchangeIndexReadiness indexes)
     {
+        if (!indexes.IsReady)
+        {
+            return InviteExchangeOutcome.Unavailable;
+        }
+
         if (string.IsNullOrWhiteSpace(request.Subject))
         {
-            return false;
+            return InviteExchangeOutcome.Rejected;
         }
 
         var verifiedToken = await tokenValidator.Validate(authorizationHeader);
         if (verifiedToken is null)
         {
-            return false;
+            return InviteExchangeOutcome.Rejected;
         }
 
         // Resolved on the way in, so the session records the provider the user actually authenticated
@@ -94,7 +114,7 @@ public static class InviteExchangeProcessor
             normalizedIdentityProvider.Equals(IdentityProviderResolver.Unidentified, StringComparison.OrdinalIgnoreCase))
         {
             logger.LogUnresolvedExchangeProvider();
-            return false;
+            return InviteExchangeOutcome.Rejected;
         }
 
         var acceptedInvitation = new AcceptedInvitation(
@@ -115,13 +135,13 @@ public static class InviteExchangeProcessor
             acceptedInvitation,
             new ReplaceOptions { IsUpsert = true });
 
-        return true;
+        return InviteExchangeOutcome.Accepted;
     }
 }
 
 /// <summary>
-/// Installs the MongoDB indexes <see cref="AcceptedInvitation"/> needs before the exchange endpoint is
-/// exposed to traffic.
+/// Installs the MongoDB indexes <see cref="AcceptedInvitation"/> needs before the exchange endpoint accepts
+/// writes; <see cref="AcceptedInvitationIndexRegistration"/> runs it in the background and reports readiness.
 /// </summary>
 public static class AcceptedInvitationIndexes
 {
@@ -130,7 +150,8 @@ public static class AcceptedInvitationIndexes
     /// starts - <c language="csharp">CreateManyAsync</c> is a no-op for an index that already matches.
     /// </summary>
     /// <param name="acceptedInvitations">The collection to create indexes on.</param>
-    public static Task EnsureCreated(IMongoCollection<AcceptedInvitation> acceptedInvitations)
+    /// <param name="cancellationToken">Cancels a pending connection on shutdown.</param>
+    public static Task EnsureCreated(IMongoCollection<AcceptedInvitation> acceptedInvitations, CancellationToken cancellationToken = default)
     {
         // Backstops the single-document-per-login invariant the exchange's upsert relies on; the upsert
         // itself is already atomic, so this is defense in depth rather than the source of that guarantee.
@@ -147,7 +168,7 @@ public static class AcceptedInvitationIndexes
             Builders<AcceptedInvitation>.IndexKeys.Ascending(a => a.ExpiresAtUtc),
             new CreateIndexOptions { ExpireAfter = TimeSpan.Zero, Name = "AcceptedInvitationExpiry" });
 
-        return acceptedInvitations.Indexes.CreateManyAsync([uniqueSession, expiryCleanup]);
+        return acceptedInvitations.Indexes.CreateManyAsync([uniqueSession, expiryCleanup], cancellationToken: cancellationToken);
     }
 }
 
@@ -166,12 +187,14 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
     /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
     /// <param name="tokenValidator">The invitation token verifier.</param>
     /// <param name="logger">Logger for rejected unresolved provider evidence.</param>
+    /// <param name="indexes">Shared readiness of the exchange storage.</param>
     public async Task InvokeAsync(
         HttpContext context,
         IMongoCollection<AcceptedInvitation> acceptedInvitations,
         IIdentityProviderResolver identityProviderResolver,
         IInvitationTokenValidator tokenValidator,
-        ILogger<InviteExchangeBypassMiddleware> logger)
+        ILogger<InviteExchangeBypassMiddleware> logger,
+        IExchangeIndexReadiness indexes)
     {
         if (HttpMethods.IsPost(context.Request.Method)
             && context.Request.Path.Equals("/_invite/exchange", StringComparison.OrdinalIgnoreCase))
@@ -193,17 +216,21 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
                 return;
             }
 
-            var success = await InviteExchangeProcessor.TryStoreAcceptedInvitation(
+            var outcome = await InviteExchangeProcessor.TryStoreAcceptedInvitation(
                 context.Request.Headers.Authorization.ToString(),
                 request,
                 acceptedInvitations,
                 identityProviderResolver,
                 tokenValidator,
-                logger);
+                logger,
+                indexes);
 
-            context.Response.StatusCode = success
-                ? StatusCodes.Status200OK
-                : StatusCodes.Status400BadRequest;
+            context.Response.StatusCode = outcome switch
+            {
+                InviteExchangeOutcome.Accepted => StatusCodes.Status200OK,
+                InviteExchangeOutcome.Unavailable => StatusCodes.Status503ServiceUnavailable,
+                _ => StatusCodes.Status400BadRequest,
+            };
             return;
         }
 
@@ -224,8 +251,16 @@ public class AttestedInviteExchangeMiddleware(RequestDelegate next)
     /// <param name="context">The HTTP context.</param>
     /// <param name="staging">The attested invitation staging service.</param>
     /// <param name="completion">The attested invitation completion service.</param>
-    public async Task InvokeAsync(HttpContext context, AttestedInvitationStaging staging, AttestedInvitationCompletion completion)
+    /// <param name="indexes">Shared readiness of every index either attested write depends on.</param>
+    public async Task InvokeAsync(HttpContext context, AttestedInvitationStaging staging, AttestedInvitationCompletion completion, IExchangeIndexReadiness indexes)
     {
+        if (!indexes.IsReady)
+        {
+            // Both attested routes write; refuse before the body is read or anything is staged.
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            return;
+        }
+
         if (context.Request.Path.Equals("/_invite/stage", StringComparison.OrdinalIgnoreCase))
         {
             var stage = await InvitationStageRequestBody.Read(context);
@@ -269,6 +304,7 @@ public class AttestedInviteExchangeMiddleware(RequestDelegate next)
 /// <param name="identityProviderResolver">Resolver used to normalize the reported identity provider.</param>
 /// <param name="tokenValidator">The invitation token verifier.</param>
 /// <param name="logger">Logger for rejected unresolved provider evidence.</param>
+/// <param name="indexes">Shared readiness of the exchange storage.</param>
 /// <param name="exchangeConfig">The selected exchange protocol.</param>
 [Route("_invite/exchange")]
 [ApiController]
@@ -277,13 +313,14 @@ public class InviteExchangeController(
     IIdentityProviderResolver identityProviderResolver,
     IInvitationTokenValidator tokenValidator,
     ILogger<InviteExchangeBypassMiddleware> logger,
+    IExchangeIndexReadiness indexes,
     IOptions<InvitationExchangeConfig>? exchangeConfig = null) : ControllerBase
 {
     /// <summary>
     /// Exchanges an invitation token for a recorded acceptance session.
     /// </summary>
     /// <param name="request">The exchange request.</param>
-    /// <returns>200 when the exchange succeeded; otherwise 400.</returns>
+    /// <returns>200 when the exchange succeeded, 503 while the exchange storage is not ready; otherwise 400.</returns>
     [HttpPost]
     public async Task<IActionResult> Exchange([FromBody] ExchangeInviteRequest? request)
     {
@@ -297,15 +334,21 @@ public class InviteExchangeController(
             return BadRequest();
         }
 
-        var success = await InviteExchangeProcessor.TryStoreAcceptedInvitation(
+        var outcome = await InviteExchangeProcessor.TryStoreAcceptedInvitation(
             Request.Headers.Authorization.ToString(),
             request,
             acceptedInvitations,
             identityProviderResolver,
             tokenValidator,
-            logger);
+            logger,
+            indexes);
 
-        return success ? Ok() : BadRequest();
+        return outcome switch
+        {
+            InviteExchangeOutcome.Accepted => Ok(),
+            InviteExchangeOutcome.Unavailable => StatusCode(StatusCodes.Status503ServiceUnavailable),
+            _ => BadRequest(),
+        };
     }
 }
 

@@ -17,7 +17,8 @@ public class and_the_header_is_not_bearer : Specification
         _fixture.Collection,
         _fixture.Resolver,
         _fixture.Validator(),
-        Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
+        _fixture.Indexes) == InviteExchangeOutcome.Accepted;
 
     [Fact] void should_fail() => Assert.False(_result);
     [Fact] void should_not_record_anything() => Assert.Empty(_fixture.Collection.ReceivedCalls());

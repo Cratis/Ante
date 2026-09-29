@@ -19,7 +19,8 @@ public class and_provider_cannot_be_resolved : Specification
             _fixture.Collection,
             _fixture.Resolver,
             _fixture.Validator(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
+            _fixture.Indexes) == InviteExchangeOutcome.Accepted;
     }
 
     [Fact] void should_reject_the_exchange() => Assert.False(_result);

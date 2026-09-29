@@ -9,31 +9,25 @@ namespace Ante.Invitations.Issuing.for_InvitationTokenUpgradeWindowRegistration;
 
 public class when_resolving_with_scope_validation : Specification
 {
+    static readonly DateTimeOffset _now = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
     IInvitationTokenUpgradeWindow? _window;
     Exception? _error;
+    IMongoCollection<AcceptedInvitation> _accepted = null!;
+    bool _acceptsBeforeLoading;
 
     void Because()
     {
-        var activations = Substitute.For<IMongoCollection<InvitationTokenIsolationActivation>>();
-        activations.FindOneAndUpdateAsync(
-            Arg.Any<FilterDefinition<InvitationTokenIsolationActivation>>(),
-            Arg.Any<UpdateDefinition<InvitationTokenIsolationActivation>>(),
-            Arg.Any<FindOneAndUpdateOptions<InvitationTokenIsolationActivation, InvitationTokenIsolationActivation>>(),
-            Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new InvitationTokenIsolationActivation(InvitationTokenIsolationActivation.Singleton, DateTimeOffset.UtcNow)));
-        var database = Substitute.For<IMongoDatabase>();
-        database.GetCollection<InvitationTokenIsolationActivation>("invitation-token-isolation", Arg.Any<MongoCollectionSettings>()).Returns(activations);
-        var accepted = Substitute.For<IMongoCollection<AcceptedInvitation>>();
-        accepted.Database.Returns(database);
+        _accepted = Substitute.For<IMongoCollection<AcceptedInvitation>>();
 
         // Like Development: the collection is scoped, and resolving it from the root provider throws.
         var provider = new ServiceCollection()
-            .AddScoped(_ => accepted)
+            .AddScoped(_ => _accepted)
             .AddInvitationTokenUpgradeWindow(TimeSpan.FromDays(7))
             .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
         try
         {
             _window = provider.GetRequiredService<IInvitationTokenUpgradeWindow>();
+            _acceptsBeforeLoading = _window.AcceptsLegacyToken(_now, _now.AddDays(1), _now);
         }
         catch (Exception error)
         {
@@ -41,7 +35,9 @@ public class when_resolving_with_scope_validation : Specification
         }
     }
 
-    [Fact] void should_not_fail_scope_validation() => Assert.Null(_error);
-    [Fact] void should_provide_the_loaded_window() => Assert.NotNull(_window);
+    [Fact] void should_not_fail_scope_validation() => _error.ShouldBeNull();
+    [Fact] void should_provide_a_window() => _window.ShouldNotBeNull();
+    [Fact] void should_not_touch_mongodb_while_resolving() => _accepted.ReceivedCalls().ShouldBeEmpty();
+    [Fact] void should_accept_nothing_until_it_is_loaded() => _acceptsBeforeLoading.ShouldBeFalse();
 }
 #endif

@@ -4,21 +4,21 @@
 #if DEBUG
 namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging;
 
-public class and_subject_is_blank : Specification
+public class and_indexes_are_pending : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
-    bool _result;
+    InviteExchangeOutcome _result;
 
     async Task Because() => _result = await InviteExchangeProcessor.TryStoreAcceptedInvitation(
         $"Bearer {_fixture.Token()}",
-        new ExchangeInviteRequest("   ", "github", null, null),
+        new ExchangeInviteRequest("subject-123", "github", null, null),
         _fixture.Collection,
         _fixture.Resolver,
         _fixture.Validator(),
         Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
-        _fixture.Indexes) == InviteExchangeOutcome.Accepted;
+        Substitute.For<IExchangeIndexReadiness>());
 
-    [Fact] void should_reject_the_exchange() => Assert.False(_result);
-    [Fact] void should_not_store_a_session() => Assert.Empty(_fixture.Collection.ReceivedCalls());
+    [Fact] void should_report_unavailability() => _result.ShouldEqual(InviteExchangeOutcome.Unavailable);
+    [Fact] void should_not_write_a_session() => Assert.Empty(_fixture.Collection.ReceivedCalls());
 }
 #endif

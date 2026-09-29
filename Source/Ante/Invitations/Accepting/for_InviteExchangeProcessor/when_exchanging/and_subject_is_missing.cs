@@ -15,7 +15,8 @@ public class and_subject_is_missing : Specification
         _fixture.Collection,
         _fixture.Resolver,
         _fixture.Validator(),
-        Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
+        _fixture.Indexes) == InviteExchangeOutcome.Accepted;
 
     [Fact] void should_reject_the_exchange() => Assert.False(_result);
     [Fact] void should_not_store_a_session() => Assert.Empty(_fixture.Collection.ReceivedCalls());
