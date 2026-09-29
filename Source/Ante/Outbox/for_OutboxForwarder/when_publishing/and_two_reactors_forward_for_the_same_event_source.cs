@@ -6,6 +6,7 @@ using Ante.Contracts.Legal;
 using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Cratis.Types;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ante.Outbox.for_OutboxForwarder.when_publishing;
 
@@ -38,8 +39,8 @@ public class and_two_reactors_forward_for_the_same_event_source : Specification
         var context = EventContext.Empty with { EventSourceId = _id };
 
         await Task.WhenAll(
-            new JoinTenantAcceptanceOutbox(eventStore, notifiers).On(_acceptance, context),
-            new LegalTermsAcceptanceOutbox(eventStore, notifiers).On(_legal, context));
+            new JoinTenantAcceptanceOutbox(eventStore, notifiers, NullLogger<JoinTenantAcceptanceOutbox>.Instance).On(_acceptance, context),
+            new LegalTermsAcceptanceOutbox(eventStore, notifiers, NullLogger<LegalTermsAcceptanceOutbox>.Instance).On(_legal, context));
 
         _forwarded = await _scenario.EventSequence.GetFromSequenceNumber(EventSequenceNumber.First);
     }

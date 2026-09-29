@@ -77,25 +77,40 @@ public static class JoinTenantPublication
 /// <param name="recordedCollection">The durable acceptance-record collection.</param>
 /// <param name="publishedCollection">The durable outbox-publication collection.</param>
 /// <param name="subscriptions">The subscription tracker.</param>
+/// <param name="eventStore">The authoritative local log and outbox, for projection-lag recovery.</param>
 public class JoinTenantPublicationStatusNotifier(
     IMongoCollection<UserSetupProgress> recordedCollection,
     IMongoCollection<JoinTenantAcceptancePublished> publishedCollection,
-    UserSetupStatusSubscriptions subscriptions) : IPublicationStatusNotifier
+    UserSetupStatusSubscriptions subscriptions,
+    IEventStore eventStore) : IPublicationStatusNotifier
 {
     /// <inheritdoc/>
     public async Task NotifyIfPublished(EventSourceId eventSourceId)
     {
         var invitationId = (InvitationId)Guid.Parse(eventSourceId.Value);
         var recorded = await recordedCollection.Find(Builders<UserSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefaultAsync();
-        if (recorded is null)
+        var published = await publishedCollection.Find(Builders<JoinTenantAcceptancePublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefaultAsync();
+        if (JoinTenantPublication.IsFullyPublished(recorded, published))
         {
-            // Not a join-tenant invitation - most likely the shared LegalTermsAcceptanceOutbox checking
-            // on behalf of a different flow's acceptance.
+            subscriptions.MarkAccepted(invitationId);
             return;
         }
 
-        var published = await publishedCollection.Find(Builders<JoinTenantAcceptancePublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefaultAsync();
-        if (JoinTenantPublication.IsFullyPublished(recorded, published))
+        // The outbox append has committed, but either Mongo projection can still lag it. Read the
+        // authoritative facts instead of leaving a live subscriber on Pending/Recorded until it reloads.
+        // A different flow has no join acceptance in the local log and is ignored. Matching is by event
+        // type id because the published copy may carry a different generation than the local one.
+        EventType[] relevantTypes = [typeof(InvitationToJoinTenantAccepted).GetEventType(), typeof(LegalTermsAccepted).GetEventType()];
+        var local = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(eventSourceId, relevantTypes);
+        if (!local.Any(entry => entry.Context.EventType.Id == relevantTypes[0].Id))
+        {
+            return;
+        }
+
+        var outbox = await eventStore.GetEventSequence(EventSequenceId.Outbox).GetForEventSourceIdAndEventTypes(eventSourceId, relevantTypes);
+        if (outbox.Any(entry => entry.Context.EventType.Id == relevantTypes[0].Id) &&
+            (!local.Any(entry => entry.Context.EventType.Id == relevantTypes[1].Id) ||
+             outbox.Any(entry => entry.Context.EventType.Id == relevantTypes[1].Id)))
         {
             subscriptions.MarkAccepted(invitationId);
         }

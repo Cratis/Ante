@@ -45,13 +45,17 @@ public static class OutboxForwarder
     /// <param name="context">The context of the locally-recorded event being forwarded.</param>
     /// <param name="event">The event to forward.</param>
     /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/> to give a chance to accelerate.</param>
+    /// <param name="logger">Logs a notifier failure that was deliberately not propagated.</param>
+    /// <param name="cancellationToken">Signals shutdown of the caller; only then is a notifier's cancellation propagated.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     /// <exception cref="OutboxPublicationFailed">Thrown when the append to the outbox does not succeed.</exception>
     public static async Task PublishToOutbox(
         this IEventStore eventStore,
         EventContext context,
         object @event,
-        IEnumerable<IPublicationStatusNotifier> notifiers)
+        IEnumerable<IPublicationStatusNotifier> notifiers,
+        ILogger? logger = null,
+        CancellationToken cancellationToken = default)
     {
         // Independent reactors forward facts to the same outbox source; neither decides its next state.
         var result = await eventStore.GetEventSequence(EventSequenceId.Outbox).Append(
@@ -69,7 +73,19 @@ public static class OutboxForwarder
 
         foreach (var notifier in notifiers)
         {
-            await notifier.NotifyIfPublished(context.EventSourceId);
+            try
+            {
+                await notifier.NotifyIfPublished(context.EventSourceId);
+            }
+            catch (Exception exception) when (!(exception is OperationCanceledException && cancellationToken.IsCancellationRequested))
+            {
+                // Deliberately not rethrown: the append above already succeeded, and a notifier only speeds up
+                // a live status subscription - status is rebuilt from durable state when a client queries or
+                // re-subscribes. Rethrowing would fail this reactor and make Chronicle retry it, appending the
+                // same public fact to the outbox a second time. A notifier's own timeout (which can surface as
+                // an OperationCanceledException) is such a failure; only the caller's shutdown propagates.
+                logger?.LogNotifierFailed(exception, notifier.GetType().Name, context.EventSourceId.Value);
+            }
         }
     }
 }
