@@ -40,8 +40,9 @@ namespace Ante.Legal;
 /// </remarks>
 /// <param name="eventStore">The event store.</param>
 /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>.</param>
+/// <param name="logger">The logger.</param>
 [Reactor(eventSequence: EventSequenceId.LogId)]
-public class LegalTermsAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers) : IReactor
+public class LegalTermsAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<LegalTermsAcceptanceOutbox> logger) : IReactor
 {
     /// <summary>
     /// Forwards the acceptance to the outbox.
@@ -50,5 +51,5 @@ public class LegalTermsAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPu
     /// <param name="context">The event context.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     public async Task On(LegalTermsAccepted @event, EventContext context) =>
-        await eventStore.PublishToOutbox(context, @event, notifiers);
+        await eventStore.PublishToOutbox(context, @event, notifiers, logger);
 }

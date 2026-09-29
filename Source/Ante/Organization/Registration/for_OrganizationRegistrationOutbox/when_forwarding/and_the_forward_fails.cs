@@ -50,6 +50,7 @@ public class and_the_forward_fails : Specification
 
         _scenario = new(new ServiceCollection()
             .AddSingleton(eventStore)
+            .AddLogging()
             .AddSingleton<IInstancesOf<IPublicationStatusNotifier>>(new KnownInstancesOf<IPublicationStatusNotifier>(_notifier))
             .BuildServiceProvider());
     }
