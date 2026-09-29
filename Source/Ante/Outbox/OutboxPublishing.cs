@@ -71,21 +71,88 @@ public static class OutboxForwarder
             throw new OutboxPublicationFailed(context.EventSourceId, @event.GetType(), result);
         }
 
-        foreach (var notifier in notifiers)
+        await NotifyAll(context.EventSourceId, notifiers, logger, cancellationToken);
+    }
+
+    // Everything after the successful append is isolated: resolving or enumerating the notifiers, invoking one
+    // (including a synchronous throw before it returns its Task), awaiting it, and logging its failure. Any
+    // exception escaping here fails the reactor and makes Chronicle append the same public fact again. Status
+    // is rebuilt from durable state when a client queries or re-subscribes, so a notifier only ever speeds it
+    // up. A notifier's own timeout (which can surface as an OperationCanceledException) is such a failure;
+    // only the caller's shutdown propagates.
+    static async Task NotifyAll(
+        EventSourceId eventSourceId,
+        IEnumerable<IPublicationStatusNotifier> notifiers,
+        ILogger? logger,
+        CancellationToken cancellationToken)
+    {
+        IEnumerator<IPublicationStatusNotifier> enumerator;
+        try
+        {
+            enumerator = notifiers.GetEnumerator();
+        }
+        catch (Exception exception) when (IsIsolated(exception, cancellationToken))
+        {
+            TryLog(logger, exception, "<notifier resolution>", eventSourceId);
+            return;
+        }
+
+        try
+        {
+            while (true)
+            {
+                IPublicationStatusNotifier notifier;
+                try
+                {
+                    if (!enumerator.MoveNext())
+                    {
+                        return;
+                    }
+
+                    notifier = enumerator.Current;
+                }
+                catch (Exception exception) when (IsIsolated(exception, cancellationToken))
+                {
+                    // A notifier that cannot be constructed ends the enumeration; it cannot be stepped past.
+                    TryLog(logger, exception, "<notifier resolution>", eventSourceId);
+                    return;
+                }
+
+                try
+                {
+                    await notifier.NotifyIfPublished(eventSourceId);
+                }
+                catch (Exception exception) when (IsIsolated(exception, cancellationToken))
+                {
+                    TryLog(logger, exception, notifier?.GetType().Name ?? "<null notifier>", eventSourceId);
+                }
+            }
+        }
+        finally
         {
             try
             {
-                await notifier.NotifyIfPublished(context.EventSourceId);
+                enumerator.Dispose();
             }
-            catch (Exception exception) when (!(exception is OperationCanceledException && cancellationToken.IsCancellationRequested))
+            catch (Exception exception) when (IsIsolated(exception, cancellationToken))
             {
-                // Deliberately not rethrown: the append above already succeeded, and a notifier only speeds up
-                // a live status subscription - status is rebuilt from durable state when a client queries or
-                // re-subscribes. Rethrowing would fail this reactor and make Chronicle retry it, appending the
-                // same public fact to the outbox a second time. A notifier's own timeout (which can surface as
-                // an OperationCanceledException) is such a failure; only the caller's shutdown propagates.
-                logger?.LogNotifierFailed(exception, notifier.GetType().Name, context.EventSourceId.Value);
+                TryLog(logger, exception, "<notifier resolution>", eventSourceId);
             }
+        }
+    }
+
+    static bool IsIsolated(Exception exception, CancellationToken cancellationToken) =>
+        !(exception is OperationCanceledException && cancellationToken.IsCancellationRequested);
+
+    static void TryLog(ILogger? logger, Exception exception, string notifier, EventSourceId eventSourceId)
+    {
+        try
+        {
+            logger?.LogNotifierFailed(exception, notifier, eventSourceId.Value);
+        }
+        catch (Exception)
+        {
+            // A failing logger must not turn a successful append into a retried reactor.
         }
     }
 }

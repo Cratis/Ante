@@ -13,7 +13,9 @@ public sealed class StatusStream(HttpClient client, HttpResponseMessage response
     /// <summary>Reads the next Arc QueryResult frame under a deadline; EOF is not a terminal status.</summary>
     public async Task<JsonDocument> Next(TimeSpan? timeout = null)
     {
-        using var deadline = new CancellationTokenSource(timeout ?? Eventually.DefaultTimeout);
+        var limit = timeout ?? Eventually.DefaultTimeout;
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(limit, TimeSpan.Zero);
+        using var deadline = new CancellationTokenSource(limit);
         while (true)
         {
             var line = await _reader.ReadLineAsync(deadline.Token) ?? throw new EndOfStreamException("Arc status subscription closed before its next update.");

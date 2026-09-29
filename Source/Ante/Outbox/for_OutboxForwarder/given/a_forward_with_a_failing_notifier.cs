@@ -28,6 +28,17 @@ public abstract class a_forward_with_a_failing_notifier : Specification
 
     protected abstract Exception NotifierFailure { get; }
 
+    /// <summary>Gets whether the failing notifier throws before returning a task rather than faulting one.</summary>
+    protected virtual bool FailsSynchronously => false;
+
+    /// <summary>Gets the logger handed to the forward.</summary>
+    protected virtual ILogger CreateLogger()
+    {
+        var logger = Substitute.For<ILogger>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
+        return logger;
+    }
+
     protected int LoggedFailures => _logger.ReceivedCalls().Count(call => call.GetMethodInfo().Name == nameof(ILogger.Log));
 
     void Establish()
@@ -52,10 +63,11 @@ public abstract class a_forward_with_a_failing_notifier : Specification
         _context = EventContext.Empty with { EventSourceId = _invitationId, CorrelationId = correlationId };
 
         _failingNotifier = Substitute.For<IPublicationStatusNotifier>();
-        _failingNotifier.NotifyIfPublished(Arg.Any<EventSourceId>()).Returns(_ => Task.FromException(NotifierFailure));
+        _failingNotifier.NotifyIfPublished(Arg.Any<EventSourceId>()).Returns(_ => FailsSynchronously
+            ? throw NotifierFailure
+            : Task.FromException(NotifierFailure));
         _nextNotifier = Substitute.For<IPublicationStatusNotifier>();
-        _logger = Substitute.For<ILogger>();
-        _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
+        _logger = CreateLogger();
     }
 }
 #endif
