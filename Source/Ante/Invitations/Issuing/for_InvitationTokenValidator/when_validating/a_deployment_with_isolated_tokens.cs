@@ -22,7 +22,7 @@ public class a_deployment_with_isolated_tokens : Specification
     protected static readonly AnteOptions Deployment = new() { EventStore = "StudioLobby", Namespace = "Default" };
 
     // Issuer and audience are derived, as when nothing is configured: what a deployment upgraded from before isolation has.
-    static RSA NewKey()
+    protected static RSA NewKey()
     {
         var key = RSA.Create(2048);
         _ = key.ExportParameters(true);
