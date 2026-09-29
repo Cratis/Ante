@@ -79,6 +79,8 @@ builder.Services.Configure<IdentityProviderOptions>(builder.Configuration.GetSec
 builder.Services.AddSingleton<IIdentityProviderResolver, IdentityProviderResolver>();
 builder.Services.AddSingleton<IInvitationTokenIssuer, InvitationTokenIssuer>();
 builder.Services.AddSingleton<IInvitationTokenValidator, InvitationTokenValidator>();
+builder.Services.AddScoped<InvitationTokenIssuanceResumer>();
+builder.Services.AddHostedService<InvitationTokenIssuanceResumption>();
 builder.Services.AddInvitationTokenUpgradeWindow(invitationTokenOptions.Expiry);
 builder.Services.AddSingleton<InvitationAttestationVerifier>();
 builder.Services.AddScoped<AttestedInvitationStaging>();
