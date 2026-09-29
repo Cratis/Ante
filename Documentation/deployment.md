@@ -81,11 +81,13 @@ Releases v0.5.0 through v0.10.0 never forwarded acceptances, legal acceptance, o
 
 The rehearsal used `-development` images with their default kernel settings.
 
+The cross-version part of this rehearsal is still manual. What the current release can reproduce on one kernel is automated in the [end-to-end specifications](./local-development.md#run-the-end-to-end-specifications) under `Integration/Replay`. With every onboarding already published, a forwarding reactor or the token-issuing reactor that observes the event log again from the start does not publish anything a second time. This holds whether the reactor is replayed or its observer and cursor are removed. The idempotence covers facts this release published, because each outbox fact records the delivery that published it. The specifications do not show that it covers facts forwarded by v0.4.x or earlier, so step 3 still applies to those.
+
 ## Upgrade from a release where self-registration status stayed pending
 
 On releases before the fix for the registration owner projection, a self-registering user's status never left `Pending`. The owner fields were missing from the `OrganizationSetupProgress` read-model schema, so reads returned no owner, and the owner subject was stored unencrypted in that collection. On a deployment whose `Ante:EventStore` is not `Ante`, the setup read models (`OrganizationSetupProgress`, `UserSetupProgress`, `AcceptedOrganizationName`) also observed `inbox-Ante` instead of the event log and stayed empty, which weakened the organization-name uniqueness pre-check.
 
-After upgrading, replay those three projections from the start of the event log so every document is rebuilt under the corrected schema and sequence. This also rewrites the previously plaintext owner subjects in encrypted form.
+After upgrading, replay those three projections from the start of the event log so every document is rebuilt under the corrected schema and sequence. This also rewrites the previously plaintext owner subjects in encrypted form. `Integration/Replay/when_rebuilding_the_onboarding_read_models` replays these projections, together with the other onboarding projections, on a current store and checks that each rebuilt read model holds exactly what it held before, including the registration owner. It also checks that the organization-name constraint, which the kernel enforces at append time and a replay does not touch, still refuses every claimed name.
 
 ## Cut over or roll back routing
 
