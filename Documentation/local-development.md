@@ -38,7 +38,7 @@ CI supplies `ANTE_PRIMEUI_LICENSE` as a secret for `yarn build`; Vite reads it i
 
 ## Run the end-to-end specifications
 
-`Integration/Ante.Integration.Specs.csproj` hosts Ante's real `Program` in-process against a Chronicle kernel with its embedded MongoDB, started in Docker, and gives each specification its own Ante store, host stores and read-model database. A minimal host store publishes invitations to its outbox and receives Ante's contracts in `inbox-{ante store}`. The specifications cover token issuance back to the host, rejection of a non-canonical id, id reuse after revocation, join and organization setup with legal acceptance, self-registration, PII read back decrypted in the host inbox, and two host stores configured together.
+`Integration/Ante.Integration.Specs.csproj` hosts Ante's real `Program` in-process against a Chronicle kernel with its embedded MongoDB, started in Docker, and gives each specification its own Ante store, host stores and read-model database. A minimal host store publishes invitations to its outbox and receives Ante's contracts in `inbox-{ante store}`. The specifications cover token issuance back to the host, rejection of a non-canonical id, id reuse after revocation, join and organization setup with legal acceptance, self-registration, PII read back decrypted in the host inbox, two host stores configured together, and one onboarding per journey followed from the host outbox (or Ante's log, for self-registration) to the host's receipt, comparing complete payloads, event counts, event source ids, correlation ids and compliance subjects at every hop.
 
 The project is not part of `Ante.slnx`, so the backend commands above never need Docker. With Docker running, from the repository root:
 

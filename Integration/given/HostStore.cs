@@ -75,9 +75,12 @@ public sealed class HostStore : IAsyncDisposable
         return new(client, store, name, anteStore);
     }
 
-    public async Task Publish(Guid invitationId, object @event, Guid? subject = default)
+    public async Task Publish(Guid invitationId, object @event, Guid? subject = default, Guid? correlationId = default)
     {
-        var result = await Outbox.Append(invitationId.ToString(), @event, subject: subject is null ? null : new Subject(subject.Value.ToString()));
+        var appendedSubject = subject is null ? null : new Subject(subject.Value.ToString());
+        var result = correlationId is null
+            ? await Outbox.Append(invitationId.ToString(), @event, subject: appendedSubject)
+            : await Outbox.Append(invitationId.ToString(), @event, correlationId: correlationId.Value, subject: appendedSubject);
         if (!result.IsSuccess)
         {
             throw new InvalidOperationException($"Host {Name} failed to publish {@event.GetType().Name} for {invitationId}.");
