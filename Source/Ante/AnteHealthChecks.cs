@@ -152,7 +152,7 @@ public class InvitationSigningHealthCheck(IOptions<Invitations.Issuing.Invitatio
 {
     /// <inheritdoc/>
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default) =>
-        Task.FromResult(string.IsNullOrWhiteSpace(config.Value.PrivateKeyPem)
+        Task.FromResult(!Invitations.Issuing.InvitationSigningKey.IsConfigured(config.Value)
             ? HealthCheckResult.Degraded("No invitation signing key is configured; invitations wait until one is.")
             : HealthCheckResult.Healthy());
 }

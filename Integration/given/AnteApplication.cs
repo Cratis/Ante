@@ -29,6 +29,7 @@ namespace Ante.Integration.given;
 /// <param name="acceptanceFenceFactory">Optional scoped test fence for a deterministic revocation race.</param>
 /// <param name="chronicleConnectionString">Optional endpoint override to exercise an unavailable Chronicle.</param>
 /// <param name="signingKeyPem">Optional signing key, so a restarted instance keeps its predecessor's key.</param>
+/// <param name="signingKeyConfigured">Whether to configure the invitation token keys; false runs Ante as a deployment without a signing key.</param>
 public sealed class AnteApplication(
     ChronicleInfrastructure infrastructure,
     string eventStore,
@@ -39,7 +40,8 @@ public sealed class AnteApplication(
     Func<IServiceProvider, ILegalDocumentSource>? legalDocumentFactory = default,
     Func<IServiceProvider, IInvitationAcceptanceFence>? acceptanceFenceFactory = default,
     string? chronicleConnectionString = default,
-    string? signingKeyPem = default) : WebApplicationFactory<Program>
+    string? signingKeyPem = default,
+    bool signingKeyConfigured = true) : WebApplicationFactory<Program>
 {
     public const string IdentityProvider = "integration-idp";
 
@@ -48,6 +50,9 @@ public sealed class AnteApplication(
 
     /// <summary>The private test key corresponding to the attestation verifier's pinned public key.</summary>
     public string AttestationPrivateKeyPem { get; } = signingKeyPem ?? CreateSigningKey();
+
+    /// <summary>Gets a value indicating whether the invitation token keys are configured.</summary>
+    public bool SigningKeyConfigured { get; } = signingKeyConfigured;
 
     static string CreateSigningKey()
     {
@@ -122,8 +127,8 @@ public sealed class AnteApplication(
         signingKey.ImportFromPem(AttestationPrivateKeyPem);
         builder
             .UseEnvironment("Integration")
-            .UseSetting("Ante:Invitations:Token:PrivateKeyPem", AttestationPrivateKeyPem)
-            .UseSetting("Ante:Invitations:Token:PublicKeyPem", signingKey.ExportSubjectPublicKeyInfoPem())
+            .UseSetting("Ante:Invitations:Token:PrivateKeyPem", SigningKeyConfigured ? AttestationPrivateKeyPem : string.Empty)
+            .UseSetting("Ante:Invitations:Token:PublicKeyPem", SigningKeyConfigured ? signingKey.ExportSubjectPublicKeyInfoPem() : string.Empty)
             .UseSetting("Cratis:Chronicle:ConnectionString", chronicleConnectionString ?? infrastructure.ChronicleConnectionString)
             .UseSetting("Cratis:MongoDB:Server", infrastructure.MongoDBServer)
             .UseSetting("Cratis:MongoDB:Database", EventStore)

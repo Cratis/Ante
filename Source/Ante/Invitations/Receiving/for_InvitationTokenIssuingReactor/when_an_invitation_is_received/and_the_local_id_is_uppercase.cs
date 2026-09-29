@@ -47,6 +47,6 @@ public class and_the_local_id_is_uppercase : Specification
         .Events(new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]));
 
     [Fact] void should_not_issue_a_token() => _issuer.DidNotReceive().IssueJoinTenantInvitation(Arg.Any<Guid>());
-    [Fact] void should_publish_a_rejection() => Assert.IsType<InvitationRejected>(Assert.Single(_outbox.ReceivedCalls()).GetArguments()[1]);
+    [Fact] void should_publish_a_rejection() => Assert.IsType<InvitationRejected>(Assert.Single(_outbox.ReceivedCalls(), call => call.GetMethodInfo().Name == nameof(IEventSequence.Append)).GetArguments()[1]);
 }
 #endif

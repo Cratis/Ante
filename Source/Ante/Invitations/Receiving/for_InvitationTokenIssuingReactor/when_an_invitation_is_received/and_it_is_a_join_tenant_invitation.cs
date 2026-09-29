@@ -47,6 +47,7 @@ public class and_it_is_a_join_tenant_invitation : Specification
             .AddSingleton(eventStore)
             .AddSingleton(_tokenIssuer)
             .AddLogging()
+            .Configure<InvitationTokenConfig>(config => config.PrivateKeyPem = "a configured key")
             .BuildServiceProvider());
     }
 
