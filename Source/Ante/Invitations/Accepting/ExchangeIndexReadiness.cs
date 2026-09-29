@@ -16,10 +16,10 @@ public interface IExchangeIndexReadiness
 }
 
 /// <summary>Keeps readiness unhealthy until the exchange storage is installed.</summary>
-/// <param name="readiness">The shared exchange readiness.</param>
-public sealed class ExchangeIndexesHealthCheck(IExchangeIndexReadiness readiness) : IHealthCheck
+/// <param name="registration">The background preparation of the exchange storage.</param>
+public sealed class ExchangeIndexesHealthCheck(AcceptedInvitationIndexRegistration registration) : IHealthCheck
 {
     /// <inheritdoc/>
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default) =>
-        Task.FromResult(readiness.IsReady ? HealthCheckResult.Healthy() : HealthCheckResult.Unhealthy());
+        Task.FromResult(registration.IsReady ? HealthCheckResult.Healthy() : HealthCheckResult.Unhealthy());
 }

@@ -30,7 +30,6 @@ namespace Ante.Integration.given;
 /// <param name="chronicleConnectionString">Optional endpoint override to exercise an unavailable Chronicle.</param>
 /// <param name="signingKeyPem">Optional signing key, so a restarted instance keeps its predecessor's key.</param>
 /// <param name="exchangeIndexes">Optional test readiness state for the exchange write boundary.</param>
-/// <param name="mongoServer">Optional read-model MongoDB connection string override, to exercise an unavailable MongoDB.</param>
 public sealed class AnteApplication(
     ChronicleInfrastructure infrastructure,
     string eventStore,
@@ -42,8 +41,7 @@ public sealed class AnteApplication(
     Func<IServiceProvider, IInvitationAcceptanceFence>? acceptanceFenceFactory = default,
     string? chronicleConnectionString = default,
     string? signingKeyPem = default,
-    IExchangeIndexReadiness? exchangeIndexes = default,
-    string? mongoServer = default) : WebApplicationFactory<Program>
+    IExchangeIndexReadiness? exchangeIndexes = default) : WebApplicationFactory<Program>
 {
     public const string IdentityProvider = "integration-idp";
 
@@ -129,7 +127,7 @@ public sealed class AnteApplication(
             .UseSetting("Ante:Invitations:Token:PrivateKeyPem", AttestationPrivateKeyPem)
             .UseSetting("Ante:Invitations:Token:PublicKeyPem", signingKey.ExportSubjectPublicKeyInfoPem())
             .UseSetting("Cratis:Chronicle:ConnectionString", chronicleConnectionString ?? infrastructure.ChronicleConnectionString)
-            .UseSetting("Cratis:MongoDB:Server", mongoServer ?? infrastructure.MongoDBServer)
+            .UseSetting("Cratis:MongoDB:Server", infrastructure.MongoDBServer)
             .UseSetting("Cratis:MongoDB:Database", EventStore)
             .UseSetting("Ante:EventStore", EventStore)
             .UseSetting("IdentityProviders:Providers:0:Name", IdentityProvider);

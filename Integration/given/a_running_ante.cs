@@ -41,12 +41,6 @@ public class a_running_ante : Specification
 
     protected virtual IExchangeIndexReadiness? ExchangeIndexes => null;
 
-    /// <summary>Gets a read-model MongoDB connection string overriding the shared one; the shared server by default.</summary>
-    protected virtual string? MongoServer => null;
-
-    /// <summary>Gets whether <c>Establish</c> waits for <c>/healthz/ready</c>; specs about an unavailable dependency turn it off.</summary>
-    protected virtual bool WaitForReadiness => true;
-
     protected string LegalDocumentSetId => $"legal-documents-{Suffix}";
 
     protected string AnteStoreName => $"Ante{Suffix}";
@@ -67,17 +61,13 @@ public class a_running_ante : Specification
             UseLegalInbox ? LegalDocumentSetId : null,
             LegalDocumentFactory,
             AcceptanceFenceFactory,
-            exchangeIndexes: ExchangeIndexes,
-            mongoServer: MongoServer);
+            exchangeIndexes: ExchangeIndexes);
 
         // Startup registers the runtime inbox reactors and subscriptions; readiness includes their kernel state.
-        if (WaitForReadiness)
-        {
-            using var client = Ante.CreateClient();
-            await Eventually.Until(
-                async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
-                what: "Ante readiness (/healthz/ready)");
-        }
+        using var client = Ante.CreateClient();
+        await Eventually.Until(
+            async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
+            what: "Ante readiness (/healthz/ready)");
     }
 
     async Task Destroy()
@@ -118,8 +108,7 @@ public class a_running_ante : Specification
             LegalDocumentFactory,
             AcceptanceFenceFactory,
             signingKeyPem: signingKey,
-            exchangeIndexes: ExchangeIndexes,
-            mongoServer: MongoServer);
+            exchangeIndexes: ExchangeIndexes);
         using var client = Ante.CreateClient();
         await Eventually.Until(
             async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
