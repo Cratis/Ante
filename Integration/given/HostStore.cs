@@ -46,6 +46,12 @@ public sealed class HostStore : IAsyncDisposable
 
     public IEventSequence InboxFromAnte => _store.GetEventSequence(new EventSequenceId($"{EventSequenceId.InboxPrefix}{_anteStore}"));
 
+    /// <summary>
+    /// Gets the kernel services of this host's connection, which reach any event store on the kernel - including Ante's
+    /// while Ante is stopped.
+    /// </summary>
+    public Cratis.Chronicle.Contracts.IServices KernelServices => KernelObservers.Services(_store);
+
     public static async Task<HostStore> Connect(ChronicleInfrastructure infrastructure, string name, string anteStore)
     {
         // Camel case, like an Arc host: the kernel stores whatever the producing client serialized, and Ante
