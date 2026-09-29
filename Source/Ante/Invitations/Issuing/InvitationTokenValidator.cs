@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Security.Cryptography;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
@@ -25,7 +24,11 @@ public interface IInvitationTokenValidator
 /// </summary>
 /// <param name="config">The token configuration.</param>
 /// <param name="logger">The rejection logger.</param>
-public class InvitationTokenValidator(IOptions<InvitationTokenConfig> config, ILogger<InvitationTokenValidator> logger) : IInvitationTokenValidator
+/// <param name="upgradeWindow">Decides whether a token issued before per-deployment isolation is still accepted.</param>
+public class InvitationTokenValidator(
+    IOptions<InvitationTokenConfig> config,
+    ILogger<InvitationTokenValidator> logger,
+    IInvitationTokenUpgradeWindow upgradeWindow) : IInvitationTokenValidator
 {
     // Only a small allowance for clock differences. Sessions always retain the token's actual exp,
     // never an expiration extended by this allowance.
@@ -33,7 +36,8 @@ public class InvitationTokenValidator(IOptions<InvitationTokenConfig> config, IL
 
     readonly JsonWebTokenHandler _handler = new();
     readonly bool _hasSigningKey = !string.IsNullOrWhiteSpace(config.Value.PrivateKeyPem);
-    readonly TokenValidationParameters _parameters = CreateParameters(config.Value);
+    readonly TokenValidationParameters _parameters = CreateParameters(config.Value, validateIssuerAndAudience: true);
+    readonly TokenValidationParameters _legacyParameters = CreateParameters(config.Value, validateIssuerAndAudience: false);
 
     /// <inheritdoc/>
     public async Task<ValidatedInvitationToken?> Validate(string authorizationHeader)
@@ -52,6 +56,11 @@ public class InvitationTokenValidator(IOptions<InvitationTokenConfig> config, IL
 
         var token = authorizationHeader["Bearer ".Length..].Trim();
         var result = await _handler.ValidateTokenAsync(token, _parameters);
+        if (!result.IsValid && result.Exception is SecurityTokenInvalidIssuerException or SecurityTokenInvalidAudienceException)
+        {
+            result = await AcceptIfIssuedBeforeIsolation(token) ?? result;
+        }
+
         if (!result.IsValid || result.SecurityToken is not JsonWebToken jwt)
         {
             logger.LogInvitationTokenRejected(ReasonFor(result.Exception));
@@ -96,39 +105,47 @@ public class InvitationTokenValidator(IOptions<InvitationTokenConfig> config, IL
         _ => "InvalidToken"
     };
 
-    static TokenValidationParameters CreateParameters(InvitationTokenConfig config)
-    {
-        var trustedKeys = new List<SecurityKey>();
-        if (!string.IsNullOrWhiteSpace(config.PrivateKeyPem))
+    static TokenValidationParameters CreateParameters(InvitationTokenConfig config, bool validateIssuerAndAudience) =>
+        new()
         {
-            trustedKeys.Add(PublicKeyFrom(config.PrivateKeyPem));
-        }
-        if (!string.IsNullOrWhiteSpace(config.PublicKeyPem))
-        {
-            trustedKeys.Add(PublicKeyFrom(config.PublicKeyPem));
-        }
-
-        return new TokenValidationParameters
-        {
-            IssuerSigningKeys = trustedKeys,
+            IssuerSigningKeys = InvitationTokenKeys.TrustedKeys(config),
             ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
             RequireSignedTokens = true,
             ValidateIssuerSigningKey = true,
-            ValidateIssuer = !string.IsNullOrWhiteSpace(config.Issuer),
+            ValidateIssuer = validateIssuerAndAudience,
             ValidIssuer = config.Issuer,
-            ValidateAudience = !string.IsNullOrWhiteSpace(config.Audience),
+            ValidateAudience = validateIssuerAndAudience,
             ValidAudience = config.Audience,
             ValidateLifetime = true,
             RequireExpirationTime = true,
             ClockSkew = _clockSkew,
         };
-    }
 
-    static RsaSecurityKey PublicKeyFrom(string pem)
+    // A token issued before this deployment named itself in every token has no issuer or audience at all. It is
+    // still accepted - if signed by a trusted key - while the upgrade window is open and only if it predates
+    // activation, so upgrading needs no draining. A token naming another deployment is never accepted.
+    async Task<TokenValidationResult?> AcceptIfIssuedBeforeIsolation(string token)
     {
-        using var rsa = RSA.Create();
-        rsa.ImportFromPem(pem);
-        return new RsaSecurityKey(rsa.ExportParameters(false));
+        if (!_handler.CanReadToken(token))
+        {
+            return null;
+        }
+
+        var unverified = _handler.ReadJsonWebToken(token);
+        if (unverified.TryGetPayloadValue<object>(JwtRegisteredClaimNames.Iss, out _) ||
+            unverified.TryGetPayloadValue<object>(JwtRegisteredClaimNames.Aud, out _) ||
+            !upgradeWindow.AcceptsLegacyToken(new DateTimeOffset(DateTime.SpecifyKind(unverified.IssuedAt, DateTimeKind.Utc)), DateTimeOffset.UtcNow))
+        {
+            return null;
+        }
+
+        var legacy = await _handler.ValidateTokenAsync(token, _legacyParameters);
+        if (legacy.IsValid)
+        {
+            logger.LogLegacyInvitationTokenAccepted();
+        }
+
+        return legacy;
     }
 }
 

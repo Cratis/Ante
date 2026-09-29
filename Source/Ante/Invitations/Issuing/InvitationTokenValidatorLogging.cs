@@ -7,4 +7,7 @@ internal static partial class InvitationTokenValidatorLogging
 {
     [LoggerMessage(Level = LogLevel.Warning, Message = "Invitation exchange rejected a bearer token: {Reason}")]
     internal static partial void LogInvitationTokenRejected(this ILogger<InvitationTokenValidator> logger, string reason);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Invitation exchange accepted a token issued before per-deployment token isolation, within the upgrade window")]
+    internal static partial void LogLegacyInvitationTokenAccepted(this ILogger<InvitationTokenValidator> logger);
 }

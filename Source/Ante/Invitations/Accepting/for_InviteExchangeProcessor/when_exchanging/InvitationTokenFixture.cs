@@ -52,7 +52,7 @@ internal sealed class InvitationTokenFixture
         });
     }
 
-    public IInvitationTokenValidator Validator() => new InvitationTokenValidator(Options.Create(Config), Microsoft.Extensions.Logging.Abstractions.NullLogger<InvitationTokenValidator>.Instance);
+    public IInvitationTokenValidator Validator() => new InvitationTokenValidator(Options.Create(Config), Microsoft.Extensions.Logging.Abstractions.NullLogger<InvitationTokenValidator>.Instance, InvitationTokenUpgradeWindow.Closed);
 
     public Task<bool> Exchange(string token) => InviteExchangeProcessor.TryStoreAcceptedInvitation(
         $"Bearer {token}",
