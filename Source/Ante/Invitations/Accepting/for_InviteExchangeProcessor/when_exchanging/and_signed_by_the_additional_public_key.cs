@@ -10,7 +10,7 @@ namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging
 public class and_signed_by_the_additional_public_key : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
-    bool _result;
+    InviteExchangeOutcome _result;
 
     async Task Because()
     {
@@ -19,7 +19,7 @@ public class and_signed_by_the_additional_public_key : Specification
         _result = await _fixture.Exchange(_fixture.Token(signingKey: rsa.ExportPkcs8PrivateKeyPem()));
     }
 
-    [Fact] void should_succeed() => Assert.True(_result);
+    [Fact] void should_succeed() => _result.ShouldEqual(InviteExchangeOutcome.Accepted);
     [Fact] void should_record_a_session() =>
         _fixture.Collection.Received(1).ReplaceOneAsync(
             Arg.Any<FilterDefinition<AcceptedInvitation>>(),

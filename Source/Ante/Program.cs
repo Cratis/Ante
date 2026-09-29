@@ -21,7 +21,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-using MongoDB.Driver;
 
 InvitationMongoSerialization.EnsureConfigured();
 
@@ -71,6 +70,9 @@ builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(anteOp
 builder.Services.TryAddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IncomingInvitationSubscriptions>();
 builder.Services.AddHostedService<IncomingInvitationRegistration>();
+builder.Services.AddSingleton<AcceptedInvitationIndexRegistration>();
+builder.Services.AddSingleton<IExchangeIndexReadiness>(provider => provider.GetRequiredService<AcceptedInvitationIndexRegistration>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<AcceptedInvitationIndexRegistration>());
 builder.Services.Configure<InvitationTokenConfig>(builder.Configuration.GetSection("Ante:Invitations:Token"));
 builder.Services.PostConfigure<InvitationTokenConfig>(config => InvitationTokenIsolation.ApplyDefaults(config, anteOptions));
 builder.Services.Configure<InvitationExchangeConfig>(builder.Configuration.GetSection("Ante:Invitations:Exchange"));
@@ -116,34 +118,21 @@ builder.Services.AddRegistrationRateLimiting(anteOptions);
 // Bounded, dependency-aware readiness, separate from the unconditional /healthz liveness endpoint
 // mapped below - see AnteHealthChecks and Documentation/deployment.md.
 builder.Services.AddAnteHealthChecks()
-    .AddCheck<IncomingRoutingHealthCheck>("host-routing", tags: [AnteHealthChecks.ReadyTag], timeout: AnteHealthChecks.DependencyTimeout);
+    .AddCheck<IncomingRoutingHealthCheck>("host-routing", tags: [AnteHealthChecks.ReadyTag], timeout: AnteHealthChecks.DependencyTimeout)
+    .AddCheck<ExchangeIndexesHealthCheck>("exchange-indexes", tags: [AnteHealthChecks.ReadyTag]);
 
 var app = builder.Build();
 InvitationTokenConfigurationValidator.Report(
     invitationTokenOptions,
     app.Services.GetRequiredService<ILogger<InvitationTokenConfigurationValidator>>());
 
-// Record, before serving, when this deployment first isolated its tokens - that opens the upgrade window.
-app.Services.GetRequiredService<IInvitationTokenUpgradeWindow>();
 IdentityProviderConfigurationWarnings.WarnForUnattributableSignIns(
     app.Services.GetRequiredService<IOptions<IdentityProviderOptions>>().Value,
     app.Services.GetRequiredService<ILogger<IdentityProviderOptions>>());
 
-// Installed before the pipeline (and therefore any traffic) is wired up, so the exchange endpoint and
-// InvitationIdentityProvider never run against a collection that is missing the indexes their
-// retry-safety and expiry guarantees rely on.
-// IMongoCollection<T> is scoped (its database follows the current tenant), so it is resolved from a
-// scope rather than the root provider; Development's scope validation rejects the root resolution.
-await using (var startupScope = app.Services.CreateAsyncScope())
-{
-    await AcceptedInvitationIndexes.EnsureCreated(startupScope.ServiceProvider.GetRequiredService<IMongoCollection<AcceptedInvitation>>());
-    if (invitationExchangeOptions.Mode == InvitationExchangeMode.Attested)
-    {
-        await StagedInvitationTransactionIndexes.EnsureCreated(startupScope.ServiceProvider.GetRequiredService<IMongoCollection<StagedInvitationTransaction>>());
-        await AttestedInvitationSessionIndexes.EnsureCreated(startupScope.ServiceProvider.GetRequiredService<IMongoCollection<AttestedInvitationSession>>());
-    }
-}
-
+// Exchange indexes and the token upgrade window are prepared by the hosted registration, off the startup
+// path, so an unavailable MongoDB neither blocks nor crashes startup. Exchange writes are refused with 503
+// and /healthz/ready stays unhealthy until it has finished.
 app.UseWebSockets();
 app.UseRequestLocalization(localizationOptions);
 

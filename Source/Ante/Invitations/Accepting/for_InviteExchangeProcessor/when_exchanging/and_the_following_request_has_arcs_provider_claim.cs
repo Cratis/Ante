@@ -12,7 +12,7 @@ namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging
 public class and_the_following_request_has_arcs_provider_claim : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
-    bool _exchanged;
+    InviteExchangeOutcome _exchanged;
     string _requestProvider = string.Empty;
     string _canonicalProvider = string.Empty;
 
@@ -32,7 +32,8 @@ public class and_the_following_request_has_arcs_provider_claim : Specification
             _fixture.Collection,
             resolver,
             _fixture.Validator(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
+            _fixture.Indexes);
         _requestProvider = ForwardedIdentityProvider.Resolve(
             [new KeyValuePair<string, string>(MicrosoftIdentityPlatformClaims.IdentityProvider, "GitHub")], resolver);
         _canonicalProvider = ForwardedIdentityProvider.Resolve(
@@ -43,7 +44,7 @@ public class and_the_following_request_has_arcs_provider_claim : Specification
             resolver);
     }
 
-    [Fact] void should_accept_the_exchange() => Assert.True(_exchanged);
+    [Fact] void should_accept_the_exchange() => _exchanged.ShouldEqual(InviteExchangeOutcome.Accepted);
     [Fact] void should_record_the_provider_resolved_on_subsequent_requests() =>
         _fixture.Collection.Received(1).ReplaceOneAsync(
             Arg.Any<FilterDefinition<AcceptedInvitation>>(),

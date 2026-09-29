@@ -24,6 +24,7 @@ public class and_attested_mode_receives_a_legacy_body : Specification
             Substitute.For<IIdentityProviderResolver>(),
             _tokenValidator,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
+            Substitute.For<IExchangeIndexReadiness>(),
             Options.Create(new InvitationExchangeConfig { Mode = InvitationExchangeMode.Attested }));
         _result = await controller.Exchange(new ExchangeInviteRequest("subject", "provider", null, null));
     }

@@ -9,11 +9,11 @@ namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging
 public class and_the_token_is_valid : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
-    bool _result;
+    InviteExchangeOutcome _result;
 
     async Task Because() => _result = await _fixture.Exchange(_fixture.Token());
 
-    [Fact] void should_succeed() => Assert.True(_result);
+    [Fact] void should_succeed() => _result.ShouldEqual(InviteExchangeOutcome.Accepted);
 
     [Fact]
     void should_record_the_accepted_invitation() =>

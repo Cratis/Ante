@@ -52,10 +52,13 @@ public static class StagedInvitationTransactionIndexes
     /// Creates the TTL index without relying on the sweeper for authorization.
     /// </summary>
     /// <param name="transactions">The durable transaction collection.</param>
-    public static Task EnsureCreated(IMongoCollection<StagedInvitationTransaction> transactions) =>
-        transactions.Indexes.CreateOneAsync(new CreateIndexModel<StagedInvitationTransaction>(
-            Builders<StagedInvitationTransaction>.IndexKeys.Ascending(transaction => transaction.ExpiresAtUtc),
-            new CreateIndexOptions { ExpireAfter = TimeSpan.Zero, Name = "StagedInvitationExpiry" }));
+    /// <param name="cancellationToken">Cancels a pending connection on shutdown.</param>
+    public static Task EnsureCreated(IMongoCollection<StagedInvitationTransaction> transactions, CancellationToken cancellationToken = default) =>
+        transactions.Indexes.CreateOneAsync(
+            new CreateIndexModel<StagedInvitationTransaction>(
+                Builders<StagedInvitationTransaction>.IndexKeys.Ascending(transaction => transaction.ExpiresAtUtc),
+                new CreateIndexOptions { ExpireAfter = TimeSpan.Zero, Name = "StagedInvitationExpiry" }),
+            cancellationToken: cancellationToken);
 }
 
 /// <summary>

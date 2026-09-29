@@ -9,7 +9,7 @@ namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging
 public class and_the_payload_is_tampered_with : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
-    bool _result;
+    InviteExchangeOutcome _result;
 
     async Task Because()
     {
@@ -19,7 +19,7 @@ public class and_the_payload_is_tampered_with : Specification
         _result = await _fixture.Exchange(string.Join('.', parts));
     }
 
-    [Fact] void should_fail() => Assert.False(_result);
+    [Fact] void should_fail() => _result.ShouldEqual(InviteExchangeOutcome.Rejected);
     [Fact] void should_not_record_a_session() => Assert.Empty(_fixture.Collection.ReceivedCalls());
 }
 #endif

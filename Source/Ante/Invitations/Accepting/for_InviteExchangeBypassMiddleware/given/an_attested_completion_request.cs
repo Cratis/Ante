@@ -14,6 +14,7 @@ public class an_attested_completion_request : a_staged_completion
     protected string Body = string.Empty;
     protected int Status;
     protected IInvitationTokenValidator LegacyValidator = null!;
+    protected bool IndexesReady = true;
 
     void Establish()
     {
@@ -30,7 +31,9 @@ public class an_attested_completion_request : a_staged_completion
         context.Request.Headers.Authorization = $"Bearer {Sign()}";
         var middleware = new AttestedInviteExchangeMiddleware(_ => Task.CompletedTask);
         var staging = new AttestedInvitationStaging(_verifier, LegacyValidator, Substitute.For<IEventStore>(), Transactions);
-        await middleware.InvokeAsync(context, staging, Completion);
+        var indexes = Substitute.For<IExchangeIndexReadiness>();
+        indexes.IsReady.Returns(IndexesReady);
+        await middleware.InvokeAsync(context, staging, Completion, indexes);
         Status = context.Response.StatusCode;
     }
 }

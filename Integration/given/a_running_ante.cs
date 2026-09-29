@@ -39,6 +39,8 @@ public class a_running_ante : Specification
 
     protected virtual Func<IServiceProvider, IInvitationAcceptanceFence>? AcceptanceFenceFactory => null;
 
+    protected virtual IExchangeIndexReadiness? ExchangeIndexes => null;
+
     /// <summary>
     /// Gets a value indicating whether Ante starts with an invitation signing key; false starts it as a deployment
     /// that has not configured one yet.
@@ -65,6 +67,7 @@ public class a_running_ante : Specification
             UseLegalInbox ? LegalDocumentSetId : null,
             LegalDocumentFactory,
             AcceptanceFenceFactory,
+            exchangeIndexes: ExchangeIndexes,
             signingKeyConfigured: SigningKeyConfigured);
 
         // Startup registers the runtime inbox reactors and subscriptions; readiness includes their kernel state.
@@ -114,6 +117,7 @@ public class a_running_ante : Specification
             LegalDocumentFactory,
             AcceptanceFenceFactory,
             signingKeyPem: signingKey,
+            exchangeIndexes: ExchangeIndexes,
             signingKeyConfigured: configured);
         using var client = Ante.CreateClient();
         await Eventually.Until(
