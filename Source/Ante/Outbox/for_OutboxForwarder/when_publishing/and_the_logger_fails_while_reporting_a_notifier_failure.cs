@@ -9,7 +9,7 @@ namespace Ante.Outbox.for_OutboxForwarder.when_publishing;
 
 /// <summary>
 /// Reporting a notifier failure is best effort. A logger that throws after a successful append must not fail
-/// the forward, which would make Chronicle retry the reactor and append the same public fact again.
+/// the forward, which would fail its partition and make Chronicle redeliver an event whose fact is already published.
 /// </summary>
 public class and_the_logger_fails_while_reporting_a_notifier_failure : a_forward_with_a_failing_notifier
 {

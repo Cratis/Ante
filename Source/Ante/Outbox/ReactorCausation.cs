@@ -14,6 +14,19 @@ namespace Ante.Outbox;
 /// handler, and every append made from inside the handler records it. An outbox event therefore identifies the delivery
 /// that published it without Ante writing a receipt of its own, and that identity is the same for a redelivery, a
 /// failed-partition retry and a replay of the same event, so it is what makes an outbox publication idempotent.
+/// <para>
+/// The match is on the handled event - its event sequence and sequence number - not on the reactor. That is exact only
+/// while <b>each fact type is published to the outbox by at most one reactor per event sequence</b>: a second reactor
+/// publishing the same fact type for the same event would find the first one's publication and silently skip its own.
+/// Today <see cref="InvitationRejected"/> is the only fact with two publishers, and they observe different sequences - the host
+/// inboxes (<see cref="Invitations.Receiving.IncomingInvitationReactor"/>) and the local event log (<c language="csharp">InvitationTokenIssuingReactor</c>) - so their
+/// causations never match each other. A new publisher that breaks the invariant must add the reactor id to the match.
+/// </para>
+/// <para>
+/// The reactor id is left out on purpose even though Chronicle records it: a typed reactor's id is its type's full name
+/// unless it is pinned with <c language="csharp">[Reactor("...")]</c>, and renaming or moving the class makes Chronicle observe from the
+/// start under the new id. Matching the id would then republish every fact the renamed reactor handles again.
+/// </para>
 /// </remarks>
 internal static class ReactorCausation
 {

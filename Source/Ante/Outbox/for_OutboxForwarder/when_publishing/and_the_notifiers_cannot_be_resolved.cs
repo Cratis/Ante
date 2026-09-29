@@ -9,7 +9,7 @@ namespace Ante.Outbox.for_OutboxForwarder.when_publishing;
 
 /// <summary>
 /// Notifiers are resolved lazily, so constructing one can fail after the append has already succeeded. That
-/// must not fail the forward and make Chronicle append the same public fact again.
+/// must not fail the forward: that fails its partition and makes Chronicle redeliver an event whose fact is already published.
 /// </summary>
 public class and_the_notifiers_cannot_be_resolved : a_forward_with_a_failing_notifier
 {

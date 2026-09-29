@@ -17,6 +17,7 @@ public class a_local_invitation_history : Specification
 {
     protected readonly EventSourceId Id = (EventSourceId)Guid.NewGuid().ToString("D");
     protected readonly List<AppendedEvent> History = [];
+    protected readonly List<AppendedEvent> Published = [];
     protected IEventSequence Outbox = null!;
     protected IEventStore Store = null!;
     protected IEventLog LocalLog = null!;
@@ -31,6 +32,8 @@ public class a_local_invitation_history : Specification
             .Returns(call => Task.FromResult<IImmutableList<AppendedEvent>>(Filter(History, (IEnumerable<EventType>)call[1])));
         Outbox = Substitute.For<IEventSequence>();
         Store.GetEventSequence(EventSequenceId.Outbox).Returns(Outbox);
+        Outbox.GetForEventSourceIdAndEventTypes(Id, Arg.Any<IEnumerable<EventType>>(), Arg.Any<EventStreamType>(), Arg.Any<EventStreamId>(), Arg.Any<EventSourceType>())
+            .Returns(call => Task.FromResult<IImmutableList<AppendedEvent>>(Filter(Published, (IEnumerable<EventType>)call[1])));
         Outbox.Append(
             Arg.Any<EventSourceId>(),
             Arg.Any<object>(),
@@ -72,6 +75,28 @@ public class a_local_invitation_history : Specification
             },
             @event));
     }
+
+    /// <summary>Adds a rejection to the outbox as Chronicle stores it when handling the given inbox event published it.</summary>
+    /// <param name="inboxNumber">The rejected inbox event's sequence number.</param>
+    /// <param name="sourceStore">The host store whose inbox delivered it.</param>
+    protected void AlreadyPublishedRejection(EventSequenceNumber inboxNumber, string sourceStore = InboxSourceStore.Name) =>
+        Published.Add(new(
+            EventContext.Empty with
+            {
+                EventSourceId = Id,
+                EventType = typeof(InvitationRejected).GetEventType(),
+                SequenceNumber = (ulong)Published.Count,
+                Causation =
+                [
+                    new(DateTimeOffset.UtcNow, ReactorHandler.CausationType, new Dictionary<string, string>
+                    {
+                        [ReactorHandler.CausationReactorIdProperty] = IncomingInvitationSubscriptions.ReactorIdFor(sourceStore).Value,
+                        [ReactorHandler.CausationEventSequenceIdProperty] = IncomingInvitationSubscriptions.InboxFor(sourceStore).Value,
+                        [ReactorHandler.CausationEventSequenceNumberProperty] = inboxNumber.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    }),
+                ],
+            },
+            new InvitationRejected(InvitationRejectionReason.InvitationIdReused)));
 
     static IImmutableList<AppendedEvent> Filter(IEnumerable<AppendedEvent> events, IEnumerable<EventType> filter)
     {

@@ -8,8 +8,8 @@ namespace Ante.Outbox.for_OutboxForwarder.when_publishing;
 
 /// <summary>
 /// A notifier's own timeout can surface as an <see cref="OperationCanceledException"/>. Cancellation is
-/// isolated like any other notifier failure: failing the forward after a successful append would make
-/// Chronicle retry the reactor and append the same public fact again.
+/// isolated like any other notifier failure: failing the forward after a successful append would fail the
+/// partition and make Chronicle redeliver an event whose fact is already published.
 /// </summary>
 public class and_a_notifier_times_out_after_the_append : a_forward_with_a_failing_notifier
 {

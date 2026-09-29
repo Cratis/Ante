@@ -417,7 +417,7 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             IncomingInvitationSubscriptions.ReactorIdFor(sourceStore),
             IncomingInvitationSubscriptions.InboxFor(sourceStore),
             context);
-        await eventStore.PublishToOutbox(delivery, context, new InvitationRejected(reason), []);
+        await eventStore.PublishToOutbox(delivery, context, new InvitationRejected(reason), [], logger);
     }
 }
 

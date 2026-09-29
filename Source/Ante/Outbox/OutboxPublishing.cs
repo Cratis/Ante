@@ -70,6 +70,8 @@ public static class OutboxForwarder
     /// to that stream and fact type, so two instances handling the same delivery cannot both pass the check: the loser
     /// gets a concurrency violation, re-reads, and finds the winner's fact. A refused append - a violated constraint
     /// included - that turns out to be this delivery's own earlier publication is success; any other failure throws.
+    /// The check identifies the delivery by the handled event, not the reactor, so each fact type must be forwarded by at
+    /// most one reactor per event sequence - see <see cref="ReactorCausation"/>.
     /// </para>
     /// <para>
     /// Once the fact is published - by this call or an earlier delivery - nothing a notifier does may fail the forward,
@@ -176,8 +178,8 @@ public static class OutboxForwarder
 
     // Everything around the notifiers is isolated: resolving or enumerating them, invoking one (including a
     // synchronous throw before it returns its Task), awaiting it, and logging its failure. After the append,
-    // any exception escaping here fails the reactor and makes Chronicle append the same public fact again;
-    // before it, one would delay or fail the publication itself. Status is rebuilt from durable state when a
+    // any exception escaping here fails a published forward's partition and makes Chronicle redeliver an event
+    // whose fact is already published; before it, one would delay or fail the publication itself. Status is rebuilt from durable state when a
     // client queries or re-subscribes, so a notifier only ever speeds it up. Cancellation is isolated too: a
     // notifier's own timeout can surface as an OperationCanceledException.
     static async Task NotifyEach(
