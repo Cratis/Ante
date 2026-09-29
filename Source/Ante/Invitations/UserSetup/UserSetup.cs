@@ -330,7 +330,7 @@ public class JoinTenantAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPu
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
     public async Task On(InvitationToJoinTenantAccepted @event, EventContext context) =>
-        await eventStore.PublishToOutbox(context, @event, notifiers, logger);
+        await eventStore.PublishToOutbox(context, @event, notifiers, logger, announceRecorded: true);
 }
 
 /// <summary>
@@ -382,11 +382,11 @@ public class UserSetupStatusSubscriptions : IDisposable
         {
             MarkAccepted(invitationId);
         }
-        else if (isRecorded && subject.Value.Status != UserSetupAcceptanceStatus.Accepted)
+        else if (isRecorded)
         {
-            // Never regresses an already-Accepted subject: a stale read of the recorded collection racing
-            // behind a durable publication another caller already observed must not un-accept a subject a
-            // different tab is watching right now.
+            // MarkRecorded never regresses an already-Accepted subject: a stale read of the recorded
+            // collection racing behind a durable publication another caller already observed must not
+            // un-accept a subject a different tab is watching right now.
             MarkRecorded(invitationId);
         }
 
@@ -398,11 +398,25 @@ public class UserSetupStatusSubscriptions : IDisposable
     /// Ante's own event log, so a subscriber already waiting on this subject learns it must not resubmit,
     /// without needing to reconnect first.
     /// </summary>
+    /// <remarks>
+    /// Never moves a subject that is already <see cref="UserSetupAcceptanceStatus.Accepted"/> back, and does
+    /// not emit again for one that is already <see cref="UserSetupAcceptanceStatus.Recorded"/>.
+    /// </remarks>
     /// <param name="invitationId">The invitation identifier.</param>
-    public void MarkRecorded(InvitationId invitationId)
+    public void MarkRecorded(InvitationId invitationId) => MarkRecorded(GetOrAdd(invitationId), invitationId);
+
+    /// <summary>
+    /// Marks an invitation as recorded only when a subscription for it is already open on this replica. A
+    /// subscription that opens later is seeded from durable facts, so creating an entry nobody watches
+    /// would only leave one behind for every replayed acceptance.
+    /// </summary>
+    /// <param name="invitationId">The invitation identifier.</param>
+    public void MarkRecordedIfWatched(InvitationId invitationId)
     {
-        var subject = GetOrAdd(invitationId);
-        subject.OnNext(new(invitationId, UserSetupAcceptanceStatus.Recorded));
+        if (_subscriptions.TryGetValue(invitationId, out var subject))
+        {
+            MarkRecorded(subject, invitationId);
+        }
     }
 
     /// <summary>
@@ -416,7 +430,10 @@ public class UserSetupStatusSubscriptions : IDisposable
     {
         var subject = GetOrAdd(invitationId);
         _acceptedAt[invitationId] = DateTimeOffset.UtcNow;
-        subject.OnNext(new(invitationId, UserSetupAcceptanceStatus.Accepted));
+        lock (subject)
+        {
+            subject.OnNext(new(invitationId, UserSetupAcceptanceStatus.Accepted));
+        }
     }
 
     /// <inheritdoc/>
@@ -430,6 +447,23 @@ public class UserSetupStatusSubscriptions : IDisposable
         }
 
         _subscriptions.Clear();
+    }
+
+    static void MarkRecorded(BehaviorSubject<UserSetupAcceptanceStatusView> subject, InvitationId invitationId)
+    {
+        // Held per subject so a concurrent MarkAccepted cannot slip in between the check and the push and
+        // then be overtaken by a Recorded that no longer applies.
+        lock (subject)
+        {
+            // Already Recorded is a no-op too - a redelivered or replayed acceptance, or a re-seeding read,
+            // has nothing new to tell a subscriber that already knows.
+            if (subject.Value.Status != UserSetupAcceptanceStatus.Pending)
+            {
+                return;
+            }
+
+            subject.OnNext(new(invitationId, UserSetupAcceptanceStatus.Recorded));
+        }
     }
 
     BehaviorSubject<UserSetupAcceptanceStatusView> GetOrAdd(InvitationId invitationId) =>

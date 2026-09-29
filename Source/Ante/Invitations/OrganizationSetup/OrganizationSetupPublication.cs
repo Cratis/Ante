@@ -115,4 +115,21 @@ public class OrganizationPublicationStatusNotifier(
             subscriptions.MarkAccepted(invitationId, organizationName);
         }
     }
+
+    /// <inheritdoc/>
+    public Task NotifyRecorded(EventSourceId eventSourceId, object @event)
+    {
+        var organizationName = @event switch
+        {
+            InvitationToCreateTenantAccepted invited => invited.TenantName,
+            OrganizationRegistrationCompleted registered => registered.TenantName,
+            _ => null,
+        };
+        if (organizationName is not null)
+        {
+            subscriptions.MarkRecordedIfWatched((InvitationId)Guid.Parse(eventSourceId.Value), organizationName);
+        }
+
+        return Task.CompletedTask;
+    }
 }
