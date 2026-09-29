@@ -19,6 +19,7 @@ public class an_invitation_history : Specification
     protected static readonly EventSourceId InvitationId = (EventSourceId)InvitationGuid.ToString("D");
     protected static readonly JoinTenantInvitationReceived Receipt = new("jane@example.com", "Acme", ["Member"]);
     protected IEventSequence Outbox = null!;
+    protected IInvitationTokenIssuer Issuer = null!;
     protected List<AppendedEvent> History = [];
     protected List<AppendedEvent> Published = [];
     protected InvitationTokenIssuingReactor Reactor = null!;
@@ -38,10 +39,10 @@ public class an_invitation_history : Specification
         Outbox.GetForEventSourceIdAndEventTypes(Arg.Any<EventSourceId>(), Arg.Any<IEnumerable<EventType>>(), Arg.Any<EventStreamType>(), Arg.Any<EventStreamId>(), Arg.Any<EventSourceType>())
             .Returns(_ => Task.FromResult<IImmutableList<AppendedEvent>>(Published.ToImmutableList()));
 
-        var issuer = Substitute.For<IInvitationTokenIssuer>();
-        issuer.IssueJoinTenantInvitation(InvitationGuid, Receipt.Email).Returns(new IssuedInvitationToken("replayed-token", DateTimeOffset.UnixEpoch));
+        Issuer = Substitute.For<IInvitationTokenIssuer>();
+        Issuer.IssueJoinTenantInvitation(InvitationGuid, Receipt.Email).Returns(new IssuedInvitationToken("replayed-token", DateTimeOffset.UnixEpoch));
         Reactor = new(
-            issuer,
+            Issuer,
             eventStore,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<InvitationTokenIssuingReactor>.Instance,
             null,

@@ -80,8 +80,13 @@ internal sealed class InvitationTokenIssuance(
 
     /// <summary>
     /// Concludes the deferred receipt or reissue request a resumption names, unless it was revoked or accepted since,
-    /// or a later deferred trigger is waiting instead.
+    /// a later deferred trigger is waiting instead, or a later receipt - possibly for another recipient, which Legacy
+    /// exchange allows under a pending id - replaced it.
     /// </summary>
+    /// <remarks>
+    /// A later reissue request does not replace a deferred trigger: it asks for a fresh token for the same recipient.
+    /// Skipping publishes nothing, and the resumption already removed the invitation from those awaiting a key.
+    /// </remarks>
     /// <param name="event">The resumption.</param>
     /// <param name="context">The resumption's context.</param>
     /// <returns>The deferral, when this instance still has no signing key.</returns>
@@ -92,7 +97,8 @@ internal sealed class InvitationTokenIssuance(
         var trigger = history.FirstOrDefault(entry => entry.Context.SequenceNumber == @event.TriggerSequenceNumber &&
             entry.Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived or InvitationReissueReceived);
         if (trigger is null || history.Any(entry => entry.Context.SequenceNumber > trigger.Context.SequenceNumber &&
-            (entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted ||
+            (entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted
+                or JoinTenantInvitationReceived or CreateTenantInvitationReceived ||
                 (entry.Content is InvitationTokenIssuanceDeferred later && later.TriggerSequenceNumber > trigger.Context.SequenceNumber))))
         {
             return null;
