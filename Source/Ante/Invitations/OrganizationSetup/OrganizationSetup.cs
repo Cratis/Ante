@@ -303,7 +303,8 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
     /// Gets the organization setup acceptance status for a specific invitation or registration.
     /// </summary>
     /// <remarks>
-    /// Durable evidence from both the local record and the outbox is read first, so a re-entering user -
+    /// Durable evidence from the local record and the outbox is read first - from the authoritative event
+    /// log and outbox when the read models lag them - so a re-entering user -
     /// new tab, restarted Ante, or a dropped connection reconnecting to a different replica - resumes
     /// into <see cref="OrganizationSetupAcceptanceStatus.Recorded"/> or
     /// <see cref="OrganizationSetupAcceptanceStatus.Accepted"/> precisely once durable evidence supports
@@ -314,16 +315,14 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
     /// <param name="invitationId">The invitation identifier.</param>
     /// <param name="signedInIdentity">Verifier of invitation ownership.</param>
     /// <param name="subscriptions">The subscription tracker.</param>
-    /// <param name="recordedCollection">The durable setup-record collection.</param>
-    /// <param name="publishedCollection">The durable outbox-publication collection.</param>
+    /// <param name="facts">Resolves publication progress from the read models and, when they lag, the authoritative log and outbox.</param>
     /// <param name="eventStore">The scoped store used to release the committed owner's identity.</param>
     /// <returns>An observable status stream for the invitation.</returns>
     public static ISubject<OrganizationSetupAcceptanceStatusView> StatusForInvitation(
         InvitationId invitationId,
         ISignedInIdentity signedInIdentity,
         OrganizationSetupStatusSubscriptions subscriptions,
-        IMongoCollection<OrganizationSetupProgress> recordedCollection,
-        IMongoCollection<OrganizationSetupPublished> publishedCollection,
+        IOrganizationSetupPublicationFacts facts,
         IEventStore eventStore)
     {
         if (!signedInIdentity.IsVerifiedRecoveryOwnerOf(invitationId, eventStore))
@@ -331,13 +330,12 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
             return new BehaviorSubject<OrganizationSetupAcceptanceStatusView>(new(invitationId, OrganizationSetupAcceptanceStatus.Pending, TenantName.NotSet));
         }
 
-        var recorded = recordedCollection.Find(Builders<OrganizationSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
-        var published = publishedCollection.Find(Builders<OrganizationSetupPublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
+        var resolved = facts.Resolve(invitationId).GetAwaiter().GetResult();
         var status = subscriptions.GetStatus(
             invitationId,
-            recorded?.OrganizationName,
-            isRecorded: recorded is not null,
-            isFullyPublished: OrganizationSetupPublication.IsFullyPublished(recorded, published));
+            resolved.OrganizationName,
+            isRecorded: resolved.Progress != PublicationProgress.None,
+            isFullyPublished: resolved.Progress == PublicationProgress.Published);
         if (!signedInIdentity.IsAttestedExchange)
         {
             return status;
@@ -358,14 +356,14 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
     /// <param name="signedInIdentity">Verifier of the current login.</param>
     /// <param name="subscriptions">The subscription tracker.</param>
     /// <param name="eventStore">The scoped event store that releases protected registration owner data.</param>
-    /// <param name="publishedCollection">The durable outbox-publication collection.</param>
+    /// <param name="facts">Resolves publication progress from the read models and, when they lag, the authoritative log and outbox.</param>
     /// <returns>Current status or the same pending response as an unknown registration.</returns>
     public static async Task<OrganizationSetupAcceptanceStatusView> StatusForRegistration(
         InvitationId registrationId,
         ISignedInIdentity signedInIdentity,
         OrganizationSetupStatusSubscriptions subscriptions,
         IEventStore eventStore,
-        IMongoCollection<OrganizationSetupPublished> publishedCollection)
+        IOrganizationSetupPublicationFacts facts)
     {
         var unknown = new OrganizationSetupAcceptanceStatusView(registrationId, OrganizationSetupAcceptanceStatus.Pending, TenantName.NotSet);
         var recorded = await eventStore.ReadModels.GetInstanceById<OrganizationSetupProgress>(registrationId.Value);
@@ -375,12 +373,13 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
             return unknown;
         }
 
-        var published = await publishedCollection.Find(Builders<OrganizationSetupPublished>.Filter.Eq(progress => progress.Id, registrationId)).FirstOrDefaultAsync();
+        // The owner check above is the only authorization; the facts only decide how far along the setup is.
+        var resolved = await facts.Resolve(registrationId, recorded);
         return ((BehaviorSubject<OrganizationSetupAcceptanceStatusView>)subscriptions.GetStatus(
             registrationId,
-            recorded.OrganizationName,
-            isRecorded: true,
-            isFullyPublished: OrganizationSetupPublication.IsFullyPublished(recorded, published))).Value;
+            resolved.OrganizationName ?? recorded.OrganizationName,
+            isRecorded: resolved.Progress != PublicationProgress.None,
+            isFullyPublished: resolved.Progress == PublicationProgress.Published)).Value;
     }
 }
 

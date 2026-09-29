@@ -3,7 +3,6 @@
 
 #if DEBUG
 using Ante.Invitations.Accepting;
-using MongoDB.Driver;
 
 namespace Ante.Invitations.UserSetup.for_UserSetupAcceptanceStatusView.when_getting_status;
 
@@ -18,8 +17,7 @@ public class and_an_anonymous_caller_requests_it : Specification
             InvitationId.New(),
             Substitute.For<ISignedInIdentity>(),
             subscriptions,
-            Substitute.For<IMongoCollection<UserSetupProgress>>(),
-            Substitute.For<IMongoCollection<JoinTenantAcceptancePublished>>(),
+            Substitute.For<IJoinTenantPublicationFacts>(),
             Substitute.For<IEventStore>())).Value;
     }
 

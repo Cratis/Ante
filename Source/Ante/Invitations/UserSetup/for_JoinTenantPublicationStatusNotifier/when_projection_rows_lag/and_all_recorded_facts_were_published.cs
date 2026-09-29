@@ -15,11 +15,9 @@ public class and_all_recorded_facts_were_published : a_join_notification
         var published = Accepted();
         Outbox.Add(published with { Context = published.Context with { EventType = new(typeof(InvitationToJoinTenantAccepted).GetEventType().Id, 2) } });
         Outbox.Add(Legal());
-        Notifier = new(
+        Notifier = NotifierFor(
             QueryCollections.With(new UserSetupProgress(Id, AcceptanceRecorded: false, LegalRecorded: true)),
-            QueryCollections.With(new JoinTenantAcceptancePublished(Id, AcceptancePublished: false, LegalPublished: false)),
-            Subscriptions,
-            Store);
+            QueryCollections.With(new JoinTenantAcceptancePublished(Id, AcceptancePublished: false, LegalPublished: false)));
     }
 
     async Task Because() => await Notifier.NotifyIfPublished(Id.Value.ToString("D"));

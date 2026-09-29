@@ -12,7 +12,6 @@ using Ante.Resources;
 using Cratis.Arc.Validation;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Types;
-using MongoDB.Driver;
 
 namespace Ante.Invitations.UserSetup;
 
@@ -266,7 +265,8 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
     /// Gets the user setup acceptance status for a specific invitation.
     /// </summary>
     /// <remarks>
-    /// Durable evidence from both the local record and the outbox is read first, so a re-entering user -
+    /// Durable evidence from the local record and the outbox is read first - from the authoritative event
+    /// log and outbox when the read models lag them - so a re-entering user -
     /// new tab, restarted Ante, or a dropped connection reconnecting to a different replica - resumes
     /// into <see cref="UserSetupAcceptanceStatus.Recorded"/> or <see cref="UserSetupAcceptanceStatus.Accepted"/>
     /// precisely once durable evidence supports it, never from an in-memory flag alone. A client that
@@ -277,16 +277,14 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
     /// <param name="invitationId">The invitation identifier.</param>
     /// <param name="signedInIdentity">Verifier of invitation ownership.</param>
     /// <param name="subscriptions">The subscription tracker.</param>
-    /// <param name="recordedCollection">The durable acceptance-record collection.</param>
-    /// <param name="publishedCollection">The durable outbox-publication collection.</param>
+    /// <param name="facts">Resolves publication progress from the read models and, when they lag, the authoritative log and outbox.</param>
     /// <param name="eventStore">The scoped store used to release the committed owner's identity.</param>
     /// <returns>An observable status stream for the invitation.</returns>
     public static ISubject<UserSetupAcceptanceStatusView> StatusForInvitation(
         InvitationId invitationId,
         ISignedInIdentity signedInIdentity,
         UserSetupStatusSubscriptions subscriptions,
-        IMongoCollection<UserSetupProgress> recordedCollection,
-        IMongoCollection<JoinTenantAcceptancePublished> publishedCollection,
+        IJoinTenantPublicationFacts facts,
         IEventStore eventStore)
     {
         if (!signedInIdentity.IsVerifiedRecoveryOwnerOf(invitationId, eventStore))
@@ -294,12 +292,11 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
             return new BehaviorSubject<UserSetupAcceptanceStatusView>(new(invitationId, UserSetupAcceptanceStatus.Pending));
         }
 
-        var recorded = recordedCollection.Find(Builders<UserSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
-        var published = publishedCollection.Find(Builders<JoinTenantAcceptancePublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefault();
+        var progress = facts.Resolve(invitationId).GetAwaiter().GetResult();
         var status = subscriptions.GetStatus(
             invitationId,
-            isRecorded: recorded is not null,
-            isFullyPublished: JoinTenantPublication.IsFullyPublished(recorded, published));
+            isRecorded: progress != PublicationProgress.None,
+            isFullyPublished: progress == PublicationProgress.Published);
         if (!signedInIdentity.IsAttestedExchange)
         {
             return status;
