@@ -53,7 +53,7 @@ public class InvitationTokenIssuingReactor(
     /// <returns>The deferral, when no signing key is configured.</returns>
     [OnceOnly]
     public Task<InvitationTokenIssuanceDeferred?> On(JoinTenantInvitationReceived @event, EventContext context) =>
-        _issuance.Conclude(@event, context, [context.SequenceNumber]);
+        _issuance.Receive(@event, context);
 
     /// <summary>
     /// Publishes a join-tenant receipt's outcome during replay, unless it is already published.
@@ -63,7 +63,7 @@ public class InvitationTokenIssuingReactor(
     /// <returns>Awaitable task.</returns>
     [Replay]
     public Task OnReplay(JoinTenantInvitationReceived @event, EventContext context) =>
-        _issuance.Conclude(@event, context, [context.SequenceNumber]);
+        _issuance.Receive(@event, context);
 
     /// <summary>
     /// Issues a create-tenant token and forwards it to the outbox, or defers it while no signing key is configured.
@@ -73,7 +73,7 @@ public class InvitationTokenIssuingReactor(
     /// <returns>The deferral, when no signing key is configured.</returns>
     [OnceOnly]
     public Task<InvitationTokenIssuanceDeferred?> On(CreateTenantInvitationReceived @event, EventContext context) =>
-        _issuance.Conclude(@event, context, [context.SequenceNumber]);
+        _issuance.Receive(@event, context);
 
     /// <summary>
     /// Publishes a create-tenant receipt's outcome during replay, unless it is already published.
@@ -83,7 +83,7 @@ public class InvitationTokenIssuingReactor(
     /// <returns>Awaitable task.</returns>
     [Replay]
     public Task OnReplay(CreateTenantInvitationReceived @event, EventContext context) =>
-        _issuance.Conclude(@event, context, [context.SequenceNumber]);
+        _issuance.Receive(@event, context);
 
     /// <summary>
     /// Issues a fresh token for a pending invitation the host asked to reissue, for the same flow and

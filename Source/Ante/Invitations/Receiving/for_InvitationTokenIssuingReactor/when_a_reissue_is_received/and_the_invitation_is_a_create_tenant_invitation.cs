@@ -31,7 +31,7 @@ public class and_the_invitation_is_a_create_tenant_invitation : Specification
         eventStore.EventLog.Returns(log);
         log.GetForEventSourceIdAndEventTypes(Arg.Any<EventSourceId>(), Arg.Any<IEnumerable<EventType>>(), Arg.Any<EventStreamType>(), Arg.Any<EventStreamId>(), Arg.Any<EventSourceType>())
             .Returns(Task.FromResult<IImmutableList<AppendedEvent>>(ImmutableList.Create(
-                new AppendedEvent(EventContext.Empty, new CreateTenantInvitationReceived("jane@example.com", ["Owner"])))));
+                new AppendedEvent(EventContext.Empty with { SequenceNumber = 0 }, new CreateTenantInvitationReceived("jane@example.com", ["Owner"])))));
         _outbox.Append(
             Arg.Any<EventSourceId>(),
             Arg.Any<object>(),
@@ -56,8 +56,9 @@ public class and_the_invitation_is_a_create_tenant_invitation : Specification
             .BuildServiceProvider());
     }
 
+    // The receipt's inbox marker is delivered first, so the reissue request follows the receipt in the log.
     async Task Because() =>
-        await _scenario.Given.ForEventSource(_invitationId).Events(new InvitationReissueReceived(12, "StudioAdmin"));
+        await _scenario.Given.ForEventSource(_invitationId).Events(new InvitationInboxEventRecorded(11), new InvitationReissueReceived(12, "StudioAdmin"));
 
     [Fact] void should_issue_a_fresh_create_tenant_token_for_the_original_recipient() =>
         _tokenIssuer.Received(1).IssueCreateTenantInvitation(_invitationGuid, "jane@example.com");

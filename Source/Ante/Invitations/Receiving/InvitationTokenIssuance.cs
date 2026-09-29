@@ -23,15 +23,16 @@ internal sealed class InvitationTokenIssuance(
     IOptions<InvitationExchangeConfig>? exchange,
     IOptions<InvitationTokenConfig>? token)
 {
-    static readonly EventType[] _receiptTypes =
+    static readonly EventType[] _triggerTypes =
     [
         typeof(JoinTenantInvitationReceived).GetEventType(),
         typeof(CreateTenantInvitationReceived).GetEventType(),
+        typeof(InvitationTokenIssuanceDeferred).GetEventType(),
     ];
 
     static readonly EventType[] _resumptionTypes =
     [
-        .. _receiptTypes,
+        .. _triggerTypes,
         typeof(InvitationReissueReceived).GetEventType(),
         typeof(InvitationTokenIssuanceResumed).GetEventType(),
         typeof(InvitationRevocationReceived).GetEventType(),
@@ -42,7 +43,20 @@ internal sealed class InvitationTokenIssuance(
     bool CanSign => token is null || InvitationSigningKey.IsConfigured(token.Value);
 
     /// <summary>
-    /// Concludes a reissue request with a fresh token for the same flow and recipient as the latest receipt.
+    /// Concludes a receipt with its token, unless it was deferred.
+    /// </summary>
+    /// <param name="receipt">The join-tenant or create-tenant receipt.</param>
+    /// <param name="context">The receipt's context.</param>
+    /// <returns>The deferral, when no signing key is configured.</returns>
+    public async Task<InvitationTokenIssuanceDeferred?> Receive(object receipt, EventContext context)
+    {
+        var history = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(context.EventSourceId, _triggerTypes);
+        return IsDeferred(history, context.SequenceNumber) ? null : await Conclude(receipt, context, [context.SequenceNumber]);
+    }
+
+    /// <summary>
+    /// Concludes a reissue request with a fresh token for the same flow and recipient as the latest receipt before it,
+    /// unless it was deferred.
     /// </summary>
     /// <param name="context">The reissue request's context.</param>
     /// <returns>The deferral, when no signing key is configured.</returns>
@@ -54,12 +68,19 @@ internal sealed class InvitationTokenIssuance(
             return null;
         }
 
-        var receipts = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(context.EventSourceId, _receiptTypes);
-        return receipts.Count > 0 ? await Conclude(receipts[^1].Content, context, [context.SequenceNumber]) : null;
+        var history = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(context.EventSourceId, _triggerTypes);
+        if (IsDeferred(history, context.SequenceNumber))
+        {
+            return null;
+        }
+
+        var receipt = LatestReceiptBefore(history, context.SequenceNumber);
+        return receipt is null ? null : await Conclude(receipt, context, [context.SequenceNumber]);
     }
 
     /// <summary>
-    /// Concludes the deferred receipt or reissue request a resumption names, unless it is revoked or accepted since.
+    /// Concludes the deferred receipt or reissue request a resumption names, unless it was revoked or accepted since,
+    /// or a later deferred trigger is waiting instead.
     /// </summary>
     /// <param name="event">The resumption.</param>
     /// <param name="context">The resumption's context.</param>
@@ -68,30 +89,40 @@ internal sealed class InvitationTokenIssuance(
     {
         // The authoritative log, not the pending read models: a revocation may not be projected yet.
         var history = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(context.EventSourceId, _resumptionTypes);
-        var trigger = history.FirstOrDefault(entry => entry.Context.SequenceNumber == @event.TriggerSequenceNumber);
+        var trigger = history.FirstOrDefault(entry => entry.Context.SequenceNumber == @event.TriggerSequenceNumber &&
+            entry.Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived or InvitationReissueReceived);
         if (trigger is null || history.Any(entry => entry.Context.SequenceNumber > trigger.Context.SequenceNumber &&
-            entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted))
+            (entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted ||
+                (entry.Content is InvitationTokenIssuanceDeferred later && later.TriggerSequenceNumber > trigger.Context.SequenceNumber))))
         {
             return null;
         }
 
-        var receipt = trigger.Content is InvitationReissueReceived
-            ? history.LastOrDefault(entry => entry.Context.SequenceNumber < trigger.Context.SequenceNumber &&
-                entry.Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived)?.Content
-            : trigger.Content;
-        if (receipt is null)
-        {
-            return null;
-        }
-
-        // The trigger's outcome may have been published when it was first handled, or by any resumption of it.
-        var deliveries = history
-            .Where(entry => entry.Content is InvitationTokenIssuanceResumed resumed && resumed.TriggerSequenceNumber == trigger.Context.SequenceNumber)
-            .Select(entry => entry.Context.SequenceNumber)
-            .Append(trigger.Context.SequenceNumber)
-            .ToArray();
-        return await Conclude(receipt, trigger.Context, deliveries);
+        var receipt = trigger.Content is InvitationReissueReceived ? LatestReceiptBefore(history, trigger.Context.SequenceNumber) : trigger.Content;
+        return receipt is null ? null : await Conclude(receipt, trigger.Context, DeliveriesOf(history, trigger.Context.SequenceNumber));
     }
+
+    /// <summary>
+    /// Gets the local event log sequence numbers whose handling concludes a trigger: the trigger itself and every
+    /// resumption of it.
+    /// </summary>
+    /// <param name="history">The invitation's history, including its resumptions.</param>
+    /// <param name="trigger">The trigger's sequence number.</param>
+    /// <returns>The deliveries.</returns>
+    static EventSequenceNumber[] DeliveriesOf(IEnumerable<AppendedEvent> history, EventSequenceNumber trigger) =>
+        [.. history
+            .Where(entry => entry.Content is InvitationTokenIssuanceResumed resumed && resumed.TriggerSequenceNumber == trigger)
+            .Select(entry => entry.Context.SequenceNumber)
+            .Append(trigger)];
+
+    // A deferred trigger belongs to its resumption: handling it again - a redelivery, or a replay - must not publish
+    // a second token, nor one for an invitation revoked, accepted or superseded while it waited.
+    static bool IsDeferred(IEnumerable<AppendedEvent> history, EventSequenceNumber trigger) =>
+        history.Any(entry => entry.Content is InvitationTokenIssuanceDeferred deferred && deferred.TriggerSequenceNumber == trigger);
+
+    static object? LatestReceiptBefore(IEnumerable<AppendedEvent> history, EventSequenceNumber trigger) =>
+        history.LastOrDefault(entry => entry.Context.SequenceNumber < trigger &&
+            entry.Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived)?.Content;
 
     /// <summary>
     /// Publishes the outcome of a trigger for a receipt - its token or its rejection - or defers it without a key.
@@ -100,7 +131,7 @@ internal sealed class InvitationTokenIssuance(
     /// <param name="trigger">The receipt or reissue request being concluded.</param>
     /// <param name="deliveries">The local event log sequence numbers whose handling concludes the trigger.</param>
     /// <returns>The deferral, when no signing key is configured.</returns>
-    public async Task<InvitationTokenIssuanceDeferred?> Conclude(object receipt, EventContext trigger, IReadOnlyCollection<EventSequenceNumber> deliveries)
+    async Task<InvitationTokenIssuanceDeferred?> Conclude(object receipt, EventContext trigger, IReadOnlyCollection<EventSequenceNumber> deliveries)
     {
         if (!InvitationIdentifier.TryParseCanonical(trigger.EventSourceId.Value, out var invitationId))
         {
