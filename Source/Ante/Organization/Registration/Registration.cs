@@ -284,5 +284,5 @@ public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
     public async Task On(OrganizationRegistrationCompleted @event, EventContext context) =>
-        await eventStore.PublishToOutbox(context, @event, notifiers, logger);
+        await eventStore.PublishToOutbox(context, @event, notifiers, logger, announceRecorded: true);
 }

@@ -403,5 +403,5 @@ public class OrganizationSetupOutbox(IEventStore eventStore, IInstancesOf<IPubli
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
     public async Task On(InvitationToCreateTenantAccepted @event, EventContext context) =>
-        await eventStore.PublishToOutbox(context, @event, notifiers, logger);
+        await eventStore.PublishToOutbox(context, @event, notifiers, logger, announceRecorded: true);
 }

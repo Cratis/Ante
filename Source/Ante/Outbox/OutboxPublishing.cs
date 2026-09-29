@@ -26,6 +26,21 @@ public interface IPublicationStatusNotifier
     /// <param name="eventSourceId">The invitation or registration id to check.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     Task NotifyIfPublished(EventSourceId eventSourceId);
+
+    /// <summary>
+    /// Tells the flow's live status subscription that an acceptance has just been recorded to Ante's own
+    /// event log - before it is published - so a subscriber that is already waiting sees the recorded status
+    /// straight away instead of jumping from pending to accepted.
+    /// </summary>
+    /// <remarks>
+    /// Only reaches subscribers on this replica; a subscriber on another replica learns the recorded status
+    /// when its subscription is seeded from durable facts. An implementation ignores an event that is not its
+    /// flow's acceptance, and never moves a status backwards.
+    /// </remarks>
+    /// <param name="eventSourceId">The invitation or registration id the acceptance was recorded for.</param>
+    /// <param name="event">The acceptance event that was recorded.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    Task NotifyRecorded(EventSourceId eventSourceId, object @event);
 }
 
 /// <summary>
@@ -53,6 +68,10 @@ public static class OutboxForwarder
     /// <param name="event">The event to forward.</param>
     /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/> to give a chance to accelerate.</param>
     /// <param name="logger">Logs a notifier failure that was deliberately not propagated.</param>
+    /// <param name="announceRecorded">
+    /// Whether to first tell every notifier the acceptance was recorded, before the append. Isolated like the
+    /// notification after it: a notifier failing here must neither fail the reactor nor stop the append.
+    /// </param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     /// <exception cref="OutboxPublicationFailed">Thrown when the append to the outbox does not succeed.</exception>
     public static async Task PublishToOutbox(
@@ -60,8 +79,19 @@ public static class OutboxForwarder
         EventContext context,
         object @event,
         IEnumerable<IPublicationStatusNotifier> notifiers,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        bool announceRecorded = false)
     {
+        if (announceRecorded)
+        {
+            await NotifyEach(
+                context.EventSourceId,
+                notifiers,
+                logger,
+                OutboxForwarderLogging.LogRecordedNotifierFailed,
+                notifier => notifier.NotifyRecorded(context.EventSourceId, @event));
+        }
+
         // Independent reactors forward facts to the same outbox source; neither decides its next state.
         var result = await eventStore.GetEventSequence(EventSequenceId.Outbox).Append(
             context.EventSourceId,
@@ -76,18 +106,26 @@ public static class OutboxForwarder
             throw new OutboxPublicationFailed(context.EventSourceId, @event.GetType(), result);
         }
 
-        await NotifyAll(context.EventSourceId, notifiers, logger);
+        await NotifyEach(
+            context.EventSourceId,
+            notifiers,
+            logger,
+            OutboxForwarderLogging.LogNotifierFailed,
+            notifier => notifier.NotifyIfPublished(context.EventSourceId));
     }
 
-    // Everything after the successful append is isolated: resolving or enumerating the notifiers, invoking one
-    // (including a synchronous throw before it returns its Task), awaiting it, and logging its failure. Any
-    // exception escaping here fails the reactor and makes Chronicle append the same public fact again. Status
-    // is rebuilt from durable state when a client queries or re-subscribes, so a notifier only ever speeds it
-    // up. Cancellation is isolated too: a notifier's own timeout can surface as an OperationCanceledException.
-    static async Task NotifyAll(
+    // Everything around the notifiers is isolated: resolving or enumerating them, invoking one (including a
+    // synchronous throw before it returns its Task), awaiting it, and logging its failure. After the append,
+    // any exception escaping here fails the reactor and makes Chronicle append the same public fact again;
+    // before it, one would delay or fail the publication itself. Status is rebuilt from durable state when a
+    // client queries or re-subscribes, so a notifier only ever speeds it up. Cancellation is isolated too: a
+    // notifier's own timeout can surface as an OperationCanceledException.
+    static async Task NotifyEach(
         EventSourceId eventSourceId,
         IEnumerable<IPublicationStatusNotifier> notifiers,
-        ILogger? logger)
+        ILogger? logger,
+        Action<ILogger, Exception, string, string> log,
+        Func<IPublicationStatusNotifier, Task> notify)
     {
         IEnumerator<IPublicationStatusNotifier> enumerator;
         try
@@ -96,7 +134,7 @@ public static class OutboxForwarder
         }
         catch (Exception exception)
         {
-            TryLog(logger, exception, "<notifier resolution>", eventSourceId);
+            TryLog(logger, log, exception, "<notifier resolution>", eventSourceId);
             return;
         }
 
@@ -117,17 +155,17 @@ public static class OutboxForwarder
                 catch (Exception exception)
                 {
                     // A notifier that cannot be constructed ends the enumeration; it cannot be stepped past.
-                    TryLog(logger, exception, "<notifier resolution>", eventSourceId);
+                    TryLog(logger, log, exception, "<notifier resolution>", eventSourceId);
                     return;
                 }
 
                 try
                 {
-                    await notifier.NotifyIfPublished(eventSourceId);
+                    await notify(notifier);
                 }
                 catch (Exception exception)
                 {
-                    TryLog(logger, exception, notifier?.GetType().Name ?? "<null notifier>", eventSourceId);
+                    TryLog(logger, log, exception, notifier?.GetType().Name ?? "<null notifier>", eventSourceId);
                 }
             }
         }
@@ -139,16 +177,24 @@ public static class OutboxForwarder
             }
             catch (Exception exception)
             {
-                TryLog(logger, exception, "<notifier resolution>", eventSourceId);
+                TryLog(logger, log, exception, "<notifier resolution>", eventSourceId);
             }
         }
     }
 
-    static void TryLog(ILogger? logger, Exception exception, string notifier, EventSourceId eventSourceId)
+    static void TryLog(
+        ILogger? logger,
+        Action<ILogger, Exception, string, string> log,
+        Exception exception,
+        string notifier,
+        EventSourceId eventSourceId)
     {
         try
         {
-            logger?.LogNotifierFailed(exception, notifier, eventSourceId.Value);
+            if (logger is not null)
+            {
+                log(logger, exception, notifier, eventSourceId.Value);
+            }
         }
         catch (Exception loggingFailure)
         {

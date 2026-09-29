@@ -59,11 +59,11 @@ public class OrganizationSetupStatusSubscriptions : IDisposable
         {
             MarkAccepted(invitationId, organizationName);
         }
-        else if (isRecorded && organizationName is not null && subject.Value.Status != OrganizationSetupAcceptanceStatus.Accepted)
+        else if (isRecorded && organizationName is not null)
         {
-            // Never regresses an already-Accepted subject: a stale read of the recorded collection racing
-            // behind a durable publication another caller already observed must not un-accept a subject a
-            // different tab is watching right now.
+            // MarkRecorded never regresses an already-Accepted subject: a stale read of the recorded
+            // collection racing behind a durable publication another caller already observed must not
+            // un-accept a subject a different tab is watching right now.
             MarkRecorded(invitationId, organizationName);
         }
 
@@ -75,12 +75,27 @@ public class OrganizationSetupStatusSubscriptions : IDisposable
     /// Ante's own event log, so a subscriber already waiting on this subject learns it must not
     /// resubmit, without needing to reconnect first.
     /// </summary>
+    /// <remarks>
+    /// Never moves a subject that is already <see cref="OrganizationSetupAcceptanceStatus.Accepted"/> back.
+    /// </remarks>
     /// <param name="invitationId">The invitation identifier.</param>
     /// <param name="organizationName">The name of the organization that was set up.</param>
-    public void MarkRecorded(InvitationId invitationId, TenantName organizationName)
+    public void MarkRecorded(InvitationId invitationId, TenantName organizationName) =>
+        MarkRecorded(GetOrAdd(invitationId), invitationId, organizationName);
+
+    /// <summary>
+    /// Marks an invitation as recorded only when a subscription for it is already open on this replica. A
+    /// subscription that opens later is seeded from durable facts, so creating an entry nobody watches
+    /// would only leave one behind for every replayed acceptance.
+    /// </summary>
+    /// <param name="invitationId">The invitation identifier.</param>
+    /// <param name="organizationName">The name of the organization that was set up.</param>
+    public void MarkRecordedIfWatched(InvitationId invitationId, TenantName organizationName)
     {
-        var subject = GetOrAdd(invitationId);
-        subject.OnNext(new(invitationId, OrganizationSetupAcceptanceStatus.Recorded, organizationName));
+        if (_subscriptions.TryGetValue(invitationId, out var subject))
+        {
+            MarkRecorded(subject, invitationId, organizationName);
+        }
     }
 
     /// <summary>
@@ -95,7 +110,10 @@ public class OrganizationSetupStatusSubscriptions : IDisposable
     {
         var subject = GetOrAdd(invitationId);
         _acceptedAt[invitationId] = DateTimeOffset.UtcNow;
-        subject.OnNext(new(invitationId, OrganizationSetupAcceptanceStatus.Accepted, organizationName));
+        lock (subject)
+        {
+            subject.OnNext(new(invitationId, OrganizationSetupAcceptanceStatus.Accepted, organizationName));
+        }
     }
 
     /// <inheritdoc/>
@@ -109,6 +127,21 @@ public class OrganizationSetupStatusSubscriptions : IDisposable
         }
 
         _subscriptions.Clear();
+    }
+
+    static void MarkRecorded(BehaviorSubject<OrganizationSetupAcceptanceStatusView> subject, InvitationId invitationId, TenantName organizationName)
+    {
+        // Held per subject so a concurrent MarkAccepted cannot slip in between the check and the push and
+        // then be overtaken by a Recorded that no longer applies.
+        lock (subject)
+        {
+            if (subject.Value.Status == OrganizationSetupAcceptanceStatus.Accepted)
+            {
+                return;
+            }
+
+            subject.OnNext(new(invitationId, OrganizationSetupAcceptanceStatus.Recorded, organizationName));
+        }
     }
 
     BehaviorSubject<OrganizationSetupAcceptanceStatusView> GetOrAdd(InvitationId invitationId) =>
