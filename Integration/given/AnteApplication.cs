@@ -31,6 +31,7 @@ namespace Ante.Integration.given;
 /// <param name="signingKeyPem">Optional signing key, so a restarted instance keeps its predecessor's key.</param>
 /// <param name="exchangeIndexes">Optional test readiness state for the exchange write boundary.</param>
 /// <param name="signingKeyConfigured">Whether to configure the invitation token keys; false runs Ante as a deployment without a signing key.</param>
+/// <param name="registrationContextKeys">Optional <c>Ante:Registration:ContextKeys</c> allowlist for signup context.</param>
 public sealed class AnteApplication(
     ChronicleInfrastructure infrastructure,
     string eventStore,
@@ -43,7 +44,8 @@ public sealed class AnteApplication(
     string? chronicleConnectionString = default,
     string? signingKeyPem = default,
     IExchangeIndexReadiness? exchangeIndexes = default,
-    bool signingKeyConfigured = true) : WebApplicationFactory<Program>
+    bool signingKeyConfigured = true,
+    IReadOnlyList<string>? registrationContextKeys = default) : WebApplicationFactory<Program>
 {
     public const string IdentityProvider = "integration-idp";
 
@@ -66,9 +68,14 @@ public sealed class AnteApplication(
     /// Posts a command the way the wizard does, behind the authentication proxy's forwarded identity. Pass the
     /// generated proxy's wire shape (concepts as primitives), not the C# command record.
     /// </summary>
-    public async Task<JsonDocument> Execute(string route, object command, string? subject = default, string? email = default)
+    public async Task<JsonDocument> Execute(string route, object command, string? subject = default, string? email = default, Guid? correlationId = default)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, route) { Content = JsonContent.Create(command, options: _json) };
+        if (correlationId is not null)
+        {
+            request.Headers.Add("X-Correlation-ID", correlationId.Value.ToString());
+        }
+
         if (subject is not null)
         {
             AddForwardedIdentity(request, subject, email ?? subject, attestedExchange);
@@ -172,6 +179,11 @@ public sealed class AnteApplication(
         for (var index = 0; index < hostStores.Count; index++)
         {
             builder.UseSetting($"Ante:HostStores:{index}", hostStores[index]);
+        }
+
+        for (var index = 0; index < (registrationContextKeys?.Count ?? 0); index++)
+        {
+            builder.UseSetting($"Ante:Registration:ContextKeys:{index}", registrationContextKeys![index]);
         }
 
         // ANTE_INTEGRATION_DEBUG_LOG=Cratis (any logging category) turns on debug logging for that category.

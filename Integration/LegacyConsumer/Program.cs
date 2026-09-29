@@ -32,7 +32,9 @@ if (!registration.IsSuccess)
 
 if (operation == "setup")
 {
-    await store.Subscriptions.Subscribe(new EventStoreSubscriptionId(anteStore), anteStore,
+    await store.Subscriptions.Subscribe(
+        new EventStoreSubscriptionId(anteStore),
+        anteStore,
         definition => definition.WithEventType(typeof(LegacyInvitationTokenIssued).GetEventType().Id));
     await Console.Out.WriteLineAsync("ready");
     return 0;

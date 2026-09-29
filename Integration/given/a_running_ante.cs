@@ -48,6 +48,11 @@ public class a_running_ante : Specification
     /// </summary>
     protected virtual bool SigningKeyConfigured => true;
 
+    /// <summary>
+    /// Gets the <c>Ante:Registration:ContextKeys</c> allowlist; none by default.
+    /// </summary>
+    protected virtual IReadOnlyList<string>? RegistrationContextKeys => null;
+
     protected string LegalDocumentSetId => $"legal-documents-{Suffix}";
 
     protected string AnteStoreName => $"Ante{Suffix}";
@@ -69,7 +74,8 @@ public class a_running_ante : Specification
             LegalDocumentFactory,
             AcceptanceFenceFactory,
             exchangeIndexes: ExchangeIndexes,
-            signingKeyConfigured: SigningKeyConfigured);
+            signingKeyConfigured: SigningKeyConfigured,
+            registrationContextKeys: RegistrationContextKeys);
 
         // Startup registers the runtime inbox reactors and subscriptions; readiness includes their kernel state.
         using var client = Ante.CreateClient();
@@ -119,7 +125,8 @@ public class a_running_ante : Specification
             AcceptanceFenceFactory,
             signingKeyPem: signingKey,
             exchangeIndexes: ExchangeIndexes,
-            signingKeyConfigured: configured);
+            signingKeyConfigured: configured,
+            registrationContextKeys: RegistrationContextKeys);
         using var client = Ante.CreateClient();
         await Eventually.Until(
             async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
@@ -191,12 +198,12 @@ public class a_running_ante : Specification
     /// Throws with the last command result when it never succeeds, so a rejected command is not mistaken for a
     /// delivery that never arrived.
     /// </summary>
-    protected async Task<JsonDocument> ExecuteOnceProjected(string route, object command, string subject, string? email = default)
+    protected async Task<JsonDocument> ExecuteOnceProjected(string route, object command, string subject, string? email = default, Guid? correlationId = default)
     {
         var deadline = DateTimeOffset.UtcNow + Eventually.DefaultTimeout;
         while (true)
         {
-            var result = await Ante.Execute(route, command, subject, email);
+            var result = await Ante.Execute(route, command, subject, email, correlationId);
             if (IsSuccess(result))
             {
                 return result;

@@ -97,8 +97,8 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
 /// <c language="csharp">/register</c> entry point without an invitation.
 /// </summary>
 /// <param name="RegistrationId">
-/// A client-generated identifier used as the event source id and as a correlation key for polling
-/// setup status - reuses <see cref="Invitations.InvitationId"/>'s shape since self-service registration
+/// A client-generated identifier used as the event source id and as the key for polling
+/// setup status (not the correlation id, which is separate event metadata) - reuses <see cref="Invitations.InvitationId"/>'s shape since self-service registration
 /// shares the same "submit, then watch status" flow as an invitation acceptance.
 /// </param>
 /// <param name="OrganizationName">The name of the organization (tenant) to create.</param>
