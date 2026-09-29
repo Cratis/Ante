@@ -301,8 +301,11 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         }
 
         var name = released.TenantName.Value.Trim();
+
+        // A claim projected before its name was mapped explicitly carries no name until the projection is
+        // replayed; it cannot match, and dereferencing it would fail this delivery on every retry.
         var claims = (await eventStore.ReadModels.GetInstances<OrganizationNameClaim>())
-            .Where(claim => string.Equals(claim.TenantName.Value.Trim(), name, StringComparison.OrdinalIgnoreCase))
+            .Where(claim => claim.TenantName?.Value is { } claimed && string.Equals(claimed.Trim(), name, StringComparison.OrdinalIgnoreCase))
             .ToArray();
         foreach (var claim in claims)
         {

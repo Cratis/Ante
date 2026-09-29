@@ -29,6 +29,12 @@ public record OrganizationNameReleaseReceived(TenantName TenantName);
 /// <remarks>
 /// Pinned to the local event log: the contract events carry the contracts assembly's store attribute, which
 /// would otherwise route a renamed deployment's projection to an inbox.
+/// <para>
+/// The name is mapped explicitly: the Chronicle kernel auto-maps against each event type's first-generation
+/// schema only, so <see cref="OrganizationRegistrationCompleted"/> (generation 2) matches no schema and AutoMap
+/// silently leaves the name unset. The in-process read-model scenario does not reproduce this. Every event maps
+/// the name explicitly and AutoMap is off for it, so no source depends on name matching.
+/// </para>
 /// </remarks>
 /// <param name="Id">The event source holding the claim.</param>
 /// <param name="TenantName">The claimed name.</param>
@@ -38,7 +44,13 @@ public record OrganizationNameReleaseReceived(TenantName TenantName);
 [FromEvent<OrganizationRegistrationCompleted>]
 [FromEvent<OrganizationNameReservationReceived>]
 [RemovedWith<OrganizationNameReleaseReceived>]
-public record OrganizationNameClaim(EventSourceId Id, TenantName TenantName);
+public record OrganizationNameClaim(
+    EventSourceId Id,
+    [NoAutoMap]
+    [SetFrom<InvitationToCreateTenantAccepted>(nameof(InvitationToCreateTenantAccepted.TenantName))]
+    [SetFrom<OrganizationRegistrationCompleted>(nameof(OrganizationRegistrationCompleted.TenantName))]
+    [SetFrom<OrganizationNameReservationReceived>(nameof(OrganizationNameReservationReceived.TenantName))]
+    TenantName TenantName);
 
 /// <summary>
 /// Reads whether an organization name is already claimed, ignoring case.
