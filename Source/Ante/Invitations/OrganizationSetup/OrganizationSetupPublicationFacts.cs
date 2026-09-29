@@ -69,14 +69,15 @@ public class OrganizationSetupPublicationFacts(
             entry.Context.EventType.Id == relevantTypes[1].Id).ToArray();
         if (accepted.Length > 1)
         {
-            // Ambiguous acceptance from two flows sharing one event source: nothing can be said safely.
-            return _none;
+            // Ambiguous acceptance from two flows sharing one event source: never Published, so nothing
+            // is unlocked, but a projected record still means setup was recorded and must not resubmit.
+            return RecordedOrNone(recorded);
         }
 
         if (accepted.Length == 0)
         {
             // Not recorded in the log; a setup record without one is only the read model's word.
-            return recorded is not null ? new(PublicationProgress.Recorded, recorded.OrganizationName) : _none;
+            return RecordedOrNone(recorded);
         }
 
         var organizationName = accepted[0].Content switch
@@ -87,7 +88,7 @@ public class OrganizationSetupPublicationFacts(
         };
         if (organizationName is null)
         {
-            return _none;
+            return RecordedOrNone(recorded);
         }
 
         var outbox = await eventStore.GetEventSequence(EventSequenceId.Outbox).GetForEventSourceIdAndEventTypes(eventSourceId, relevantTypes);
@@ -96,4 +97,7 @@ public class OrganizationSetupPublicationFacts(
              outbox.Any(entry => entry.Context.EventType.Id == relevantTypes[2].Id));
         return new(isPublished ? PublicationProgress.Published : PublicationProgress.Recorded, organizationName);
     }
+
+    static OrganizationSetupFacts RecordedOrNone(OrganizationSetupProgress? recorded) =>
+        recorded is not null ? new(PublicationProgress.Recorded, recorded.OrganizationName) : _none;
 }

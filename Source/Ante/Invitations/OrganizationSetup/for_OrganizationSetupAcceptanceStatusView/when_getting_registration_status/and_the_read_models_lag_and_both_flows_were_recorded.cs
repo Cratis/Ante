@@ -18,6 +18,6 @@ public class and_the_read_models_lag_and_both_flows_were_recorded : an_organizat
 
     async Task Because() => _result = await SeededForRegistration();
 
-    [Fact] void should_seed_pending() => _result.Status.ShouldEqual(OrganizationSetupAcceptanceStatus.Pending);
+    [Fact] void should_seed_recorded_from_the_projected_record() => _result.Status.ShouldEqual(OrganizationSetupAcceptanceStatus.Recorded);
 }
 #endif
