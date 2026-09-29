@@ -33,7 +33,8 @@ public record OrganizationNameReleaseReceived(TenantName TenantName);
 /// The name is mapped explicitly: the Chronicle kernel auto-maps against each event type's first-generation
 /// schema only, so <see cref="OrganizationRegistrationCompleted"/> (generation 2) matches no schema and AutoMap
 /// silently leaves the name unset. The in-process read-model scenario does not reproduce this. Every event maps
-/// the name explicitly and AutoMap is off for it, so no source depends on name matching.
+/// the name explicitly and AutoMap is off for it, so no source depends on name matching. Kernel 19.22.1 fixes
+/// this (Cratis/Chronicle#4367); the explicit mapping stays so older kernels still project the name.
 /// </para>
 /// </remarks>
 /// <param name="Id">The event source holding the claim.</param>
