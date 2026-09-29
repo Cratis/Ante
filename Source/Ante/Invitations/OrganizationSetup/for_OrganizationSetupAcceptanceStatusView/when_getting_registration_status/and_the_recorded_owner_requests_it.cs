@@ -5,7 +5,7 @@
 using Ante.Invitations.Accepting;
 using Ante.Invitations.for_query_access;
 using Ante.Organization.Registration;
-using MongoDB.Driver;
+using Ante.Outbox;
 
 namespace Ante.Invitations.OrganizationSetup.for_OrganizationSetupAcceptanceStatusView.when_getting_registration_status;
 
@@ -19,9 +19,10 @@ public class and_the_recorded_owner_requests_it : Specification
         var identity = Substitute.For<ISignedInIdentity>();
         identity.IsVerifiedRegistrationOwner(Arg.Is<RegistrationOwner>(owner => owner.Subject.Value == "sub-1" && owner.Provider == "github")).Returns(true);
         var store = QueryCollections.ReadModelStoreWith(new OrganizationSetupProgress(_id, "Acme") { OwnerSubject = (RegistrationOwnerSubject)"sub-1", OwnerProvider = "github" });
-        var published = QueryCollections.With(new OrganizationSetupPublished(_id, true));
+        var facts = Substitute.For<IOrganizationSetupPublicationFacts>();
+        facts.Resolve(_id, Arg.Any<OrganizationSetupProgress?>()).Returns(new OrganizationSetupFacts(PublicationProgress.Published, "Acme"));
         using var subscriptions = new OrganizationSetupStatusSubscriptions();
-        _result = await OrganizationSetupAcceptanceStatusView.StatusForRegistration(_id, identity, subscriptions, store, published);
+        _result = await OrganizationSetupAcceptanceStatusView.StatusForRegistration(_id, identity, subscriptions, store, facts);
     }
 
     [Fact] void should_return_the_accepted_status() => Assert.Equal(OrganizationSetupAcceptanceStatus.Accepted, _result.Status);

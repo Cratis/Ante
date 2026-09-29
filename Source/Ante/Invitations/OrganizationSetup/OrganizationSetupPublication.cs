@@ -5,7 +5,6 @@ using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
 using Ante.Organization.Registration;
 using Ante.Outbox;
-using MongoDB.Driver;
 
 namespace Ante.Invitations.OrganizationSetup;
 
@@ -100,62 +99,18 @@ public static class OrganizationSetupPublication
 /// Accelerates the organization-setup flow's live status subscription - shared by invited tenant creation
 /// and self-service registration - once its durable evidence confirms full publication.
 /// </summary>
-/// <param name="recordedCollection">The durable setup-record collection.</param>
-/// <param name="publishedCollection">The durable outbox-publication collection.</param>
+/// <param name="facts">Resolves publication progress from the read models and, when they lag, the authoritative log and outbox.</param>
 /// <param name="subscriptions">The subscription tracker.</param>
-/// <param name="eventStore">The authoritative local log and outbox, for projection-lag recovery.</param>
 public class OrganizationPublicationStatusNotifier(
-    IMongoCollection<OrganizationSetupProgress> recordedCollection,
-    IMongoCollection<OrganizationSetupPublished> publishedCollection,
-    OrganizationSetupStatusSubscriptions subscriptions,
-    IEventStore eventStore) : IPublicationStatusNotifier
+    IOrganizationSetupPublicationFacts facts,
+    OrganizationSetupStatusSubscriptions subscriptions) : IPublicationStatusNotifier
 {
     /// <inheritdoc/>
     public async Task NotifyIfPublished(EventSourceId eventSourceId)
     {
         var invitationId = (InvitationId)Guid.Parse(eventSourceId.Value);
-        var recorded = await recordedCollection.Find(Builders<OrganizationSetupProgress>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefaultAsync();
-        var published = await publishedCollection.Find(Builders<OrganizationSetupPublished>.Filter.Eq(progress => progress.Id, invitationId)).FirstOrDefaultAsync();
-        if (recorded is not null && OrganizationSetupPublication.IsFullyPublished(recorded, published))
-        {
-            subscriptions.MarkAccepted(invitationId, recorded.OrganizationName);
-            return;
-        }
-
-        // Publication can complete before either Mongo projection catches up. The local log identifies
-        // whether this is an invited setup or a self-registration and supplies its organization name;
-        // only the matching public fact and every locally recorded legal fact may unlock the stream.
-        // Matching is by event type id because the published copy may carry a different generation.
-        EventType[] relevantTypes =
-        [
-            typeof(InvitationToCreateTenantAccepted).GetEventType(),
-            typeof(OrganizationRegistrationCompleted).GetEventType(),
-            typeof(LegalTermsAccepted).GetEventType(),
-        ];
-        var local = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(eventSourceId, relevantTypes);
-        var accepted = local.Where(entry => entry.Context.EventType.Id == relevantTypes[0].Id ||
-            entry.Context.EventType.Id == relevantTypes[1].Id).ToArray();
-        if (accepted.Length != 1)
-        {
-            // Not this flow, or ambiguous acceptance from two flows sharing one event source.
-            return;
-        }
-
-        var organizationName = accepted[0].Content switch
-        {
-            InvitationToCreateTenantAccepted invited => invited.TenantName,
-            OrganizationRegistrationCompleted registered => registered.TenantName,
-            _ => null,
-        };
-        if (organizationName is null)
-        {
-            return;
-        }
-
-        var outbox = await eventStore.GetEventSequence(EventSequenceId.Outbox).GetForEventSourceIdAndEventTypes(eventSourceId, relevantTypes);
-        if (outbox.Any(entry => entry.Context.EventType.Id == accepted[0].Context.EventType.Id) &&
-            (!local.Any(entry => entry.Context.EventType.Id == relevantTypes[2].Id) ||
-             outbox.Any(entry => entry.Context.EventType.Id == relevantTypes[2].Id)))
+        var resolved = await facts.Resolve(invitationId);
+        if (resolved is { Progress: PublicationProgress.Published, OrganizationName: { } organizationName })
         {
             subscriptions.MarkAccepted(invitationId, organizationName);
         }

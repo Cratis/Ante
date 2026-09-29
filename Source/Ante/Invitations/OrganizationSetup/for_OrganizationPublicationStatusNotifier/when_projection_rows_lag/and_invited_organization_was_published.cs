@@ -13,11 +13,9 @@ public class and_invited_organization_was_published : an_organization_notificati
     {
         Local.AddRange([Invited(), Legal()]);
         Outbox.AddRange([Invited(), Legal()]);
-        Notifier = new(
+        Notifier = NotifierFor(
             QueryCollections.With(new OrganizationSetupProgress(Id, "Stale Org", LegalRecorded: false)),
-            QueryCollections.With(new OrganizationSetupPublished(Id, AcceptancePublished: false, LegalPublished: false)),
-            Subscriptions,
-            Store);
+            QueryCollections.With(new OrganizationSetupPublished(Id, AcceptancePublished: false, LegalPublished: false)));
     }
 
     async Task Because() => await Notifier.NotifyIfPublished(Id.Value.ToString("D"));

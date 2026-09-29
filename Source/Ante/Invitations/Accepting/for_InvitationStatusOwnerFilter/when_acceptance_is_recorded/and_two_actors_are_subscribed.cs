@@ -4,10 +4,10 @@
 #if DEBUG
 using System.Collections.Immutable;
 using System.Reactive.Linq;
-using Ante.Invitations.for_query_access;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.UserSetup;
 using Ante.Organization.Registration;
+using Ante.Outbox;
 using Cratis.Chronicle.EventSequences;
 
 namespace Ante.Invitations.Accepting.for_InvitationStatusOwnerFilter.when_acceptance_is_recorded;
@@ -44,21 +44,21 @@ public class and_two_actors_are_subscribed : Specification
         using var organizations = new OrganizationSetupStatusSubscriptions();
         var ownerIdentity = IdentityFor(_owner);
         var otherIdentity = IdentityFor(_other);
-        var recordedUser = QueryCollections.With<UserSetupProgress>(null!);
-        var publishedUser = QueryCollections.With<JoinTenantAcceptancePublished>(null!);
-        var recordedOrganization = QueryCollections.With<OrganizationSetupProgress>(null!);
-        var publishedOrganization = QueryCollections.With<OrganizationSetupPublished>(null!);
+        var userFacts = Substitute.For<IJoinTenantPublicationFacts>();
+        var organizationFacts = Substitute.For<IOrganizationSetupPublicationFacts>();
+        organizationFacts.Resolve(Arg.Any<InvitationId>(), Arg.Any<OrganizationSetupProgress?>())
+            .Returns(new OrganizationSetupFacts(PublicationProgress.None, null));
         using var ownerUser = UserSetupAcceptanceStatusView.StatusForInvitation(
-            _id, ownerIdentity, users, recordedUser, publishedUser, _store)
+            _id, ownerIdentity, users, userFacts, _store)
             .Subscribe(view => _ownerUserStatuses.Add(view.Status));
         using var otherUser = UserSetupAcceptanceStatusView.StatusForInvitation(
-            _id, otherIdentity, users, recordedUser, publishedUser, _store)
+            _id, otherIdentity, users, userFacts, _store)
             .Subscribe(view => _otherUserStatuses.Add(view.Status));
         using var ownerOrganization = OrganizationSetupAcceptanceStatusView.StatusForInvitation(
-            _id, ownerIdentity, organizations, recordedOrganization, publishedOrganization, _store)
+            _id, ownerIdentity, organizations, organizationFacts, _store)
             .Subscribe(view => _ownerOrganizationStatuses.Add(view.Status));
         using var otherOrganization = OrganizationSetupAcceptanceStatusView.StatusForInvitation(
-            _id, otherIdentity, organizations, recordedOrganization, publishedOrganization, _store)
+            _id, otherIdentity, organizations, organizationFacts, _store)
             .Subscribe(view => _otherOrganizationStatuses.Add(view.Status));
 
         _committed = true;

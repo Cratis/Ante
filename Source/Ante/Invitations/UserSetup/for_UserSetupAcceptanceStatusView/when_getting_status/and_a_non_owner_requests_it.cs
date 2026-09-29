@@ -3,29 +3,27 @@
 
 #if DEBUG
 using Ante.Invitations.Accepting;
-using MongoDB.Driver;
 
 namespace Ante.Invitations.UserSetup.for_UserSetupAcceptanceStatusView.when_getting_status;
 
 public class and_a_non_owner_requests_it : Specification
 {
-    IMongoCollection<UserSetupProgress> _recorded = null!;
+    IJoinTenantPublicationFacts _facts = null!;
     UserSetupAcceptanceStatusView _result = null!;
 
     void Because()
     {
-        _recorded = Substitute.For<IMongoCollection<UserSetupProgress>>();
+        _facts = Substitute.For<IJoinTenantPublicationFacts>();
         using var subscriptions = new UserSetupStatusSubscriptions();
         _result = ((BehaviorSubject<UserSetupAcceptanceStatusView>)UserSetupAcceptanceStatusView.StatusForInvitation(
             InvitationId.New(),
             Substitute.For<ISignedInIdentity>(),
             subscriptions,
-            _recorded,
-            Substitute.For<IMongoCollection<JoinTenantAcceptancePublished>>(),
+            _facts,
             Substitute.For<IEventStore>())).Value;
     }
 
     [Fact] void should_look_unknown() => Assert.Equal(UserSetupAcceptanceStatus.Pending, _result.Status);
-    [Fact] void should_not_read_private_data() => Assert.Empty(_recorded.ReceivedCalls());
+    [Fact] void should_not_read_private_data() => Assert.Empty(_facts.ReceivedCalls());
 }
 #endif
