@@ -51,8 +51,68 @@ permissions:
   id-token: write
 
 jobs:
+  # Publish only a revision whose Build passed. Release, and so every publishing job, needs this.
+  #
+  # Why a gate job on the push trigger rather than a workflow_run trigger or making publishing a job
+  # of build.yml: cratis/release-action finds the merged pull request and its label from GITHUB_SHA,
+  # and under workflow_run GITHUB_SHA is the newest commit on main, not the commit that was built -
+  # a merge landing during a Build would make the release use the wrong pull request's label. Push
+  # keeps GITHUB_SHA on the merge commit itself. Keeping publishing in this file also keeps the
+  # NuGet trusted-publishing policy (bound to publish.yml) and the never-cancel concurrency group
+  # unchanged, and build.yml no longer cancels main runs (see its concurrency comment).
+  #
+  # Integration is deliberately not part of the gate: it runs only nightly, on demand or on a pull
+  # request labelled run-integration, never on a push to main, so no Integration run exists for a
+  # merge commit to gate on. It is a merge-time check on the pull request instead.
+  #
+  # workflow_dispatch is a deliberate manual override and is not gated.
+  verify-build:
+    name: Verify Build passed for this commit
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Wait for the Build run of this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + 55 * 60 ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            # Newest push-triggered Build run for exactly this commit; a re-run keeps its run id
+            # and reports the latest attempt, so re-running Build then Publish converges.
+            run="$(gh api "repos/${REPOSITORY}/actions/workflows/build.yml/runs?head_sha=${SHA}&event=push&per_page=20" \
+              --jq '.workflow_runs | sort_by(.created_at) | last // empty | "\(.status) \(.conclusion // "-") \(.html_url)"')"
+            if [ -z "$run" ]; then
+              echo "No Build run found for ${SHA} yet; waiting..."
+            else
+              read -r status conclusion url <<< "$run"
+              if [ "$status" = "completed" ]; then
+                if [ "$conclusion" = "success" ]; then
+                  echo "Build passed for ${SHA}: ${url}"
+                  exit 0
+                fi
+                echo "::error::Build for ${SHA} concluded '${conclusion}' (${url}); nothing is published from a revision whose Build did not pass. Fix or re-run Build, then re-run this workflow."
+                exit 1
+              fi
+              echo "Build for ${SHA} is ${status}; waiting... (${url})"
+            fi
+            sleep 30
+          done
+          echo "::error::Timed out waiting for the Build run of ${SHA} to complete."
+          exit 1
+
   release:
     name: Release
+    needs: [verify-build]
+    # verify-build is skipped for workflow_dispatch; anything other than success or skipped (failure,
+    # cancelled) blocks the release.
+    if: ${{ !cancelled() && (needs.verify-build.result == 'success' || needs.verify-build.result == 'skipped') }}
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.release.outputs.version }}
