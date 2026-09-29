@@ -78,7 +78,7 @@ public class and_both_read_the_host_inbox : Specification
 
     async Task<BsonDocument> RawContent(string store, string sequence, Guid invitationId)
     {
-        // Chronicle 19.13.1 stores each event sequence in <store>+es+Default/<sequence>,
+        // Chronicle 19.22.1 stores each event sequence in <store>+es+Default/<sequence>,
         // with content keyed by event generation. This deliberately bypasses typed PII release.
         var mongo = new MongoClient(_infrastructure.MongoDBServer);
         var collection = mongo.GetDatabase($"{store}+es+Default").GetCollection<BsonDocument>(sequence);

@@ -19,3 +19,4 @@ Ante must only be reachable through a verifying proxy (for example Cratis AuthPr
 | Ante | Chronicle client | Chronicle server verified | Contracts package |
 | --- | --- | --- | --- |
 | 1.0.x | 19.13.1 | 19.13.1, 19.4.7 | `Cratis.Ante.Contracts` 1.0.x |
+| main (unreleased) | 19.22.0 | 19.22.1 or later (older servers connect but lack the recorded-time inbox copies and generation-aware auto-map) | `Cratis.Ante.Contracts` from main |

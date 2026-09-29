@@ -13,8 +13,8 @@
     <PackageVersion Include="Cratis.Arc.Core" Version="22.30.1" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.19.6" />
     <!-- Keep Chronicle clients and testing support on the same release. -->
-    <PackageVersion Include="Cratis.Chronicle" Version="19.21.1" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.21.1" />
+    <PackageVersion Include="Cratis.Chronicle" Version="19.22.0" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.22.0" />
     <!-- Compiler toolset — pinned to match the Roslyn version Cratis.Arc.Core's and Cratis.Chronicle's
          analyzers were built against (CS9057 otherwise). -->
     <PackageVersion Include="Microsoft.Net.Compilers.Toolset" Version="5.9.0" />
