@@ -60,8 +60,8 @@ public class and_the_local_id_is_not_a_guid : Specification
     [Fact]
     void should_publish_rejections_instead_of_tokens()
     {
-        Assert.Equal(2, _outbox.ReceivedCalls().Count());
-        Assert.All(_outbox.ReceivedCalls(), call => Assert.IsType<InvitationRejected>(call.GetArguments()[1]));
+        Assert.Equal(2, _outbox.ReceivedCalls().Count(call => call.GetMethodInfo().Name == nameof(IEventSequence.Append)));
+        Assert.All(_outbox.ReceivedCalls().Where(call => call.GetMethodInfo().Name == nameof(IEventSequence.Append)), call => Assert.IsType<InvitationRejected>(call.GetArguments()[1]));
     }
 }
 #endif

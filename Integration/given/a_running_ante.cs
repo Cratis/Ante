@@ -41,6 +41,12 @@ public class a_running_ante : Specification
 
     protected virtual IExchangeIndexReadiness? ExchangeIndexes => null;
 
+    /// <summary>
+    /// Gets a value indicating whether Ante starts with an invitation signing key; false starts it as a deployment
+    /// that has not configured one yet.
+    /// </summary>
+    protected virtual bool SigningKeyConfigured => true;
+
     protected string LegalDocumentSetId => $"legal-documents-{Suffix}";
 
     protected string AnteStoreName => $"Ante{Suffix}";
@@ -61,7 +67,8 @@ public class a_running_ante : Specification
             UseLegalInbox ? LegalDocumentSetId : null,
             LegalDocumentFactory,
             AcceptanceFenceFactory,
-            exchangeIndexes: ExchangeIndexes);
+            exchangeIndexes: ExchangeIndexes,
+            signingKeyConfigured: SigningKeyConfigured);
 
         // Startup registers the runtime inbox reactors and subscriptions; readiness includes their kernel state.
         using var client = Ante.CreateClient();
@@ -88,10 +95,12 @@ public class a_running_ante : Specification
     /// deployment's rolling restart does - and waits until it is ready.
     /// </summary>
     /// <param name="whileStopped">Anything to do while no instance is running.</param>
+    /// <param name="signingKeyConfigured">Whether the restarted instance has a signing key; by default the same as its predecessor.</param>
     /// <returns>Awaitable task.</returns>
-    protected async Task Restart(Func<Task>? whileStopped = default)
+    protected async Task Restart(Func<Task>? whileStopped = default, bool? signingKeyConfigured = default)
     {
         var signingKey = Ante.AttestationPrivateKeyPem;
+        var configured = signingKeyConfigured ?? Ante.SigningKeyConfigured;
         await Ante.DisposeAsync();
         if (whileStopped is not null)
         {
@@ -108,7 +117,8 @@ public class a_running_ante : Specification
             LegalDocumentFactory,
             AcceptanceFenceFactory,
             signingKeyPem: signingKey,
-            exchangeIndexes: ExchangeIndexes);
+            exchangeIndexes: ExchangeIndexes,
+            signingKeyConfigured: configured);
         using var client = Ante.CreateClient();
         await Eventually.Until(
             async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
