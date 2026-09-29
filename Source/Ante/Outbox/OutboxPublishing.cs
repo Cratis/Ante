@@ -148,8 +148,7 @@ public static class OutboxForwarder
     // while the container is torn down. It is expected, not a failure to alert operators about. This is
     // detected from the exception itself so the forwarder needs no dependency on the host lifetime.
     static bool IsHostStopping(Exception exception) =>
-        exception is ObjectDisposedException disposed
-        && disposed.ObjectName?.Contains("ServiceProvider", StringComparison.Ordinal) == true;
+        exception is ObjectDisposedException { ObjectName: "IServiceProvider" or "ServiceProviderEngineScope" };
 
     static void TryLog(ILogger? logger, Exception exception, string notifier, EventSourceId eventSourceId)
     {
