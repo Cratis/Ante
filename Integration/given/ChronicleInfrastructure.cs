@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net;
+using System.Net.Sockets;
 using Ante.Invitations;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Configurations;
@@ -18,6 +20,11 @@ namespace Ante.Integration.given;
 /// own store names, several host stores and a pinnable server version. Isolation between specs comes from unique
 /// store and database names, not from a fresh container.
 /// <para>
+/// Kernel restart specs stop and start this same container (<see cref="StopChronicle"/>/<see cref="StartChronicle"/>):
+/// its writable layer - the embedded MongoDB included - survives, and the host ports are fixed up front so every
+/// running client and Ante instance can reconnect to the same address.
+/// </para>
+/// <para>
 /// The image defaults to the server release matching the pinned client; override it with
 /// <c>ANTE_CHRONICLE_IMAGE</c> (for example <c>cratis/chronicle:19.4.7-development</c>) to check another server.
 /// </para>
@@ -30,6 +37,8 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
     const ushort MongoDBPort = 27017;
 
     IContainer? _container;
+    int _chroniclePort;
+    int _mongoDBPort;
 
     /// <summary>
     /// Gets the kernel started for <see cref="ChronicleCollection"/>. Specs reach it statically rather than through
@@ -50,11 +59,11 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
     /// </summary>
     public static bool KeepContainer => string.Equals(Environment.GetEnvironmentVariable("ANTE_INTEGRATION_KEEP_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase);
 
-    public string ChronicleConnectionString => $"chronicle://localhost:{Container.GetMappedPublicPort(ChroniclePort)}/?skipTlsValidation=true";
+    public string ChronicleConnectionString => $"chronicle://localhost:{_chroniclePort}/?skipTlsValidation=true";
 
     // The embedded replica set advertises localhost:27017 inside the container; a direct connection stops the
     // driver from trying to follow that address from the host.
-    public string MongoDBServer => $"mongodb://localhost:{Container.GetMappedPublicPort(MongoDBPort)}/?directConnection=true";
+    public string MongoDBServer => $"mongodb://localhost:{_mongoDBPort}/?directConnection=true";
 
     IContainer Container => _container ?? throw new InvalidOperationException("The Chronicle container has not been started.");
 
@@ -62,10 +71,15 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
     {
         // Client-only Mongo tests run before any Ante host starts; use the same concept map.
         InvitationMongoSerialization.EnsureConfigured();
+
+        // Docker picks new random host ports when a stopped container starts again; bind free ones explicitly.
+        var reserved = new HashSet<int>();
+        _chroniclePort = FreePort(reserved);
+        _mongoDBPort = FreePort(reserved);
         _container = new ContainerBuilder(Image)
-            .WithPortBinding(ChroniclePort, assignRandomHostPort: true)
-            .WithPortBinding(HttpPort, assignRandomHostPort: true)
-            .WithPortBinding(MongoDBPort, assignRandomHostPort: true)
+            .WithPortBinding(_chroniclePort, ChroniclePort)
+            .WithPortBinding(FreePort(reserved), HttpPort)
+            .WithPortBinding(_mongoDBPort, MongoDBPort)
             .WithLabel("cratis.ante.integration", "true")
             .WithCleanUp(!KeepContainer)
             .WithWaitStrategy(Wait.ForUnixContainer()
@@ -77,11 +91,37 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
         Current = this;
     }
 
+    /// <summary>
+    /// Stops the kernel and its MongoDB without removing the container, its data or its port bindings.
+    /// </summary>
+    /// <returns>Awaitable task.</returns>
+    public Task StopChronicle() => Container.StopAsync();
+
+    /// <summary>
+    /// Starts the stopped kernel again and waits for its health endpoint.
+    /// </summary>
+    /// <returns>Awaitable task.</returns>
+    public Task StartChronicle() => Container.StartAsync();
+
     public async Task DisposeAsync()
     {
         if (_container is not null && !KeepContainer)
         {
             await _container.DisposeAsync();
+        }
+    }
+
+    static int FreePort(HashSet<int> reserved)
+    {
+        while (true)
+        {
+            using var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            if (reserved.Add(port))
+            {
+                return port;
+            }
         }
     }
 

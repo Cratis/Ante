@@ -5,6 +5,7 @@ using System.Net;
 using System.Text.Json;
 using Ante.Invitations.Accepting;
 using Ante.Legal;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ante.Integration.given;
 
@@ -123,6 +124,55 @@ public class a_running_ante : Specification
         await Eventually.Until(
             async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
             what: "the restarted Ante's readiness (/healthz/ready)");
+    }
+
+    /// <summary>
+    /// Stops the Chronicle kernel under the running Ante and hosts and starts it again - a kernel upgrade or crash -
+    /// then waits until Ante is ready and every host has reconnected.
+    /// </summary>
+    /// <remarks>
+    /// Readiness has to be seen dropping first: a readiness probe that never saw the outage proves nothing about
+    /// recovery. The kernel is always started again, so a failure here does not strand the rest of the collection.
+    /// </remarks>
+    /// <returns>Ante's readiness status observed during the outage.</returns>
+    protected async Task<HttpStatusCode> RestartChronicle()
+    {
+        using var client = Ante.CreateClient();
+        var duringOutage = HttpStatusCode.OK;
+        try
+        {
+            await Infrastructure.StopChronicle();
+            await Eventually.Until(
+                async () => (duringOutage = (await client.GetAsync("/healthz/ready")).StatusCode) != HttpStatusCode.OK,
+                what: "Ante losing readiness while the kernel is down");
+        }
+        finally
+        {
+            await Infrastructure.StartChronicle();
+        }
+
+        await Eventually.Until(
+            async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
+            what: "Ante's readiness after the kernel restart (/healthz/ready)");
+        foreach (var host in Hosts.Values)
+        {
+            await host.WaitUntilConnected();
+        }
+
+        return duringOutage;
+    }
+
+    /// <summary>
+    /// Whether Ante has recorded an acceptance in its event log without its outbox reactor having published it yet.
+    /// </summary>
+    protected async Task<bool> AcceptanceRecordedButNotPublished<TAccepted>(Guid invitationId)
+    {
+        await using var scope = Ante.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IEventStore>();
+        var type = typeof(TAccepted).GetEventType();
+        var recorded = await store.EventLog.GetForEventSourceIdAndEventTypes(invitationId.ToString("D"), [type]);
+        var published = await store.GetEventSequence(EventSequenceId.Outbox).GetForEventSourceIdAndEventTypes(invitationId.ToString("D"), [type]);
+        return recorded.Count == 1 && published.Count == 0;
     }
 
     protected static Guid NewInvitationId() => Guid.NewGuid();

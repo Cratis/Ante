@@ -80,14 +80,16 @@ public sealed class AnteApplication(
     }
 
     /// <summary>Reads registration status through the same owner-checked API used by the browser.</summary>
-    public async Task<JsonDocument> RegistrationStatus(Guid registrationId, string subject)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/invitations/organization-setup/status-for-registration?registrationId={registrationId:D}");
-        AddForwardedIdentity(request, subject, subject, attestedExchange);
-        using var response = await CreateClient().SendAsync(request);
-        response.EnsureSuccessStatusCode();
-        return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-    }
+    public Task<JsonDocument> RegistrationStatus(Guid registrationId, string subject) =>
+        Get($"/api/invitations/organization-setup/status-for-registration?registrationId={registrationId:D}", subject);
+
+    /// <summary>Reads the owner-checked join-invitation status through Arc's snapshot query.</summary>
+    public Task<JsonDocument> InvitationStatus(Guid invitationId, string subject) =>
+        Get($"/api/invitations/user-setup/status-for-invitation?invitationId={invitationId:D}", subject);
+
+    /// <summary>Reads the owner-checked invited-organization status through Arc's snapshot query.</summary>
+    public Task<JsonDocument> OrganizationInvitationStatus(Guid invitationId, string subject) =>
+        Get($"/api/invitations/organization-setup/status-for-invitation?invitationId={invitationId:D}", subject);
 
     /// <summary>Opens the actual Arc per-query SSE transport with the invitee's forwarded identity.</summary>
     public async Task<StatusStream> WatchInvitationStatus(Guid invitationId, string subject)
@@ -107,6 +109,15 @@ public sealed class AnteApplication(
             client.Dispose();
             throw;
         }
+    }
+
+    async Task<JsonDocument> Get(string route, string subject)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, route);
+        AddForwardedIdentity(request, subject, subject, attestedExchange);
+        using var response = await CreateClient().SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
     }
 
     /// <summary>
