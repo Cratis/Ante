@@ -27,7 +27,7 @@ A public `/register` lets anyone with an account at a configured identity provid
 
 ## Personal data, retention and erasure
 
-The host sets retention deadlines and legal holds; Ante must remove its own copies when an approved erasure is due. Do not infer the encryption-key subject from an invitation id: received events preserve the host's compliance subject, while later facts can use the signed-in actor's subject. Inventory subjects and stores for each operation before deleting anything.
+The host sets retention deadlines and legal holds; Ante must remove its own copies when an approved erasure is due. Do not infer the encryption-key subject from an invitation id: received events preserve the host's compliance subject, while later facts can use the signed-in actor's subject. Self-service registration is the exception to "later facts use the signed-in actor's subject": `OrganizationRegistrationCompleted` and `LegalTermsAccepted` (and their names, email and other PII) use the registration id as compliance subject, not the person's identity-provider subject. Only `RegistrationStarted` and `RegistrationOwnerRecorded` carry the visitor's subject, and `RegistrationOwnerRecorded` (recorded with the completed registration) is the link from the person to the registration id, so an erasure for a person must include the registration ids they own. Inventory subjects and stores for each operation before deleting anything.
 
 | Data class | What Ante retains | Classification in current source |
 | --- | --- | --- |

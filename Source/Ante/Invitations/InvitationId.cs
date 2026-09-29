@@ -7,9 +7,11 @@ namespace Ante.Invitations;
 
 /// <summary>
 /// Represents the unique identifier of an invitation. Minted by the host product when it appends the
-/// invitation event to its own outbox, and reused by Ante as the correlation key for everything it
-/// appends about the same invitation - the issued token, the acceptance, and (when configured) the
-/// legal terms acceptance.
+/// invitation event to its own outbox, and used by Ante as the event source id it appends everything about
+/// the same invitation under - the issued token, the acceptance, and (when configured) the legal terms
+/// acceptance. It is not the correlation id, which is separate event metadata: the host's correlation id
+/// flows to the invitation and its token, while the acceptance and legal facts carry the correlation id of
+/// the command that recorded them.
 /// </summary>
 /// <param name="Value">The value.</param>
 public record InvitationId(Guid Value) : EventSourceId<Guid>(Value)
