@@ -134,6 +134,25 @@ public class a_running_ante : Specification
     }
 
     /// <summary>
+    /// How long Ante and each host get to reconnect after the kernel is back, which is longer than
+    /// <see cref="Eventually.DefaultTimeout"/> because the Chronicle client's reconnect is paced by its own back-off,
+    /// not by the kernel coming up.
+    /// </summary>
+    /// <remarks>
+    /// Cratis.Chronicle 19.22 (<c>ConnectionWatchdog</c>) declares the session dropped after 5s without a keep-alive,
+    /// then retries a failed reconnect after 1, 2, 4, 8, 16 and then 30 seconds (the cap), each retry starting only after
+    /// the previous attempt has failed. While the kernel is down or still starting an attempt fails only after its
+    /// compatibility check and connect timeout, about 10s measured locally (5s each), and the delays only ever grow. A
+    /// kernel that becomes healthy just after an attempt has failed is therefore not seen until the next attempt: up to
+    /// 30s of back-off, plus an attempt already in flight that fails (about 10s), plus about 1s to connect and for Ante
+    /// to report its reactors active again. Once connected, Ante's readiness followed within 0.4s in every measured run
+    /// (Cratis/Ante#131), so the wait is spent in the client's back-off and nothing in Ante can shorten it. How far the
+    /// back-off has grown depends on how long the restart takes, which is slowest on a shared CI runner. That sums
+    /// to 41s in the worst case; 60s leaves headroom for a loaded runner without hiding a reconnect that never happens.
+    /// </remarks>
+    static readonly TimeSpan KernelRestartReconnectTimeout = TimeSpan.FromSeconds(60);
+
+    /// <summary>
     /// Stops the Chronicle kernel under the running Ante and hosts and starts it again - a kernel upgrade or crash -
     /// then waits until Ante is ready and every host has reconnected.
     /// </summary>
@@ -160,10 +179,11 @@ public class a_running_ante : Specification
 
         await Eventually.Until(
             async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
-            what: "Ante's readiness after the kernel restart (/healthz/ready)");
+            KernelRestartReconnectTimeout,
+            "Ante's readiness after the kernel restart (/healthz/ready)");
         foreach (var host in Hosts.Values)
         {
-            await host.WaitUntilConnected();
+            await host.WaitUntilConnected(KernelRestartReconnectTimeout);
         }
 
         return duringOutage;

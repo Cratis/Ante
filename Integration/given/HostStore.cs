@@ -120,8 +120,9 @@ public sealed class HostStore : IAsyncDisposable
     /// the back-off after a failed attempt fails at once with <see cref="ConnectionUnavailable"/> - the client asks
     /// the caller to retry. A host keeps working after an outage by retrying; so does this.
     /// </remarks>
+    /// <param name="timeout">How long to wait; <see cref="Eventually.DefaultTimeout"/> by default.</param>
     /// <returns>Awaitable task.</returns>
-    public Task WaitUntilConnected() =>
+    public Task WaitUntilConnected(TimeSpan? timeout = default) =>
         Eventually.Until(
             async () =>
             {
@@ -135,7 +136,8 @@ public sealed class HostStore : IAsyncDisposable
                     return false;
                 }
             },
-            what: $"host {Name} reconnecting to the restarted kernel");
+            timeout,
+            $"host {Name} reconnecting to the restarted kernel");
 
     public async ValueTask DisposeAsync()
     {
