@@ -50,4 +50,15 @@
     <ItemGroup>
         <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
+
+    <!--
+        The replay specs drive the kernel's Observers service (replay, remove, observer state) - the gRPC contract the
+        Workbench and the `cratis chronicle` CLI use. Cratis.Chronicle ships that contract assembly as a runtime-only
+        asset (it is not in the package's ref/ folder), so compile against the same file the package puts at runtime.
+    -->
+    <Target Name="ReferenceChronicleContracts" AfterTargets="ResolvePackageAssets">
+        <ItemGroup>
+            <Reference Include="@(RuntimeCopyLocalItems)" Condition="'%(RuntimeCopyLocalItems.NuGetPackageId)' == 'Cratis.Chronicle' And '%(RuntimeCopyLocalItems.Filename)%(RuntimeCopyLocalItems.Extension)' == 'Cratis.Chronicle.Contracts.dll'" />
+        </ItemGroup>
+    </Target>
 </Project>
