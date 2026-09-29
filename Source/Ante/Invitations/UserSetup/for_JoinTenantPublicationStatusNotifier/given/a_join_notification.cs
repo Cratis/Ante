@@ -5,6 +5,7 @@
 using System.Collections.Immutable;
 using Ante.Contracts.Legal;
 using Ante.Invitations.for_query_access;
+using MongoDB.Driver;
 
 namespace Ante.Invitations.UserSetup.for_JoinTenantPublicationStatusNotifier.given;
 
@@ -37,14 +38,13 @@ public class a_join_notification : Specification
                 Arg.Any<EventStreamId?>(),
                 Arg.Any<EventSourceType?>())
             .Returns(_ => Task.FromResult<IImmutableList<AppendedEvent>>(Outbox.ToImmutableList()));
-        Notifier = new(
-            QueryCollections.WithMany<UserSetupProgress>(),
-            QueryCollections.WithMany<JoinTenantAcceptancePublished>(),
-            Subscriptions,
-            Store);
+        Notifier = NotifierFor(QueryCollections.WithMany<UserSetupProgress>(), QueryCollections.WithMany<JoinTenantAcceptancePublished>());
     }
 
     void Destroy() => Subscriptions.Dispose();
+
+    protected JoinTenantPublicationStatusNotifier NotifierFor(IMongoCollection<UserSetupProgress> recorded, IMongoCollection<JoinTenantAcceptancePublished> published) =>
+        new(new JoinTenantPublicationFacts(recorded, published, Store), Subscriptions);
 
     protected UserSetupAcceptanceStatus Status => ((BehaviorSubject<UserSetupAcceptanceStatusView>)Subscriptions.GetStatus(Id)).Value.Status;
 

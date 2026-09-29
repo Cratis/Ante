@@ -9,6 +9,7 @@ using Ante.Invitations.Accepting;
 using Ante.Invitations.for_query_access;
 using Ante.Organization.Registration;
 using Microsoft.AspNetCore.Http;
+using Ante.Outbox;
 using MongoDB.Driver;
 
 namespace Ante.Invitations.OrganizationSetup.for_OrganizationSetupAcceptanceStatusView.when_getting_registration_status;
@@ -38,11 +39,12 @@ public class and_the_owner_is_projected_from_real_events : Specification
         // A hard-coded owner fixture would miss changes to the PII mapping and event subscription.
         var store = QueryCollections.ReadModelStoreWith(_projected);
         using var subscriptions = new OrganizationSetupStatusSubscriptions();
-        var published = Substitute.For<IMongoCollection<OrganizationSetupPublished>>();
+        var facts = Substitute.For<IOrganizationSetupPublicationFacts>();
+        facts.Resolve(_id, Arg.Any<OrganizationSetupProgress?>()).Returns(new OrganizationSetupFacts(PublicationProgress.Recorded, "Acme"));
         _ownerResult = await OrganizationSetupAcceptanceStatusView.StatusForRegistration(
-            _id, SignedInAs("sub-1", "github"), subscriptions, store, published);
+            _id, SignedInAs("sub-1", "github"), subscriptions, store, facts);
         _otherResult = await OrganizationSetupAcceptanceStatusView.StatusForRegistration(
-            _id, SignedInAs("sub-1", "other"), subscriptions, store, published);
+            _id, SignedInAs("sub-1", "other"), subscriptions, store, facts);
     }
 
     [Fact] void should_project_the_owner_subject() => Assert.Equal("sub-1", _projected.OwnerSubject?.Value);

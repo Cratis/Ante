@@ -5,7 +5,6 @@
 using Ante.Invitations.Accepting;
 using Ante.Invitations.for_query_access;
 using Ante.Organization.Registration;
-using MongoDB.Driver;
 
 namespace Ante.Invitations.OrganizationSetup.for_OrganizationSetupAcceptanceStatusView.when_getting_registration_status;
 
@@ -18,7 +17,7 @@ public class and_an_anonymous_caller_requests_it : Specification
         var id = InvitationId.New();
         var store = QueryCollections.ReadModelStoreWith(new OrganizationSetupProgress(id, "Acme") { OwnerSubject = (RegistrationOwnerSubject)"sub-1", OwnerProvider = "github" });
         using var subscriptions = new OrganizationSetupStatusSubscriptions();
-        _result = await OrganizationSetupAcceptanceStatusView.StatusForRegistration(id, Substitute.For<ISignedInIdentity>(), subscriptions, store, Substitute.For<IMongoCollection<OrganizationSetupPublished>>());
+        _result = await OrganizationSetupAcceptanceStatusView.StatusForRegistration(id, Substitute.For<ISignedInIdentity>(), subscriptions, store, Substitute.For<IOrganizationSetupPublicationFacts>());
     }
 
     [Fact] void should_look_unknown() => Assert.Equal(OrganizationSetupAcceptanceStatus.Pending, _result.Status);

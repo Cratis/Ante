@@ -3,8 +3,7 @@
 
 #if DEBUG
 using Ante.Invitations.Accepting;
-using Ante.Invitations.for_query_access;
-using MongoDB.Driver;
+using Ante.Outbox;
 
 namespace Ante.Invitations.OrganizationSetup.for_OrganizationSetupAcceptanceStatusView.when_getting_invitation_status;
 
@@ -17,10 +16,11 @@ public class and_the_owner_requests_it : Specification
     {
         var identity = Substitute.For<ISignedInIdentity>();
         identity.IsVerifiedRecoveryOwnerOf(Arg.Any<InvitationId>(), Arg.Any<IEventStore>()).Returns(true);
-        var recorded = QueryCollections.With(new OrganizationSetupProgress(_id, "Acme"));
+        var facts = Substitute.For<IOrganizationSetupPublicationFacts>();
+        facts.Resolve(_id, Arg.Any<OrganizationSetupProgress?>()).Returns(new OrganizationSetupFacts(PublicationProgress.Recorded, "Acme"));
         using var subscriptions = new OrganizationSetupStatusSubscriptions();
         _result = ((BehaviorSubject<OrganizationSetupAcceptanceStatusView>)OrganizationSetupAcceptanceStatusView.StatusForInvitation(
-            _id, identity, subscriptions, recorded, Substitute.For<IMongoCollection<OrganizationSetupPublished>>(), Substitute.For<IEventStore>())).Value;
+            _id, identity, subscriptions, facts, Substitute.For<IEventStore>())).Value;
     }
 
     [Fact] void should_return_the_recorded_status() => Assert.Equal(OrganizationSetupAcceptanceStatus.Recorded, _result.Status);
