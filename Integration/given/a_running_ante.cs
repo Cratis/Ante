@@ -5,6 +5,7 @@ using System.Net;
 using System.Text.Json;
 using Ante.Invitations.Accepting;
 using Ante.Legal;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ante.Integration.given;
 
@@ -159,6 +160,19 @@ public class a_running_ante : Specification
         }
 
         return duringOutage;
+    }
+
+    /// <summary>
+    /// Whether Ante has recorded an acceptance in its event log without its outbox reactor having published it yet.
+    /// </summary>
+    protected async Task<bool> AcceptanceRecordedButNotPublished<TAccepted>(Guid invitationId)
+    {
+        await using var scope = Ante.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IEventStore>();
+        var type = typeof(TAccepted).GetEventType();
+        var recorded = await store.EventLog.GetForEventSourceIdAndEventTypes(invitationId.ToString("D"), [type]);
+        var published = await store.GetEventSequence(EventSequenceId.Outbox).GetForEventSourceIdAndEventTypes(invitationId.ToString("D"), [type]);
+        return recorded.Count == 1 && published.Count == 0;
     }
 
     protected static Guid NewInvitationId() => Guid.NewGuid();
