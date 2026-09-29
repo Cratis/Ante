@@ -14,7 +14,9 @@ namespace Ante.Organization.Registration.for_OrganizationRegistrationOutbox.when
 /// </summary>
 public class and_a_subscription_is_open : a_forward_with_an_open_subscription
 {
-    void Establish() => Watch();
+    List<OrganizationSetupAcceptanceStatus> _observed = null!;
+
+    void Establish() => _observed = Watch();
 
     async Task Because() => await _scenario.Given.ForEventSource(EventSource).Events(_accepted);
 

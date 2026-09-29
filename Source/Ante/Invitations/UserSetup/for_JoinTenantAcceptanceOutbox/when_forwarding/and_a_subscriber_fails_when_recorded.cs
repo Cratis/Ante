@@ -13,12 +13,14 @@ namespace Ante.Invitations.UserSetup.for_JoinTenantAcceptanceOutbox.when_forward
 /// </summary>
 public class and_a_subscriber_fails_when_recorded : a_forward_with_an_open_subscription
 {
+    List<UserSetupAcceptanceStatus> _healthy = null!;
+    List<UserSetupAcceptanceStatus> _failing = null!;
     Exception? _error;
 
     void Establish()
     {
-        Watch();
-        Watch(view =>
+        _healthy = Watch();
+        _failing = Watch(view =>
         {
             if (view.Status == UserSetupAcceptanceStatus.Recorded)
             {
@@ -31,6 +33,7 @@ public class and_a_subscriber_fails_when_recorded : a_forward_with_an_open_subsc
 
     [Fact] void should_not_fail_the_reactor() => _error.ShouldBeNull();
     [Fact] void should_forward_to_the_outbox_once() => VerifyAppendedOnce();
-    [Fact] void should_still_reach_accepted_for_the_watcher_that_did_not_fail() => _observed.ShouldContain(UserSetupAcceptanceStatus.Accepted);
+    [Fact] void should_let_the_healthy_watcher_see_every_status() => Assert.Equal([UserSetupAcceptanceStatus.Pending, UserSetupAcceptanceStatus.Recorded, UserSetupAcceptanceStatus.Accepted], _healthy);
+    [Fact] void should_have_delivered_recorded_to_the_failing_watcher_where_it_threw() => Assert.Contains(UserSetupAcceptanceStatus.Recorded, _failing);
 }
 #endif

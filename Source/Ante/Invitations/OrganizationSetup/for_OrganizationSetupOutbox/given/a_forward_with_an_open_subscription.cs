@@ -23,7 +23,6 @@ public abstract class a_forward_with_an_open_subscription : Specification
         "Acme", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Owner"]);
 
     protected readonly InvitationId _id = InvitationId.New();
-    protected readonly List<OrganizationSetupAcceptanceStatus> _observed = [];
     protected OrganizationSetupStatusSubscriptions _subscriptions = null!;
     protected IEventSequence _outbox = null!;
     protected ReactorScenario<OrganizationSetupOutbox> _scenario = null!;
@@ -62,12 +61,18 @@ public abstract class a_forward_with_an_open_subscription : Specification
 
     void Destroy() => _subscriptions.Dispose();
 
-    protected void Watch(Action<OrganizationSetupAcceptanceStatusView>? onNext = null) =>
+    // Opens a subscription and returns the statuses that watcher observes, kept apart per watcher so one
+    // watcher's view can never stand in for another's.
+    protected List<OrganizationSetupAcceptanceStatus> Watch(Action<OrganizationSetupAcceptanceStatusView>? onNext = null)
+    {
+        var observed = new List<OrganizationSetupAcceptanceStatus>();
         _subscriptions.GetStatus(_id).Subscribe(view =>
         {
-            _observed.Add(view.Status);
+            observed.Add(view.Status);
             onNext?.Invoke(view);
         });
+        return observed;
+    }
 
     protected void VerifyAppendedOnce() =>
         _outbox.Received(1).Append(

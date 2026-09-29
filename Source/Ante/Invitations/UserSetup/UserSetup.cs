@@ -399,7 +399,8 @@ public class UserSetupStatusSubscriptions : IDisposable
     /// without needing to reconnect first.
     /// </summary>
     /// <remarks>
-    /// Never moves a subject that is already <see cref="UserSetupAcceptanceStatus.Accepted"/> back.
+    /// Never moves a subject that is already <see cref="UserSetupAcceptanceStatus.Accepted"/> back, and does
+    /// not emit again for one that is already <see cref="UserSetupAcceptanceStatus.Recorded"/>.
     /// </remarks>
     /// <param name="invitationId">The invitation identifier.</param>
     public void MarkRecorded(InvitationId invitationId) => MarkRecorded(GetOrAdd(invitationId), invitationId);
@@ -454,7 +455,9 @@ public class UserSetupStatusSubscriptions : IDisposable
         // then be overtaken by a Recorded that no longer applies.
         lock (subject)
         {
-            if (subject.Value.Status == UserSetupAcceptanceStatus.Accepted)
+            // Already Recorded is a no-op too - a redelivered or replayed acceptance, or a re-seeding read,
+            // has nothing new to tell a subscriber that already knows.
+            if (subject.Value.Status != UserSetupAcceptanceStatus.Pending)
             {
                 return;
             }

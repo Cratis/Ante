@@ -12,10 +12,12 @@ namespace Ante.Invitations.UserSetup.for_JoinTenantAcceptanceOutbox.when_forward
 /// </summary>
 public class and_the_subscription_was_already_accepted : a_forward_with_an_open_subscription
 {
+    List<UserSetupAcceptanceStatus> _observed = null!;
+
     void Establish()
     {
         _subscriptions.GetStatus(_id, isRecorded: true, isFullyPublished: true);
-        Watch();
+        _observed = Watch();
     }
 
     async Task Because() => await _scenario.Given.ForEventSource(EventSource).Events(_accepted);

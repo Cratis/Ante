@@ -76,7 +76,8 @@ public class OrganizationSetupStatusSubscriptions : IDisposable
     /// resubmit, without needing to reconnect first.
     /// </summary>
     /// <remarks>
-    /// Never moves a subject that is already <see cref="OrganizationSetupAcceptanceStatus.Accepted"/> back.
+    /// Never moves a subject that is already <see cref="OrganizationSetupAcceptanceStatus.Accepted"/> back, and
+    /// does not emit again for one that is already <see cref="OrganizationSetupAcceptanceStatus.Recorded"/>.
     /// </remarks>
     /// <param name="invitationId">The invitation identifier.</param>
     /// <param name="organizationName">The name of the organization that was set up.</param>
@@ -135,7 +136,9 @@ public class OrganizationSetupStatusSubscriptions : IDisposable
         // then be overtaken by a Recorded that no longer applies.
         lock (subject)
         {
-            if (subject.Value.Status == OrganizationSetupAcceptanceStatus.Accepted)
+            // Already Recorded is a no-op too - a redelivered or replayed acceptance, or a re-seeding read,
+            // has nothing new to tell a subscriber that already knows.
+            if (subject.Value.Status != OrganizationSetupAcceptanceStatus.Pending)
             {
                 return;
             }
