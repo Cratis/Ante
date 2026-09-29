@@ -32,6 +32,7 @@ namespace Ante.Integration.given;
 /// <param name="exchangeIndexes">Optional test readiness state for the exchange write boundary.</param>
 /// <param name="signingKeyConfigured">Whether to configure the invitation token keys; false runs Ante as a deployment without a signing key.</param>
 /// <param name="registrationContextKeys">Optional <c>Ante:Registration:ContextKeys</c> allowlist for signup context.</param>
+/// <param name="configureServices">Optional test service overrides applied after Ante's own registrations.</param>
 public sealed class AnteApplication(
     ChronicleInfrastructure infrastructure,
     string eventStore,
@@ -45,7 +46,8 @@ public sealed class AnteApplication(
     string? signingKeyPem = default,
     IExchangeIndexReadiness? exchangeIndexes = default,
     bool signingKeyConfigured = true,
-    IReadOnlyList<string>? registrationContextKeys = default) : WebApplicationFactory<Program>
+    IReadOnlyList<string>? registrationContextKeys = default,
+    Action<IServiceCollection>? configureServices = default) : WebApplicationFactory<Program>
 {
     public const string IdentityProvider = "integration-idp";
 
@@ -207,6 +209,10 @@ public sealed class AnteApplication(
         if (exchangeIndexes is not null)
         {
             builder.ConfigureTestServices(services => services.Replace(ServiceDescriptor.Singleton(exchangeIndexes)));
+        }
+        if (configureServices is not null)
+        {
+            builder.ConfigureTestServices(configureServices);
         }
     }
 
