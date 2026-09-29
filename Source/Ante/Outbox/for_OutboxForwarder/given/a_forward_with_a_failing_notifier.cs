@@ -41,6 +41,9 @@ public abstract class a_forward_with_a_failing_notifier : Specification
 
     protected int LoggedFailures => _logger.ReceivedCalls().Count(call => call.GetMethodInfo().Name == nameof(ILogger.Log));
 
+    protected int LoggedAt(LogLevel level) => _logger.ReceivedCalls()
+        .Count(call => call.GetMethodInfo().Name == nameof(ILogger.Log) && (LogLevel)call.GetArguments()[0]! == level);
+
     void Establish()
     {
         var correlationId = CorrelationId.New();
