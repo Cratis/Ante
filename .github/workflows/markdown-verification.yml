@@ -1,0 +1,36 @@
+name: Markdown Verification
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - "**"
+    paths:
+      - ".github/workflows/markdown-verification.yml"
+      - ".markdownlint.json"
+      - "Documentation/**"
+
+permissions:
+  contents: read
+
+jobs:
+  markdown-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      # The same script contributors run locally. Lint and toc/link/anchor checks
+      # block; external links are reported as a warning and never fail the run.
+      - name: Verify Documentation
+        run: ./Documentation/verify-markdown.sh
