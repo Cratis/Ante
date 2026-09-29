@@ -82,6 +82,26 @@ public sealed class AnteApplication(
         return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>Opens the actual Arc per-query SSE transport with the invitee's forwarded identity.</summary>
+    public async Task<StatusStream> WatchInvitationStatus(Guid invitationId, string subject)
+    {
+        var client = CreateClient();
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/invitations/user-setup/status-for-invitation?invitationId={invitationId:D}");
+            request.Headers.Accept.ParseAdd("text/event-stream");
+            AddForwardedIdentity(request, subject, subject, attestedExchange);
+            var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+            return new StatusStream(client, response);
+        }
+        catch
+        {
+            client.Dispose();
+            throw;
+        }
+    }
+
     /// <summary>
     /// What the authentication proxy does after the invitee's OIDC login: exchange the invitation token for a session.
     /// </summary>
