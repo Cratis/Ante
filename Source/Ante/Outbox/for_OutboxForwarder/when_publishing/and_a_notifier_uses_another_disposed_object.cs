@@ -15,7 +15,7 @@ public class and_a_notifier_uses_another_disposed_object : a_forward_with_a_fail
 {
     protected override Exception NotifierFailure => new ObjectDisposedException("MyServiceProviderClient");
 
-    async Task Because() => _error = await Cratis.Specifications.Catch.Exception(() => _eventStore.PublishToOutbox(_context, _event, [_failingNotifier, _nextNotifier], _logger));
+    async Task Because() => _error = await Cratis.Specifications.Catch.Exception(() => _eventStore.PublishToOutbox(Deliveries.Of(_context), _context, _event, [_failingNotifier, _nextNotifier], _logger));
 
     [Fact] void should_complete_the_forward() => _error.ShouldBeNull();
     [Fact] void should_log_it_as_a_warning() => LoggedAt(LogLevel.Warning).ShouldEqual(1);

@@ -13,6 +13,6 @@ public class and_a_revocation_has_a_non_guid_id : a_rejection_ready_inbox
         .Events(new InvitationRevoked());
 
     [Fact] void should_not_record_a_revocation() => Assert.Empty(Scenario.Produced);
-    [Fact] void should_not_publish_a_rejection() => Assert.Empty(Outbox.ReceivedCalls());
+    [Fact] void should_not_publish_a_rejection() => Assert.DoesNotContain(Outbox.ReceivedCalls(), call => call.GetMethodInfo().Name == nameof(IEventSequence.Append));
 }
 #endif

@@ -16,7 +16,7 @@ public class and_the_host_is_stopping_while_a_notifier_runs : a_forward_with_a_f
 {
     protected override Exception NotifierFailure => new ObjectDisposedException("IServiceProvider");
 
-    async Task Because() => _error = await Cratis.Specifications.Catch.Exception(() => _eventStore.PublishToOutbox(_context, _event, [_failingNotifier, _nextNotifier], _logger));
+    async Task Because() => _error = await Cratis.Specifications.Catch.Exception(() => _eventStore.PublishToOutbox(Deliveries.Of(_context), _context, _event, [_failingNotifier, _nextNotifier], _logger));
 
     [Fact] void should_complete_the_forward() => _error.ShouldBeNull();
     [Fact] async Task should_still_give_the_next_notifier_its_chance() => await _nextNotifier.Received(1).NotifyIfPublished(Arg.Is<EventSourceId>(id => id.Value == _invitationId.Value));

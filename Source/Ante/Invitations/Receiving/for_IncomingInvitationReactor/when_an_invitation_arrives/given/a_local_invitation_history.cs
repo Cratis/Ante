@@ -84,9 +84,11 @@ public class a_local_invitation_history : Specification
         Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance,
         exchange: Options.Create(new InvitationExchangeConfig { Mode = InvitationExchangeMode.Attested }));
 
-    protected void ShouldRejectReusedId() => Assert.IsType<InvitationRejected>(Assert.Single(Outbox.ReceivedCalls()).GetArguments()[1])
+    protected IEnumerable<NSubstitute.Core.ICall> OutboxAppends => Outbox.ReceivedCalls().Where(call => call.GetMethodInfo().Name == nameof(IEventSequence.Append));
+
+    protected void ShouldRejectReusedId() => Assert.IsType<InvitationRejected>(Assert.Single(OutboxAppends).GetArguments()[1])
         .Reason.ShouldEqual(InvitationRejectionReason.InvitationIdReused);
 
-    protected void ShouldNotReject() => Assert.Empty(Outbox.ReceivedCalls());
+    protected void ShouldNotReject() => Assert.DoesNotContain(Outbox.ReceivedCalls(), call => call.GetMethodInfo().Name == nameof(IEventSequence.Append));
 }
 #endif

@@ -5,6 +5,7 @@
 using Ante.Contracts.Legal;
 using Ante.Invitations.UserSetup;
 using Ante.Legal;
+using Ante.Outbox.for_OutboxForwarder.given;
 using Cratis.Types;
 
 namespace Ante.Outbox.for_OutboxForwarder.when_publishing;
@@ -16,8 +17,8 @@ namespace Ante.Outbox.for_OutboxForwarder.when_publishing;
 /// <remarks>
 /// This does not guard the concurrency race from Cratis/Ante#73: EventScenario never applies an
 /// optimistic concurrency strategy, so appends here run unchecked with or without the fix. That
-/// regression is guarded by the explicit <c language="csharp">ConcurrencyScope.None</c> assertion in
-/// <c language="csharp">and_the_append_succeeds</c>.
+/// regression is guarded by the scope assertion in <c language="csharp">and_the_append_succeeds</c>: each
+/// forward's scope covers only its own fact type, so the two reactors never contend.
 /// </remarks>
 public class and_two_reactors_forward_for_the_same_event_source : Specification
 {
@@ -38,8 +39,8 @@ public class and_two_reactors_forward_for_the_same_event_source : Specification
         var context = EventContext.Empty with { EventSourceId = _id };
 
         await Task.WhenAll(
-            new JoinTenantAcceptanceOutbox(eventStore, notifiers, Microsoft.Extensions.Logging.Abstractions.NullLogger<JoinTenantAcceptanceOutbox>.Instance).On(_acceptance, context),
-            new LegalTermsAcceptanceOutbox(eventStore, notifiers, Microsoft.Extensions.Logging.Abstractions.NullLogger<LegalTermsAcceptanceOutbox>.Instance).On(_legal, context));
+            new JoinTenantAcceptanceOutbox(eventStore, notifiers, Microsoft.Extensions.Logging.Abstractions.NullLogger<JoinTenantAcceptanceOutbox>.Instance).On(_acceptance, context, Deliveries.Of(context)),
+            new LegalTermsAcceptanceOutbox(eventStore, notifiers, Microsoft.Extensions.Logging.Abstractions.NullLogger<LegalTermsAcceptanceOutbox>.Instance).On(_legal, context, Deliveries.Of(context with { SequenceNumber = 1 })));
 
         _forwarded = await _scenario.EventSequence.GetFromSequenceNumber(EventSequenceNumber.First);
     }

@@ -3,7 +3,6 @@
 
 using Ante.Outbox;
 using Cratis.Chronicle.EventSequences.Concurrency;
-using Cratis.Chronicle.Reactors;
 
 namespace Ante.Invitations.Receiving;
 
@@ -66,17 +65,5 @@ internal static class InvitationTokenOutbox
     /// <param name="deliveries">The local event log sequence numbers whose handling concludes the trigger.</param>
     /// <returns>True when the trigger is concluded.</returns>
     internal static bool IsConcluded(IEnumerable<AppendedEvent> published, IReadOnlyCollection<EventSequenceNumber> deliveries) =>
-        published.Any(entry => CausingDelivery(entry.Context) is { } delivery && deliveries.Contains(delivery));
-
-    static EventSequenceNumber? CausingDelivery(EventContext context)
-    {
-        var cause = context.Causation?.LastOrDefault(causation => causation.Type == ReactorHandler.CausationType);
-        return cause is not null &&
-            cause.Properties.TryGetValue(ReactorHandler.CausationEventSequenceIdProperty, out var sequence) &&
-            sequence == EventSequenceId.Log.Value &&
-            cause.Properties.TryGetValue(ReactorHandler.CausationEventSequenceNumberProperty, out var number) &&
-            ulong.TryParse(number, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var value)
-            ? new EventSequenceNumber(value)
-            : null;
-    }
+        published.Any(entry => ReactorCausation.CausingDelivery(entry.Context, EventSequenceId.Log) is { } delivery && deliveries.Contains(delivery));
 }
