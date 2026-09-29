@@ -36,6 +36,8 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
     const ushort HttpPort = 8080;
     const ushort MongoDBPort = 27017;
 
+    const int MaxStartAttempts = 3;
+
     IContainer? _container;
     int _chroniclePort;
     int _mongoDBPort;
@@ -72,11 +74,39 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
         // Client-only Mongo tests run before any Ante host starts; use the same concept map.
         InvitationMongoSerialization.EnsureConfigured();
 
+        // A free port is only known to be free when it is picked: it is released before Docker binds it, so another
+        // process can take it in between. Such a container fails to start; a new one with freshly picked ports is
+        // tried instead. Any other failure is not retried.
+        for (var attempt = 1; ; attempt++)
+        {
+            var container = CreateContainer();
+            try
+            {
+                await container.StartAsync();
+                _container = container;
+                Current = this;
+                return;
+            }
+            catch (Exception exception) when (attempt < MaxStartAttempts && IsPortBindFailure(exception))
+            {
+                await Console.Error.WriteLineAsync(
+                    $"Chronicle container start attempt {attempt} of {MaxStartAttempts} could not bind its ports ({_chroniclePort}, {_mongoDBPort}); retrying with new ports.");
+                await container.DisposeAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Creates the container with freshly picked host ports. The ports stay with that container, so stopping and
+    /// starting it (<see cref="StopChronicle"/>/<see cref="StartChronicle"/>) keeps its address.
+    /// </summary>
+    IContainer CreateContainer()
+    {
         // Docker picks new random host ports when a stopped container starts again; bind free ones explicitly.
         var reserved = new HashSet<int>();
         _chroniclePort = FreePort(reserved);
         _mongoDBPort = FreePort(reserved);
-        _container = new ContainerBuilder(Image)
+        return new ContainerBuilder(Image)
             .WithPortBinding(_chroniclePort, ChroniclePort)
             .WithPortBinding(FreePort(reserved), HttpPort)
             .WithPortBinding(_mongoDBPort, MongoDBPort)
@@ -86,9 +116,15 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
                 .UntilInternalTcpPortIsAvailable(MongoDBPort)
                 .AddCustomWaitStrategy(new ChronicleHealthWait(ChroniclePort, HttpPort)))
             .Build();
+    }
 
-        await _container.StartAsync();
-        Current = this;
+    // Docker reports a host port taken as "port is already allocated" or "address already in use"; a failed start's
+    // exception carries the container's log, where the kernel reports the same as "address already in use".
+    static bool IsPortBindFailure(Exception exception)
+    {
+        var description = exception.ToString();
+        return description.Contains("address already in use", StringComparison.OrdinalIgnoreCase) ||
+            description.Contains("port is already allocated", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
