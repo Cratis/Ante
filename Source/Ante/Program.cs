@@ -79,10 +79,7 @@ builder.Services.Configure<IdentityProviderOptions>(builder.Configuration.GetSec
 builder.Services.AddSingleton<IIdentityProviderResolver, IdentityProviderResolver>();
 builder.Services.AddSingleton<IInvitationTokenIssuer, InvitationTokenIssuer>();
 builder.Services.AddSingleton<IInvitationTokenValidator, InvitationTokenValidator>();
-builder.Services.AddSingleton<IInvitationTokenUpgradeWindow>(services => InvitationTokenUpgradeWindow.Load(
-    services.GetRequiredService<MongoDB.Driver.IMongoCollection<Ante.Invitations.Accepting.AcceptedInvitation>>().Database,
-    DateTimeOffset.UtcNow,
-    invitationTokenOptions.Expiry).GetAwaiter().GetResult());
+builder.Services.AddInvitationTokenUpgradeWindow(invitationTokenOptions.Expiry);
 builder.Services.AddSingleton<InvitationAttestationVerifier>();
 builder.Services.AddScoped<AttestedInvitationStaging>();
 builder.Services.AddScoped<AttestedInvitationCompletion>();

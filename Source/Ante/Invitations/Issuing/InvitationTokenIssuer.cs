@@ -82,6 +82,8 @@ public static class InvitationClaims
 /// </summary>
 public class InvitationTokenConfig
 {
+    bool? _issuerOrAudienceConfigured;
+
     /// <summary>
     /// Gets or sets the PEM-encoded RSA private key tokens are signed with.
     /// </summary>
@@ -113,9 +115,19 @@ public class InvitationTokenConfig
     public string Audience { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets a value indicating whether an issuer or audience was configured explicitly, as opposed to derived
+    /// from the deployment. Fixed when defaults are applied (see <see cref="InvitationTokenIsolation.ApplyDefaults"/>),
+    /// so it keeps its meaning after <see cref="Issuer"/> and <see cref="Audience"/> are filled in. A deployment that
+    /// configured either never accepts tokens without issuer and audience.
+    /// </summary>
+    public bool IssuerOrAudienceConfigured => _issuerOrAudienceConfigured ?? (!string.IsNullOrWhiteSpace(Issuer) || !string.IsNullOrWhiteSpace(Audience));
+
+    /// <summary>
     /// Gets or sets how long an issued token remains valid.
     /// </summary>
     public TimeSpan Expiry { get; set; } = TimeSpan.FromDays(7);
+
+    internal void RememberConfiguredIssuerAndAudience() => _issuerOrAudienceConfigured ??= IssuerOrAudienceConfigured;
 }
 
 /// <summary>
