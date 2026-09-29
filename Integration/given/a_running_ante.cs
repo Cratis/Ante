@@ -125,6 +125,42 @@ public class a_running_ante : Specification
             what: "the restarted Ante's readiness (/healthz/ready)");
     }
 
+    /// <summary>
+    /// Stops the Chronicle kernel under the running Ante and hosts and starts it again - a kernel upgrade or crash -
+    /// then waits until Ante is ready and every host has reconnected.
+    /// </summary>
+    /// <remarks>
+    /// Readiness has to be seen dropping first: a readiness probe that never saw the outage proves nothing about
+    /// recovery. The kernel is always started again, so a failure here does not strand the rest of the collection.
+    /// </remarks>
+    /// <returns>Ante's readiness status observed during the outage.</returns>
+    protected async Task<HttpStatusCode> RestartChronicle()
+    {
+        using var client = Ante.CreateClient();
+        var duringOutage = HttpStatusCode.OK;
+        try
+        {
+            await Infrastructure.StopChronicle();
+            await Eventually.Until(
+                async () => (duringOutage = (await client.GetAsync("/healthz/ready")).StatusCode) != HttpStatusCode.OK,
+                what: "Ante losing readiness while the kernel is down");
+        }
+        finally
+        {
+            await Infrastructure.StartChronicle();
+        }
+
+        await Eventually.Until(
+            async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
+            what: "Ante's readiness after the kernel restart (/healthz/ready)");
+        foreach (var host in Hosts.Values)
+        {
+            await host.WaitUntilConnected();
+        }
+
+        return duringOutage;
+    }
+
     protected static Guid NewInvitationId() => Guid.NewGuid();
 
     /// <summary>

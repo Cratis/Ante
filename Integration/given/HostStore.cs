@@ -3,6 +3,7 @@
 
 using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
+using Cratis.Chronicle.Connections;
 using Cratis.Chronicle.EventStoreSubscriptions;
 using Cratis.Chronicle.Registrations;
 using Cratis.Serialization;
@@ -107,6 +108,31 @@ public sealed class HostStore : IAsyncDisposable
             throw new TimeoutException($"{timeout_.Message} Received so far: [{seen}].", timeout_);
         }
     }
+
+    /// <summary>
+    /// Waits until this host's client reaches the kernel again after a kernel restart.
+    /// </summary>
+    /// <remarks>
+    /// While the kernel is down the client's watchdog keeps reconnecting in the background, and a call made within
+    /// the back-off after a failed attempt fails at once with <see cref="ConnectionUnavailable"/> - the client asks
+    /// the caller to retry. A host keeps working after an outage by retrying; so does this.
+    /// </remarks>
+    /// <returns>Awaitable task.</returns>
+    public Task WaitUntilConnected() =>
+        Eventually.Until(
+            async () =>
+            {
+                try
+                {
+                    await ReceivedFromAnte("connection-probe");
+                    return true;
+                }
+                catch (ConnectionUnavailable)
+                {
+                    return false;
+                }
+            },
+            what: $"host {Name} reconnecting to the restarted kernel");
 
     public async ValueTask DisposeAsync()
     {
