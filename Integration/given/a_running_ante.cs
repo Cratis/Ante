@@ -22,6 +22,7 @@ public class a_running_ante : Specification
     protected readonly string Suffix = Guid.NewGuid().ToString("N")[..8];
     protected AnteApplication Ante;
     protected Dictionary<string, HostStore> Hosts = new(StringComparer.Ordinal);
+    readonly List<AnteApplication> _otherInstances = [];
 
     protected HostStore Host => Hosts.Values.First();
 
@@ -53,6 +54,11 @@ public class a_running_ante : Specification
     /// </summary>
     protected virtual IReadOnlyList<string>? RegistrationContextKeys => null;
 
+    /// <summary>
+    /// Gets optional test service overrides applied to every Ante instance this spec starts; none by default.
+    /// </summary>
+    protected virtual Action<IServiceCollection>? ConfigureServices => null;
+
     protected string LegalDocumentSetId => $"legal-documents-{Suffix}";
 
     protected string AnteStoreName => $"Ante{Suffix}";
@@ -75,7 +81,8 @@ public class a_running_ante : Specification
             AcceptanceFenceFactory,
             exchangeIndexes: ExchangeIndexes,
             signingKeyConfigured: SigningKeyConfigured,
-            registrationContextKeys: RegistrationContextKeys);
+            registrationContextKeys: RegistrationContextKeys,
+            configureServices: ConfigureServices);
 
         // Startup registers the runtime inbox reactors and subscriptions; readiness includes their kernel state.
         using var client = Ante.CreateClient();
@@ -91,10 +98,47 @@ public class a_running_ante : Specification
             await host.DisposeAsync();
         }
 
+        foreach (var instance in _otherInstances)
+        {
+            await instance.DisposeAsync();
+        }
+
         if (Ante is not null)
         {
             await Ante.DisposeAsync();
         }
+    }
+
+    /// <summary>
+    /// Starts another Ante instance beside <see cref="Ante"/> - a second replica on the same Chronicle event store and
+    /// namespace, MongoDB database, host stores, configuration and signing key - and waits until it is ready.
+    /// </summary>
+    /// <remarks>The instance is disposed with the spec; disposing it earlier, to stop it, is safe.</remarks>
+    /// <param name="signingKeyConfigured">Whether the instance has a signing key; by default the same as <see cref="Ante"/>.</param>
+    /// <param name="configureServices">Optional test service overrides for this instance; by default <see cref="ConfigureServices"/>.</param>
+    /// <returns>The ready instance.</returns>
+    protected async Task<AnteApplication> StartAnotherInstance(bool? signingKeyConfigured = default, Action<IServiceCollection>? configureServices = default)
+    {
+        var instance = new AnteApplication(
+            Infrastructure,
+            AnteStoreName,
+            HostStoreNames,
+            LegalDocuments,
+            AttestedExchange,
+            UseLegalInbox ? LegalDocumentSetId : null,
+            LegalDocumentFactory,
+            AcceptanceFenceFactory,
+            signingKeyPem: Ante.AttestationPrivateKeyPem,
+            exchangeIndexes: ExchangeIndexes,
+            signingKeyConfigured: signingKeyConfigured ?? Ante.SigningKeyConfigured,
+            registrationContextKeys: RegistrationContextKeys,
+            configureServices: configureServices ?? ConfigureServices);
+        _otherInstances.Add(instance);
+        using var client = instance.CreateClient();
+        await Eventually.Until(
+            async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
+            what: "another Ante instance's readiness (/healthz/ready)");
+        return instance;
     }
 
     /// <summary>
@@ -126,7 +170,8 @@ public class a_running_ante : Specification
             signingKeyPem: signingKey,
             exchangeIndexes: ExchangeIndexes,
             signingKeyConfigured: configured,
-            registrationContextKeys: RegistrationContextKeys);
+            registrationContextKeys: RegistrationContextKeys,
+            configureServices: ConfigureServices);
         using var client = Ante.CreateClient();
         await Eventually.Until(
             async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
@@ -218,12 +263,12 @@ public class a_running_ante : Specification
     /// Throws with the last command result when it never succeeds, so a rejected command is not mistaken for a
     /// delivery that never arrived.
     /// </summary>
-    protected async Task<JsonDocument> ExecuteOnceProjected(string route, object command, string subject, string? email = default, Guid? correlationId = default)
+    protected async Task<JsonDocument> ExecuteOnceProjected(string route, object command, string subject, string? email = default, Guid? correlationId = default, AnteApplication? through = default)
     {
         var deadline = DateTimeOffset.UtcNow + Eventually.DefaultTimeout;
         while (true)
         {
-            var result = await Ante.Execute(route, command, subject, email, correlationId);
+            var result = await (through ?? Ante).Execute(route, command, subject, email, correlationId);
             if (IsSuccess(result))
             {
                 return result;
