@@ -32,7 +32,7 @@ public class and_the_following_request_has_legacy_provider_claims : Specificatio
             resolver,
             fixture.Validator(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
-            fixture.Indexes) == InviteExchangeOutcome.Accepted;
+            fixture.Indexes);
         var requestProvider = ForwardedIdentityProvider.Resolve(
             [
                 new KeyValuePair<string, string>(claimType, "GitHub"),
@@ -40,7 +40,7 @@ public class and_the_following_request_has_legacy_provider_claims : Specificatio
             ],
             resolver);
 
-        Assert.True(exchanged);
+        exchanged.ShouldEqual(InviteExchangeOutcome.Accepted);
         Assert.Equal("GitHub", requestProvider);
         await fixture.Collection.Received(1).ReplaceOneAsync(
             Arg.Any<FilterDefinition<AcceptedInvitation>>(),

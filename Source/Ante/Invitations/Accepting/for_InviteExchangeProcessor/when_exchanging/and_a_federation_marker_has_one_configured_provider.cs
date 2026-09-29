@@ -11,7 +11,7 @@ namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging
 public class and_a_federation_marker_has_one_configured_provider : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
-    bool _result;
+    InviteExchangeOutcome _result;
 
     async Task Because()
     {
@@ -26,10 +26,10 @@ public class and_a_federation_marker_has_one_configured_provider : Specification
             resolver,
             _fixture.Validator(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
-            _fixture.Indexes) == InviteExchangeOutcome.Accepted;
+            _fixture.Indexes);
     }
 
-    [Fact] void should_accept_the_token() => Assert.True(_result);
+    [Fact] void should_accept_the_token() => _result.ShouldEqual(InviteExchangeOutcome.Accepted);
     [Fact] void should_record_the_provider_that_later_requests_infer() =>
         _fixture.Collection.Received(1).ReplaceOneAsync(
             Arg.Any<FilterDefinition<AcceptedInvitation>>(),

@@ -18,6 +18,26 @@ internal static class an_index_error
     public static MongoCommandException Command(int code) =>
         new(_connection, "index command failed", [], new BsonDocument("code", code));
 
+    public static MongoAuthenticationException Authentication() =>
+        new(_connection, "authentication failed");
+
+    public static MongoConnectionException Connection() =>
+        new(_connection, "connection refused");
+
+    public static MongoConfigurationException Configuration() =>
+        new("invalid connection settings");
+
+    public static MongoIncompatibleDriverException IncompatibleDriver() =>
+        new(new ClusterDescription(
+            new ClusterId(),
+            false,
+            null,
+            ClusterType.Unknown,
+            [new ServerDescription(new ServerId(new ClusterId(), new DnsEndPoint("localhost", 27017)), new DnsEndPoint("localhost", 27017))]));
+
+    public static MongoWriteConcernException WriteConcern() =>
+        new(_connection, "write concern failed", new WriteConcernResult([]));
+
     public static MongoNotPrimaryException NotPrimary() =>
         new(_connection, [], new BsonDocument("code", 10107));
 

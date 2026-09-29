@@ -55,14 +55,14 @@ internal sealed class InvitationTokenFixture
 
     public IInvitationTokenValidator Validator() => new InvitationTokenValidator(Options.Create(Config), Microsoft.Extensions.Logging.Abstractions.NullLogger<InvitationTokenValidator>.Instance, InvitationTokenUpgradeWindow.Closed);
 
-    public async Task<bool> Exchange(string token) => await InviteExchangeProcessor.TryStoreAcceptedInvitation(
+    public Task<InviteExchangeOutcome> Exchange(string token) => InviteExchangeProcessor.TryStoreAcceptedInvitation(
         $"Bearer {token}",
         new ExchangeInviteRequest("subject-123", "github", null, null),
         Collection,
         Resolver,
         Validator(),
         Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
-        Indexes) == InviteExchangeOutcome.Accepted;
+        Indexes);
 
     sealed class ReadyIndexes : IExchangeIndexReadiness
     {

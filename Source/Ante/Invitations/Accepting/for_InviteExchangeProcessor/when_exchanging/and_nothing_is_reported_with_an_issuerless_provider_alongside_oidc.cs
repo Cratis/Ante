@@ -10,7 +10,7 @@ namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging
 public class and_nothing_is_reported_with_an_issuerless_provider_alongside_oidc : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
-    bool _result;
+    InviteExchangeOutcome _result;
 
     async Task Because()
     {
@@ -29,10 +29,10 @@ public class and_nothing_is_reported_with_an_issuerless_provider_alongside_oidc 
             resolver,
             _fixture.Validator(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
-            _fixture.Indexes) == InviteExchangeOutcome.Accepted;
+            _fixture.Indexes);
     }
 
-    [Fact] void should_reject_the_exchange() => Assert.False(_result);
+    [Fact] void should_reject_the_exchange() => _result.ShouldEqual(InviteExchangeOutcome.Rejected);
     [Fact] void should_not_record_a_session() => Assert.Empty(_fixture.Collection.ReceivedCalls());
 }
 #endif

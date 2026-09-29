@@ -13,7 +13,7 @@ namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging
 public class and_the_public_key_is_used_as_an_hmac_secret : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
-    bool _result;
+    InviteExchangeOutcome _result;
 
     async Task Because()
     {
@@ -30,7 +30,7 @@ public class and_the_public_key_is_used_as_an_hmac_secret : Specification
         _result = await _fixture.Exchange(token);
     }
 
-    [Fact] void should_fail() => Assert.False(_result);
+    [Fact] void should_fail() => _result.ShouldEqual(InviteExchangeOutcome.Rejected);
     [Fact] void should_not_record_a_session() => Assert.Empty(_fixture.Collection.ReceivedCalls());
 }
 #endif

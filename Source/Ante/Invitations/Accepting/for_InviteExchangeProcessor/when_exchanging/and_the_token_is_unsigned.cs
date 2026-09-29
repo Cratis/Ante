@@ -7,11 +7,11 @@ namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging
 public class and_the_token_is_unsigned : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
-    bool _result;
+    InviteExchangeOutcome _result;
 
     async Task Because() => _result = await _fixture.Exchange(_fixture.Token(unsigned: true));
 
-    [Fact] void should_fail() => Assert.False(_result);
+    [Fact] void should_fail() => _result.ShouldEqual(InviteExchangeOutcome.Rejected);
     [Fact] void should_not_record_a_session() => Assert.Empty(_fixture.Collection.ReceivedCalls());
 }
 #endif

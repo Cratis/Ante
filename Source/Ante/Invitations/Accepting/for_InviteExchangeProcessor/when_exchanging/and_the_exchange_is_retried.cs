@@ -9,8 +9,8 @@ namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging
 public class and_the_exchange_is_retried : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
-    bool _firstResult;
-    bool _secondResult;
+    InviteExchangeOutcome _firstResult;
+    InviteExchangeOutcome _secondResult;
 
     async Task Because()
     {
@@ -19,7 +19,8 @@ public class and_the_exchange_is_retried : Specification
         _secondResult = await _fixture.Exchange(token);
     }
 
-    [Fact] void should_succeed_both_times() => Assert.True(_firstResult && _secondResult);
+    [Fact] void should_succeed_the_first_time() => _firstResult.ShouldEqual(InviteExchangeOutcome.Accepted);
+    [Fact] void should_succeed_the_second_time() => _secondResult.ShouldEqual(InviteExchangeOutcome.Accepted);
 
     [Fact]
     void should_establish_the_same_session_both_times() =>

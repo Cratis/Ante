@@ -11,7 +11,7 @@ namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging
 public class and_canonical_identity_is_unconfigured_but_legacy_claim_is_configured : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
-    bool _exchanged;
+    InviteExchangeOutcome _exchanged;
     string _requestProvider = string.Empty;
 
     async Task Because()
@@ -27,7 +27,7 @@ public class and_canonical_identity_is_unconfigured_but_legacy_claim_is_configur
             resolver,
             _fixture.Validator(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
-            _fixture.Indexes) == InviteExchangeOutcome.Accepted;
+            _fixture.Indexes);
         _requestProvider = ForwardedIdentityProvider.Resolve(
         [
             new("urn:cratis:identity:provider-key", "unconfigured-key"),
@@ -37,7 +37,7 @@ public class and_canonical_identity_is_unconfigured_but_legacy_claim_is_configur
         resolver);
     }
 
-    [Fact] void should_accept_the_unconfigured_canonical_provider_without_substituting_the_legacy_provider() => _exchanged.ShouldBeTrue();
+    [Fact] void should_accept_the_unconfigured_canonical_provider_without_substituting_the_legacy_provider() => _exchanged.ShouldEqual(InviteExchangeOutcome.Accepted);
     [Fact] void should_resolve_the_same_provider_on_following_requests() => _requestProvider.ShouldEqual("unconfigured-key");
     [Fact] async Task should_record_that_provider_at_exchange() => await _fixture.Collection.Received(1).ReplaceOneAsync(
         Arg.Any<FilterDefinition<AcceptedInvitation>>(),

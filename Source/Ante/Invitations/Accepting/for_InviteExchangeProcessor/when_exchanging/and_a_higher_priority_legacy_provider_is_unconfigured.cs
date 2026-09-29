@@ -12,7 +12,7 @@ namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging
 public class and_a_higher_priority_legacy_provider_is_unconfigured : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
-    bool _exchanged;
+    InviteExchangeOutcome _exchanged;
     string _requestProvider = string.Empty;
 
     async Task Because()
@@ -28,7 +28,7 @@ public class and_a_higher_priority_legacy_provider_is_unconfigured : Specificati
             resolver,
             _fixture.Validator(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
-            _fixture.Indexes) == InviteExchangeOutcome.Accepted;
+            _fixture.Indexes);
         _requestProvider = ForwardedIdentityProvider.Resolve(
             [
                 new KeyValuePair<string, string>("iss", "UnconfiguredIssuer"),
@@ -38,7 +38,7 @@ public class and_a_higher_priority_legacy_provider_is_unconfigured : Specificati
             resolver);
     }
 
-    [Fact] void should_keep_the_exchange_provider_unresolved() => Assert.True(_exchanged);
+    [Fact] void should_keep_the_exchange_provider_unresolved() => _exchanged.ShouldEqual(InviteExchangeOutcome.Accepted);
     [Fact] void should_not_replace_the_unconfigured_issuer_with_a_configured_lower_priority_claim() => Assert.Equal("UnconfiguredIssuer", _requestProvider);
     [Fact] void should_attribute_the_exchange_and_the_following_request_to_the_same_provider() =>
         _fixture.Collection.Received(1).ReplaceOneAsync(

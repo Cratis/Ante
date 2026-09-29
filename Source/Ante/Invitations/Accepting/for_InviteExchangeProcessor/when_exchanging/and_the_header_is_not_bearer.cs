@@ -9,7 +9,7 @@ namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging
 public class and_the_header_is_not_bearer : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
-    bool _result;
+    InviteExchangeOutcome _result;
 
     async Task Because() => _result = await InviteExchangeProcessor.TryStoreAcceptedInvitation(
         "Basic dXNlcjpwYXNz",
@@ -18,9 +18,9 @@ public class and_the_header_is_not_bearer : Specification
         _fixture.Resolver,
         _fixture.Validator(),
         Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
-        _fixture.Indexes) == InviteExchangeOutcome.Accepted;
+        _fixture.Indexes);
 
-    [Fact] void should_fail() => Assert.False(_result);
+    [Fact] void should_fail() => _result.ShouldEqual(InviteExchangeOutcome.Rejected);
     [Fact] void should_not_record_anything() => Assert.Empty(_fixture.Collection.ReceivedCalls());
 }
 #endif

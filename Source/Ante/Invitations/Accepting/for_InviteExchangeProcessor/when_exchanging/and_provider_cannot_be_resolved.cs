@@ -8,7 +8,7 @@ namespace Ante.Invitations.Accepting.for_InviteExchangeProcessor.when_exchanging
 public class and_provider_cannot_be_resolved : Specification
 {
     readonly InvitationTokenFixture _fixture = new();
-    bool _result;
+    InviteExchangeOutcome _result;
 
     async Task Because()
     {
@@ -20,10 +20,10 @@ public class and_provider_cannot_be_resolved : Specification
             _fixture.Resolver,
             _fixture.Validator(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<InviteExchangeBypassMiddleware>.Instance,
-            _fixture.Indexes) == InviteExchangeOutcome.Accepted;
+            _fixture.Indexes);
     }
 
-    [Fact] void should_reject_the_exchange() => Assert.False(_result);
+    [Fact] void should_reject_the_exchange() => _result.ShouldEqual(InviteExchangeOutcome.Rejected);
     [Fact] void should_not_store_a_session() => Assert.Empty(_fixture.Collection.ReceivedCalls());
 }
 #endif
