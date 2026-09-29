@@ -54,9 +54,23 @@ public class and_ante_and_host_remain_running : a_running_ante
             _owner);
         _accepted = await Host.WaitForFromAnte<InvitationToJoinTenantAccepted>(_watchedInvitationId.ToString());
         var deadline = DateTimeOffset.UtcNow + Eventually.DefaultTimeout;
-        while (_terminalStatus != 2 && DateTimeOffset.UtcNow < deadline)
+        while (_terminalStatus != 2)
         {
-            _terminalStatus = Status(await _stream.Next(deadline - DateTimeOffset.UtcNow));
+            var remaining = deadline - DateTimeOffset.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                break;
+            }
+
+            try
+            {
+                _terminalStatus = Status(await _stream.Next(remaining));
+            }
+            catch (OperationCanceledException)
+            {
+                // The subscription delivered nothing more in time: the assertion reports it.
+                break;
+            }
         }
     }
 
