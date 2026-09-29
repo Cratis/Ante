@@ -28,6 +28,7 @@ namespace Ante.Integration.given;
 /// <param name="legalDocumentFactory">Optional scoped test source wrapping the inbox implementation.</param>
 /// <param name="acceptanceFenceFactory">Optional scoped test fence for a deterministic revocation race.</param>
 /// <param name="chronicleConnectionString">Optional endpoint override to exercise an unavailable Chronicle.</param>
+/// <param name="signingKeyPem">Optional signing key, so a restarted instance keeps its predecessor's key.</param>
 public sealed class AnteApplication(
     ChronicleInfrastructure infrastructure,
     string eventStore,
@@ -37,7 +38,8 @@ public sealed class AnteApplication(
     string? legalDocumentSetId = default,
     Func<IServiceProvider, ILegalDocumentSource>? legalDocumentFactory = default,
     Func<IServiceProvider, IInvitationAcceptanceFence>? acceptanceFenceFactory = default,
-    string? chronicleConnectionString = default) : WebApplicationFactory<Program>
+    string? chronicleConnectionString = default,
+    string? signingKeyPem = default) : WebApplicationFactory<Program>
 {
     public const string IdentityProvider = "integration-idp";
 
@@ -45,7 +47,7 @@ public sealed class AnteApplication(
     public string EventStore { get; } = eventStore;
 
     /// <summary>The private test key corresponding to the attestation verifier's pinned public key.</summary>
-    public string AttestationPrivateKeyPem { get; } = CreateSigningKey();
+    public string AttestationPrivateKeyPem { get; } = signingKeyPem ?? CreateSigningKey();
 
     static string CreateSigningKey()
     {

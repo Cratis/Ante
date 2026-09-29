@@ -35,6 +35,10 @@ If status is `Pending`, check that the invitation was received and its pending p
 
 Keep the operator view in the host console, where the host can authorize staff and scope results to its tenants. Today Ante offers `/healthz` and Mongo/inbox `/healthz/ready`, owner-scoped status queries, Chronicle inbox/event-log/outbox and observer partition state, and application logs for diagnosis; it has no consolidated operator dashboard or service diagnostics endpoint. Token publication does not mean the host sent or delivered mail. A narrow read-only, service-authenticated diagnostics API is planned in [Ante #62](https://github.com/Cratis/Ante/issues/62); do not use invitee status queries as an operator API.
 
+## Restarts
+
+Ante keeps no onboarding state in memory that a restart can lose. The integration suite restarts Ante on the same stores and signing key and verifies that an invitation a host publishes while Ante is down is issued once it is back, and that an invitee who exchanged their link before the restart finishes onboarding after it. Readiness (`/healthz/ready`) turns healthy only after the host inboxes are registered again, so a rolling restart never routes to an instance that has not caught up with its subscriptions.
+
 ## Rehearse a quiesced erasure
 
 This is a **manual procedure to rehearse before use**, not an automated or proven complete-erasure feature. Obtain the host's approved subject mapping, retention decision and legal-hold clearance, then:

@@ -40,6 +40,7 @@ RegistrationOptionsValidator.Validate(anteOptions);
 var localizationOptions = LocaleNegotiation.CreateOptions(anteOptions);
 var invitationTokenOptions = builder.Configuration.GetSection("Ante:Invitations:Token").Get<InvitationTokenConfig>() ?? new InvitationTokenConfig();
 InvitationTokenConfigurationValidator.Validate(invitationTokenOptions);
+InvitationTokenIsolation.ApplyDefaults(invitationTokenOptions, anteOptions);
 var invitationExchangeOptions = builder.Configuration.GetSection("Ante:Invitations:Exchange").Get<InvitationExchangeConfig>() ?? new InvitationExchangeConfig();
 InvitationExchangeConfigurationValidator.Validate(invitationExchangeOptions, invitationTokenOptions);
 
@@ -71,12 +72,17 @@ builder.Services.TryAddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IncomingInvitationSubscriptions>();
 builder.Services.AddHostedService<IncomingInvitationRegistration>();
 builder.Services.Configure<InvitationTokenConfig>(builder.Configuration.GetSection("Ante:Invitations:Token"));
+builder.Services.PostConfigure<InvitationTokenConfig>(config => InvitationTokenIsolation.ApplyDefaults(config, anteOptions));
 builder.Services.Configure<InvitationExchangeConfig>(builder.Configuration.GetSection("Ante:Invitations:Exchange"));
 builder.Services.Configure<IdentityProviderOptions>(builder.Configuration.GetSection(IdentityProviderOptions.ConfigurationSection));
 
 builder.Services.AddSingleton<IIdentityProviderResolver, IdentityProviderResolver>();
 builder.Services.AddSingleton<IInvitationTokenIssuer, InvitationTokenIssuer>();
 builder.Services.AddSingleton<IInvitationTokenValidator, InvitationTokenValidator>();
+builder.Services.AddSingleton<IInvitationTokenUpgradeWindow>(services => InvitationTokenUpgradeWindow.Load(
+    services.GetRequiredService<MongoDB.Driver.IMongoCollection<Ante.Invitations.Accepting.AcceptedInvitation>>().Database,
+    DateTimeOffset.UtcNow,
+    invitationTokenOptions.Expiry).GetAwaiter().GetResult());
 builder.Services.AddSingleton<InvitationAttestationVerifier>();
 builder.Services.AddScoped<AttestedInvitationStaging>();
 builder.Services.AddScoped<AttestedInvitationCompletion>();
@@ -112,10 +118,12 @@ builder.Services.AddAnteHealthChecks()
     .AddCheck<IncomingRoutingHealthCheck>("host-routing", tags: [AnteHealthChecks.ReadyTag], timeout: AnteHealthChecks.DependencyTimeout);
 
 var app = builder.Build();
-InvitationTokenConfigurationValidator.WarnForMissingClaims(
+InvitationTokenConfigurationValidator.Report(
     invitationTokenOptions,
-    app.Environment.IsDevelopment(),
     app.Services.GetRequiredService<ILogger<InvitationTokenConfigurationValidator>>());
+
+// Record, before serving, when this deployment first isolated its tokens - that opens the upgrade window.
+app.Services.GetRequiredService<IInvitationTokenUpgradeWindow>();
 IdentityProviderConfigurationWarnings.WarnForUnattributableSignIns(
     app.Services.GetRequiredService<IOptions<IdentityProviderOptions>>().Value,
     app.Services.GetRequiredService<ILogger<IdentityProviderOptions>>());

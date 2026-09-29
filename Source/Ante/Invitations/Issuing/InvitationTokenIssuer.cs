@@ -95,12 +95,20 @@ public class InvitationTokenConfig
     public string PublicKeyPem { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the issuer recorded on issued tokens. Left empty, no <c language="csharp">iss</c> claim is validated.
+    /// Gets or sets further trusted RSA public keys, for example earlier signing keys whose links should keep
+    /// working after a rotation. Tokens carry the <c language="csharp">kid</c> of the key that signed them.
+    /// </summary>
+    public IList<string> PreviousPublicKeyPems { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the issuer written on and required of every token. Left empty, Ante derives one from the
+    /// deployment (see <see cref="InvitationTokenIsolation"/>), so deployments never accept each other's tokens.
     /// </summary>
     public string Issuer { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the audience recorded on issued tokens. Left empty, no <c language="csharp">aud</c> claim is validated.
+    /// Gets or sets the audience written on and required of every token. Left empty, Ante derives one from the
+    /// deployment (see <see cref="InvitationTokenIsolation"/>).
     /// </summary>
     public string Audience { get; set; } = string.Empty;
 
@@ -167,7 +175,7 @@ public class InvitationTokenIssuer(IOptions<InvitationTokenConfig> config, IOpti
         using var rsa = RSA.Create();
         rsa.ImportFromPem(options.PrivateKeyPem);
 
-        var securityKey = new RsaSecurityKey(rsa);
+        var securityKey = new RsaSecurityKey(rsa) { KeyId = InvitationTokenKeys.KeyIdFor(rsa) };
         var signingCredentials = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256)
         {
             // Do not cache the signature provider. Microsoft.IdentityModel caches it globally and it
@@ -180,13 +188,13 @@ public class InvitationTokenIssuer(IOptions<InvitationTokenConfig> config, IOpti
         var now = DateTimeOffset.UtcNow;
         var expiresAt = DateTimeOffset.FromUnixTimeSeconds((now + options.Expiry).ToUnixTimeSeconds());
 
-        // Issuer and Audience are intentionally nullable: when left empty, a verifier configured to
-        // skip those claims can accept the token, which is useful in development scenarios.
+        // Every token names this deployment as issuer and audience (configured, or derived from the deployment),
+        // so no other deployment accepts it - even one that shares the signing key.
         var descriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
-            Issuer = string.IsNullOrWhiteSpace(options.Issuer) ? null : options.Issuer,
-            Audience = string.IsNullOrWhiteSpace(options.Audience) ? null : options.Audience,
+            Issuer = options.Issuer,
+            Audience = options.Audience,
             IssuedAt = now.UtcDateTime,
             Expires = expiresAt.UtcDateTime,
             SigningCredentials = signingCredentials,

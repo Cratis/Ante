@@ -25,35 +25,26 @@ public sealed class InvitationTokenConfigurationValidator
         {
             ValidateKey(config.PublicKeyPem, nameof(config.PublicKeyPem), requiresPrivateKey: false);
         }
+
+        foreach (var previous in config.PreviousPublicKeyPems ?? [])
+        {
+            ValidateKey(previous, nameof(config.PreviousPublicKeyPems), requiresPrivateKey: false);
+        }
     }
 
     /// <summary>
-    /// Warns operators when the signing key or optional claim checks are absent.
+    /// Tells operators what the deployment signs and requires, and warns when there is no signing key.
     /// </summary>
-    /// <param name="config">The token configuration.</param>
-    /// <param name="isDevelopment">Whether the application runs in Development.</param>
+    /// <param name="config">The token configuration, with issuer and audience already resolved.</param>
     /// <param name="logger">The startup logger.</param>
-    public static void WarnForMissingClaims(InvitationTokenConfig config, bool isDevelopment, ILogger<InvitationTokenConfigurationValidator> logger)
+    public static void Report(InvitationTokenConfig config, ILogger<InvitationTokenConfigurationValidator> logger)
     {
         if (string.IsNullOrWhiteSpace(config.PrivateKeyPem))
         {
             logger.LogPrivateKeyNotConfigured();
         }
 
-        if (isDevelopment)
-        {
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(config.Issuer))
-        {
-            logger.LogIssuerNotConfigured();
-        }
-
-        if (string.IsNullOrWhiteSpace(config.Audience))
-        {
-            logger.LogAudienceNotConfigured();
-        }
+        logger.LogTokenIsolation(config.Issuer, config.Audience);
     }
 
     static void ValidateKey(string pem, string name, bool requiresPrivateKey)

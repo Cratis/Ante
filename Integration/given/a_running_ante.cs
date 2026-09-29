@@ -80,6 +80,37 @@ public class a_running_ante : Specification
         }
     }
 
+    /// <summary>
+    /// Stops the running instance and starts a new one on the same stores, configuration and signing key - what a
+    /// deployment's rolling restart does - and waits until it is ready.
+    /// </summary>
+    /// <param name="whileStopped">Anything to do while no instance is running.</param>
+    /// <returns>Awaitable task.</returns>
+    protected async Task Restart(Func<Task>? whileStopped = default)
+    {
+        var signingKey = Ante.AttestationPrivateKeyPem;
+        await Ante.DisposeAsync();
+        if (whileStopped is not null)
+        {
+            await whileStopped();
+        }
+
+        Ante = new AnteApplication(
+            Infrastructure,
+            AnteStoreName,
+            HostStoreNames,
+            LegalDocuments,
+            AttestedExchange,
+            UseLegalInbox ? LegalDocumentSetId : null,
+            LegalDocumentFactory,
+            AcceptanceFenceFactory,
+            signingKeyPem: signingKey);
+        using var client = Ante.CreateClient();
+        await Eventually.Until(
+            async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,
+            what: "the restarted Ante's readiness (/healthz/ready)");
+    }
+
     protected static Guid NewInvitationId() => Guid.NewGuid();
 
     /// <summary>
