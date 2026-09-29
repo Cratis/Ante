@@ -24,12 +24,15 @@ public static class InvitationTokenIsolation
     public static string DerivedAudience(AnteOptions options) => $"{DerivedIssuer(options)}:lobby";
 
     /// <summary>
-    /// Fills in the issuer and audience a deployment derives for any that is not configured.
+    /// Fills in the issuer and audience a deployment derives for any that is not configured, remembering
+    /// beforehand whether either was configured (see <see cref="InvitationTokenConfig.IssuerOrAudienceConfigured"/>).
     /// </summary>
     /// <param name="config">The token configuration.</param>
     /// <param name="options">The deployment's options.</param>
     public static void ApplyDefaults(InvitationTokenConfig config, AnteOptions options)
     {
+        config.RememberConfiguredIssuerAndAudience();
+
         if (string.IsNullOrWhiteSpace(config.Issuer))
         {
             config.Issuer = DerivedIssuer(options);

@@ -35,6 +35,10 @@ public class InvitationTokenValidator(
     static readonly TimeSpan _clockSkew = TimeSpan.FromSeconds(30);
 
     readonly JsonWebTokenHandler _handler = new();
+
+    // A deployment that configured its own issuer or audience has always required them; it never falls back
+    // to accepting tokens that carry neither.
+    readonly bool _acceptsLegacyTokens = !config.Value.IssuerOrAudienceConfigured;
     readonly bool _hasSigningKey = !string.IsNullOrWhiteSpace(config.Value.PrivateKeyPem);
     readonly TokenValidationParameters _parameters = CreateParameters(config.Value, validateIssuerAndAudience: true);
     readonly TokenValidationParameters _legacyParameters = CreateParameters(config.Value, validateIssuerAndAudience: false);
@@ -122,19 +126,39 @@ public class InvitationTokenValidator(
         };
 
     // A token issued before this deployment named itself in every token has no issuer or audience at all. It is
-    // still accepted - if signed by a trusted key - while the upgrade window is open and only if it predates
-    // activation, so upgrading needs no draining. A token naming another deployment is never accepted.
+    // still accepted - if signed by a trusted key - while the upgrade window is open, and only if it states when it
+    // was issued, was issued no later than activation plus the rollout grace and is no longer-lived than the window
+    // allows, so upgrading needs no draining. A token naming another deployment is never accepted, and neither is
+    // one for a deployment that configured its own issuer or audience.
     async Task<TokenValidationResult?> AcceptIfIssuedBeforeIsolation(string token)
     {
-        if (!_handler.CanReadToken(token))
+        if (!_acceptsLegacyTokens || !_handler.CanReadToken(token))
         {
             return null;
         }
 
-        var unverified = _handler.ReadJsonWebToken(token);
-        if (unverified.TryGetPayloadValue<object>(JwtRegisteredClaimNames.Iss, out _) ||
-            unverified.TryGetPayloadValue<object>(JwtRegisteredClaimNames.Aud, out _) ||
-            !upgradeWindow.AcceptsLegacyToken(new DateTimeOffset(DateTime.SpecifyKind(unverified.IssuedAt, DateTimeKind.Utc)), DateTimeOffset.UtcNow))
+        DateTimeOffset issuedAt;
+        DateTimeOffset expiresAt;
+        try
+        {
+            var unverified = _handler.ReadJsonWebToken(token);
+            if (unverified.TryGetPayloadValue<object>(JwtRegisteredClaimNames.Iss, out _) ||
+                unverified.TryGetPayloadValue<object>(JwtRegisteredClaimNames.Aud, out _) ||
+                unverified.IssuedAt == DateTime.MinValue ||
+                unverified.ValidTo == DateTime.MinValue)
+            {
+                return null;
+            }
+
+            issuedAt = new(DateTime.SpecifyKind(unverified.IssuedAt, DateTimeKind.Utc));
+            expiresAt = new(DateTime.SpecifyKind(unverified.ValidTo, DateTimeKind.Utc));
+        }
+        catch (Exception error) when (error is ArgumentException or FormatException or SecurityTokenException)
+        {
+            return null;
+        }
+
+        if (!upgradeWindow.AcceptsLegacyToken(issuedAt, expiresAt, DateTimeOffset.UtcNow))
         {
             return null;
         }

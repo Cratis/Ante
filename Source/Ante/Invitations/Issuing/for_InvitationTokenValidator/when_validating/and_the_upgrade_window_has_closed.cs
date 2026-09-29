@@ -4,18 +4,18 @@
 #if DEBUG
 namespace Ante.Invitations.Issuing.for_InvitationTokenValidator.when_validating;
 
-public class and_a_legacy_token_predates_isolation : a_deployment_with_isolated_tokens
+public class and_the_upgrade_window_has_closed : a_deployment_with_isolated_tokens
 {
     ValidatedInvitationToken? _result;
 
     async Task Because()
     {
         var now = DateTimeOffset.UtcNow;
-        var window = new InvitationTokenUpgradeWindow(now, TimeSpan.FromDays(7));
-        var token = Token(Current, issuer: null, audience: null, issuedAt: DateTime.UtcNow.AddHours(-1));
+        var window = new InvitationTokenUpgradeWindow(now.AddDays(-8), TimeSpan.FromDays(7));
+        var token = Token(Current, issuer: null, audience: null, issuedAt: DateTime.UtcNow.AddDays(-9), expires: DateTime.UtcNow.AddHours(1));
         _result = await ValidatorFor(Config(), window).Validate($"Bearer {token}");
     }
 
-    [Fact] void should_accept_it_while_the_upgrade_window_is_open() => Assert.NotNull(_result);
+    [Fact] void should_refuse_it() => Assert.Null(_result);
 }
 #endif
