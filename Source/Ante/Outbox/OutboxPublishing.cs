@@ -182,6 +182,14 @@ public static class OutboxForwarder
         }
     }
 
+    // A disposed service provider means the host is shutting down: the reactor is still finishing an event
+    // while the container is torn down. It is expected, not a failure to alert operators about. This is
+    // detected from the exception itself so the forwarder needs no dependency on the host lifetime.
+    static bool IsHostStopping(Exception exception) =>
+        exception is ObjectDisposedException disposed
+        && (string.Equals(disposed.ObjectName, "IServiceProvider", StringComparison.Ordinal)
+            || string.Equals(disposed.ObjectName, "ServiceProviderEngineScope", StringComparison.Ordinal));
+
     static void TryLog(
         ILogger? logger,
         Action<ILogger, Exception, string, string> log,
@@ -191,10 +199,18 @@ public static class OutboxForwarder
     {
         try
         {
-            if (logger is not null)
+            if (logger is null)
             {
-                log(logger, exception, notifier, eventSourceId.Value);
+                return;
             }
+
+            if (IsHostStopping(exception))
+            {
+                logger.LogNotifierSkippedHostStopping(notifier, eventSourceId.Value);
+                return;
+            }
+
+            log(logger, exception, notifier, eventSourceId.Value);
         }
         catch (Exception loggingFailure)
         {
