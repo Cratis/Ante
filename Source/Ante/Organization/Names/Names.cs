@@ -29,6 +29,12 @@ public record OrganizationNameReleaseReceived(TenantName TenantName);
 /// <remarks>
 /// Pinned to the local event log: the contract events carry the contracts assembly's store attribute, which
 /// would otherwise route a renamed deployment's projection to an inbox.
+/// <para>
+/// The name is mapped explicitly: the Chronicle kernel auto-maps against each event type's first-generation
+/// schema only, so <see cref="OrganizationRegistrationCompleted"/> (generation 2) matches no schema and AutoMap
+/// silently leaves the name unset. The in-process read-model scenario does not reproduce this. Every event maps
+/// the name explicitly and AutoMap is off for it, so no source depends on name matching.
+/// </para>
 /// </remarks>
 /// <param name="Id">The event source holding the claim.</param>
 /// <param name="TenantName">The claimed name.</param>
@@ -38,7 +44,13 @@ public record OrganizationNameReleaseReceived(TenantName TenantName);
 [FromEvent<OrganizationRegistrationCompleted>]
 [FromEvent<OrganizationNameReservationReceived>]
 [RemovedWith<OrganizationNameReleaseReceived>]
-public record OrganizationNameClaim(EventSourceId Id, TenantName TenantName);
+public record OrganizationNameClaim(
+    EventSourceId Id,
+    [NoAutoMap]
+    [SetFrom<InvitationToCreateTenantAccepted>(nameof(InvitationToCreateTenantAccepted.TenantName))]
+    [SetFrom<OrganizationRegistrationCompleted>(nameof(OrganizationRegistrationCompleted.TenantName))]
+    [SetFrom<OrganizationNameReservationReceived>(nameof(OrganizationNameReservationReceived.TenantName))]
+    TenantName TenantName);
 
 /// <summary>
 /// Reads whether an organization name is already claimed, ignoring case.
@@ -50,6 +62,13 @@ public record OrganizationNameClaim(EventSourceId Id, TenantName TenantName);
 /// </remarks>
 public static class ClaimedOrganizationNames
 {
+    static readonly EventType[] _claimEventTypes =
+    [
+        typeof(InvitationToCreateTenantAccepted).GetEventType(),
+        typeof(OrganizationRegistrationCompleted).GetEventType(),
+        typeof(OrganizationNameReservationReceived).GetEventType(),
+    ];
+
     /// <summary>
     /// Determines whether an organization name is already claimed.
     /// </summary>
@@ -78,6 +97,35 @@ public static class ClaimedOrganizationNames
     /// <returns>A stable, case-insensitive event source id for the reservation.</returns>
     public static EventSourceId ReservationSourceFor(string organizationName) =>
         new($"organization-name-{organizationName.Trim().ToLowerInvariant()}");
+
+    /// <summary>
+    /// Gets the name a claim holds, reading it from the claim's events when the claim itself carries none.
+    /// </summary>
+    /// <remarks>
+    /// Claims from a self-service registration projected before the name was mapped explicitly are stored without
+    /// it until the projection is replayed. The event log is authoritative either way, so a release still finds them.
+    /// </remarks>
+    /// <param name="claim">The claim to read the name of.</param>
+    /// <param name="eventLog">The event log the claim was projected from.</param>
+    /// <returns>The claimed name, or null when no claim event carries one.</returns>
+    public static async Task<TenantName?> NameOf(OrganizationNameClaim claim, IEventLog eventLog)
+    {
+        if (!string.IsNullOrWhiteSpace(claim.TenantName?.Value))
+        {
+            return claim.TenantName;
+        }
+
+        var history = await eventLog.GetForEventSourceIdAndEventTypes(claim.Id, _claimEventTypes);
+        return history
+            .Select(entry => entry.Content switch
+            {
+                InvitationToCreateTenantAccepted accepted => accepted.TenantName,
+                OrganizationRegistrationCompleted registered => registered.TenantName,
+                OrganizationNameReservationReceived reserved => reserved.TenantName,
+                _ => null,
+            })
+            .LastOrDefault(name => !string.IsNullOrWhiteSpace(name?.Value));
+    }
 
     static FilterDefinition<OrganizationNameClaim> Matching(string organizationName) =>
         Builders<OrganizationNameClaim>.Filter.Regex(
