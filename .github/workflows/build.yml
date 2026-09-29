@@ -1,8 +1,13 @@
 name: Build
 
+# Pull requests supersede their own earlier runs. A push to main is never cancelled or replaced by a
+# later merge: Publish gates each release on the Build run of that exact commit, so a Build cancelled
+# by the next merge would silently cost the earlier merge its release. Keying push runs on the commit
+# gives every merge its own group (a group with cancel-in-progress false keeps only one pending run,
+# and would cancel the older pending one).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 on:
   workflow_dispatch:
@@ -97,8 +102,19 @@ jobs:
         working-directory: Source/Ante
         run: yarn test
 
+      # PRIMEUI_LICENSE is an Actions secret, which pull requests from forks never receive (nor does
+      # Dependabot, whose secrets are a separate store). Only those two are skipped, with a visible
+      # notice; lint, compile and test above still gate them. Pushes and same-repository pull
+      # requests always run the build, so a missing or renamed secret there fails loudly.
       - name: Build
         working-directory: Source/Ante
         env:
           ANTE_PRIMEUI_LICENSE: ${{ secrets.PRIMEUI_LICENSE }}
-        run: yarn build
+          SKIP_WITHOUT_SECRET: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]') }}
+        run: |
+          if [ -z "$ANTE_PRIMEUI_LICENSE" ] && [ "$SKIP_WITHOUT_SECRET" = "true" ]; then
+            echo "::notice title=Frontend build skipped::PRIMEUI_LICENSE is not available to this pull request (fork or Dependabot). Lint, compile and test still ran; the production build runs on main."
+            echo "Frontend production build skipped: PRIMEUI_LICENSE is not available to this pull request." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          yarn build
