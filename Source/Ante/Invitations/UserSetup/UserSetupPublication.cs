@@ -88,4 +88,15 @@ public class JoinTenantPublicationStatusNotifier(
             subscriptions.MarkAccepted(invitationId);
         }
     }
+
+    /// <inheritdoc/>
+    public Task NotifyRecorded(EventSourceId eventSourceId, object @event)
+    {
+        if (@event is InvitationToJoinTenantAccepted)
+        {
+            subscriptions.MarkRecordedIfWatched((InvitationId)Guid.Parse(eventSourceId.Value));
+        }
+
+        return Task.CompletedTask;
+    }
 }
