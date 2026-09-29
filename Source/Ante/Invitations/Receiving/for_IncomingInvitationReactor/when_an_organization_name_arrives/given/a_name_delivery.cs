@@ -19,6 +19,7 @@ public class a_name_delivery : Specification
     protected EventContext Context = null!;
     protected AppendResult AppendOutcome = AppendResult.Success(CorrelationId.New(), 1);
     protected IEnumerable<OrganizationNameClaim> Claims = [];
+    protected Dictionary<EventSourceId, IEnumerable<object>> Histories = [];
     protected Exception? Error;
 
     void Establish()
@@ -29,6 +30,11 @@ public class a_name_delivery : Specification
         store.EventLog.Returns(Log);
         store.ReadModels.Returns(ReadModels);
         ReadModels.GetInstances<OrganizationNameClaim>(Arg.Any<EventCount?>()).Returns(_ => Task.FromResult(Claims));
+        Log.GetForEventSourceIdAndEventTypes(Arg.Any<EventSourceId>(), Arg.Any<IEnumerable<EventType>>(), Arg.Any<EventStreamType>(), Arg.Any<EventStreamId>(), Arg.Any<EventSourceType>())
+            .Returns(call => Task.FromResult<IImmutableList<AppendedEvent>>(
+                Histories.TryGetValue(call.Arg<EventSourceId>(), out var history)
+                    ? [.. history.Select(content => new AppendedEvent(EventContext.Empty, content))]
+                    : ImmutableList<AppendedEvent>.Empty));
         Log.Append(
             Arg.Any<EventSourceId>(),
             Arg.Any<object>(),

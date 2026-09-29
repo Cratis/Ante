@@ -62,6 +62,13 @@ public record OrganizationNameClaim(
 /// </remarks>
 public static class ClaimedOrganizationNames
 {
+    static readonly EventType[] _claimEventTypes =
+    [
+        typeof(InvitationToCreateTenantAccepted).GetEventType(),
+        typeof(OrganizationRegistrationCompleted).GetEventType(),
+        typeof(OrganizationNameReservationReceived).GetEventType(),
+    ];
+
     /// <summary>
     /// Determines whether an organization name is already claimed.
     /// </summary>
@@ -90,6 +97,35 @@ public static class ClaimedOrganizationNames
     /// <returns>A stable, case-insensitive event source id for the reservation.</returns>
     public static EventSourceId ReservationSourceFor(string organizationName) =>
         new($"organization-name-{organizationName.Trim().ToLowerInvariant()}");
+
+    /// <summary>
+    /// Gets the name a claim holds, reading it from the claim's events when the claim itself carries none.
+    /// </summary>
+    /// <remarks>
+    /// Claims from a self-service registration projected before the name was mapped explicitly are stored without
+    /// it until the projection is replayed. The event log is authoritative either way, so a release still finds them.
+    /// </remarks>
+    /// <param name="claim">The claim to read the name of.</param>
+    /// <param name="eventLog">The event log the claim was projected from.</param>
+    /// <returns>The claimed name, or null when no claim event carries one.</returns>
+    public static async Task<TenantName?> NameOf(OrganizationNameClaim claim, IEventLog eventLog)
+    {
+        if (!string.IsNullOrWhiteSpace(claim.TenantName?.Value))
+        {
+            return claim.TenantName;
+        }
+
+        var history = await eventLog.GetForEventSourceIdAndEventTypes(claim.Id, _claimEventTypes);
+        return history
+            .Select(entry => entry.Content switch
+            {
+                InvitationToCreateTenantAccepted accepted => accepted.TenantName,
+                OrganizationRegistrationCompleted registered => registered.TenantName,
+                OrganizationNameReservationReceived reserved => reserved.TenantName,
+                _ => null,
+            })
+            .LastOrDefault(name => !string.IsNullOrWhiteSpace(name?.Value));
+    }
 
     static FilterDefinition<OrganizationNameClaim> Matching(string organizationName) =>
         Builders<OrganizationNameClaim>.Filter.Regex(
