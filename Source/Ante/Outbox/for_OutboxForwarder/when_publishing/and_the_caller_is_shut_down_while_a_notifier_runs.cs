@@ -18,7 +18,7 @@ public class and_the_caller_is_shut_down_while_a_notifier_runs : a_forward_with_
     {
         using var shutdown = new CancellationTokenSource();
         await shutdown.CancelAsync();
-        _error = await Catch.Exception(() => _eventStore.PublishToOutbox(_context, _event, [_failingNotifier, _nextNotifier], _logger, shutdown.Token));
+        _error = await Cratis.Specifications.Catch.Exception(() => _eventStore.PublishToOutbox(_context, _event, [_failingNotifier, _nextNotifier], _logger, shutdown.Token));
     }
 
     [Fact] void should_propagate_the_cancellation() => _error.ShouldBeOfExactType<OperationCanceledException>();
