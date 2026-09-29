@@ -8,8 +8,8 @@ using Ante.IdentityProviders;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.for_query_access;
 using Ante.Organization.Registration;
-using Microsoft.AspNetCore.Http;
 using Ante.Outbox;
+using Microsoft.AspNetCore.Http;
 using MongoDB.Driver;
 
 namespace Ante.Invitations.OrganizationSetup.for_OrganizationSetupAcceptanceStatusView.when_getting_registration_status;

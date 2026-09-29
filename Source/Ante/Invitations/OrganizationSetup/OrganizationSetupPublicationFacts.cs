@@ -9,13 +9,6 @@ using MongoDB.Driver;
 namespace Ante.Invitations.OrganizationSetup;
 
 /// <summary>
-/// How far an organization setup has got, with the organization it is for once that is known.
-/// </summary>
-/// <param name="Progress">The progress the durable evidence supports.</param>
-/// <param name="OrganizationName">The organization being set up; null unless <paramref name="Progress"/> is past <see cref="PublicationProgress.None"/>.</param>
-public record OrganizationSetupFacts(PublicationProgress Progress, TenantName? OrganizationName);
-
-/// <summary>
 /// Establishes how far an organization setup - from an invitation or from self-service registration - has
 /// got, so a status subscription is seeded and accelerated from the same evidence.
 /// </summary>
@@ -29,6 +22,13 @@ public interface IOrganizationSetupPublicationFacts
     /// <returns>The progress the durable evidence supports.</returns>
     Task<OrganizationSetupFacts> Resolve(InvitationId setupId, OrganizationSetupProgress? recorded = null);
 }
+
+/// <summary>
+/// How far an organization setup has got, with the organization it is for once that is known.
+/// </summary>
+/// <param name="Progress">The progress the durable evidence supports.</param>
+/// <param name="OrganizationName">The organization being set up; null unless <paramref name="Progress"/> is past <see cref="PublicationProgress.None"/>.</param>
+public record OrganizationSetupFacts(PublicationProgress Progress, TenantName? OrganizationName);
 
 /// <summary>
 /// Reads the Mongo read models first and, when they do not show full publication, the authoritative
