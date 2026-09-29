@@ -21,7 +21,7 @@ public class and_a_notifier_fails_while_recorded_is_announced : a_forward_with_a
         _failingNotifier.NotifyRecorded(Arg.Any<EventSourceId>(), Arg.Any<object>()).Returns(_ => throw NotifierFailure);
     }
 
-    async Task Because() => _error = await Cratis.Specifications.Catch.Exception(() => _eventStore.PublishToOutbox(_context, _event, [_failingNotifier, _nextNotifier], _logger, announceRecorded: true));
+    async Task Because() => _error = await Cratis.Specifications.Catch.Exception(() => _eventStore.PublishToOutbox(Deliveries.Of(_context), _context, _event, [_failingNotifier, _nextNotifier], _logger, announceRecorded: true));
 
     [Fact] void should_complete_the_forward() => _error.ShouldBeNull();
     [Fact] async Task should_still_give_the_next_notifier_the_recorded_announcement() => await _nextNotifier.Received(1).NotifyRecorded(Arg.Is<EventSourceId>(id => id.Value == _invitationId.Value), _event);

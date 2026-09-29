@@ -4,6 +4,7 @@
 #if DEBUG
 using Ante.Invitations;
 using Ante.Invitations.UserSetup;
+using Ante.Outbox.for_OutboxForwarder.given;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Execution;
@@ -53,7 +54,7 @@ public class and_the_append_fails : Specification
     {
         try
         {
-            await _eventStore.PublishToOutbox(_context, _event, [_notifier]);
+            await _eventStore.PublishToOutbox(Deliveries.Of(_context), _context, _event, [_notifier]);
         }
         catch (Exception exception)
         {

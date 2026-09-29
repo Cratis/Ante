@@ -16,7 +16,7 @@ public class and_a_notifier_fails_after_the_append : a_forward_with_a_failing_no
 {
     protected override Exception NotifierFailure => new InvalidOperationException("Chronicle is restarting");
 
-    async Task Because() => _error = await Cratis.Specifications.Catch.Exception(() => _eventStore.PublishToOutbox(_context, _event, [_failingNotifier, _nextNotifier], _logger));
+    async Task Because() => _error = await Cratis.Specifications.Catch.Exception(() => _eventStore.PublishToOutbox(Deliveries.Of(_context), _context, _event, [_failingNotifier, _nextNotifier], _logger));
 
     [Fact] void should_complete_the_forward() => _error.ShouldBeNull();
     [Fact] async Task should_still_give_the_next_notifier_its_chance() => await _nextNotifier.Received(1).NotifyIfPublished(Arg.Is<EventSourceId>(id => id.Value == _invitationId.Value));

@@ -49,7 +49,8 @@ public class LegalTermsAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPu
     /// </summary>
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
+    /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public async Task On(LegalTermsAccepted @event, EventContext context) =>
-        await eventStore.PublishToOutbox(context, @event, notifiers, logger);
+    public async Task On(LegalTermsAccepted @event, EventContext context, ReactorDelivery delivery) =>
+        await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger);
 }

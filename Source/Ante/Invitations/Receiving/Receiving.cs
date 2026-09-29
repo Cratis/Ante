@@ -411,9 +411,13 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             logger.LogInvalidInvitationId();
         }
 
-        // Deliberately not [OnceOnly]: a rejection lost before the outbox append must be retried on
-        // replay. Replay/redelivery can therefore republish it, and hosts deduplicate (host-integration.md).
-        await eventStore.PublishToOutbox(context, new InvitationRejected(reason), []);
+        // A rejection lost before the outbox append is retried on redelivery or replay; one already published for
+        // this inbox delivery is not published again.
+        var delivery = ReactorDelivery.For(
+            IncomingInvitationSubscriptions.ReactorIdFor(sourceStore),
+            IncomingInvitationSubscriptions.InboxFor(sourceStore),
+            context);
+        await eventStore.PublishToOutbox(delivery, context, new InvitationRejected(reason), [], logger);
     }
 }
 

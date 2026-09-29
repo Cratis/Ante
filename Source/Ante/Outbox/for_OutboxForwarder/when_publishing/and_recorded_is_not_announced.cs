@@ -13,7 +13,7 @@ public class and_recorded_is_not_announced : a_forward_with_a_failing_notifier
 {
     protected override Exception NotifierFailure => new InvalidOperationException("Not used");
 
-    async Task Because() => await _eventStore.PublishToOutbox(_context, _event, [_nextNotifier], _logger);
+    async Task Because() => await _eventStore.PublishToOutbox(Deliveries.Of(_context), _context, _event, [_nextNotifier], _logger);
 
     [Fact] async Task should_not_announce_recorded() => await _nextNotifier.DidNotReceive().NotifyRecorded(Arg.Any<EventSourceId>(), Arg.Any<object>());
 }

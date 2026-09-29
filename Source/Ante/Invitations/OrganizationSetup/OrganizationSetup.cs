@@ -402,6 +402,7 @@ public class OrganizationSetupOutbox(IEventStore eventStore, IInstancesOf<IPubli
     /// </summary>
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
-    public async Task On(InvitationToCreateTenantAccepted @event, EventContext context) =>
-        await eventStore.PublishToOutbox(context, @event, notifiers, logger, announceRecorded: true);
+    /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
+    public async Task On(InvitationToCreateTenantAccepted @event, EventContext context, ReactorDelivery delivery) =>
+        await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger, announceRecorded: true);
 }

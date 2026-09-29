@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 #if DEBUG
+using Ante.Outbox.for_OutboxForwarder.given;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Execution;
@@ -14,11 +15,13 @@ public class and_the_append_has_a_concurrency_violation : Specification
     OutboxPublicationFailed? _failure;
     ConcurrencyViolation _violation = null!;
     IEventStore _store = null!;
+    IEventSequence _outbox = null!;
 
     void Establish()
     {
         _store = Substitute.For<IEventStore>();
-        var outbox = Substitute.For<IEventSequence>();
+        _outbox = Substitute.For<IEventSequence>();
+        var outbox = _outbox;
         _store.GetEventSequence(EventSequenceId.Outbox).Returns(outbox);
         _violation = new ConcurrencyViolation(_id, 4711, 4712);
         outbox.Append(
@@ -39,7 +42,8 @@ public class and_the_append_has_a_concurrency_violation : Specification
     {
         try
         {
-            await _store.PublishToOutbox(EventContext.Empty with { EventSourceId = _id }, new InvitationTokenIssued(InvitationFlowType.JoinTenant, "token", DateTimeOffset.UnixEpoch), []);
+            var context = EventContext.Empty with { EventSourceId = _id };
+            await _store.PublishToOutbox(Deliveries.Of(context), context, new InvitationTokenIssued(InvitationFlowType.JoinTenant, "token", DateTimeOffset.UnixEpoch), []);
         }
         catch (OutboxPublicationFailed failure)
         {
@@ -48,6 +52,7 @@ public class and_the_append_has_a_concurrency_violation : Specification
     }
 
     [Fact] void should_fail_the_forward() => Assert.NotNull(_failure);
+    [Fact] void should_try_a_bounded_number_of_times() => Assert.Equal(OutboxForwarder.MaxAppendAttempts, _outbox.ReceivedCalls().Count(call => call.GetMethodInfo().Name == nameof(IEventSequence.Append)));
     [Fact] void should_retain_the_concurrency_details() => Assert.Equal(_violation, _failure?.Result.ConcurrencyViolation);
     [Fact] void should_explain_the_expected_sequence_number() => Assert.Contains($"ExpectedEventSequenceNumber = {_violation.ExpectedEventSequenceNumber}", _failure?.Message, StringComparison.Ordinal);
     [Fact] void should_explain_the_actual_sequence_number() => Assert.Contains($"ActualEventSequenceNumber = {_violation.ActualEventSequenceNumber}", _failure?.Message, StringComparison.Ordinal);

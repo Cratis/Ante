@@ -37,7 +37,7 @@ public class and_recorded_is_announced : a_forward_with_a_failing_notifier
         });
     }
 
-    async Task Because() => await _eventStore.PublishToOutbox(_context, _event, [_nextNotifier], _logger, announceRecorded: true);
+    async Task Because() => await _eventStore.PublishToOutbox(Deliveries.Of(_context), _context, _event, [_nextNotifier], _logger, announceRecorded: true);
 
     [Fact] void should_announce_recorded_then_append_then_publish() => Assert.Equal(["recorded", "appended", "published"], _order);
 }

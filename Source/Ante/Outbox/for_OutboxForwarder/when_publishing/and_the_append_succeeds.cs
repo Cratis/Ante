@@ -4,6 +4,7 @@
 #if DEBUG
 using Ante.Invitations;
 using Ante.Invitations.UserSetup;
+using Ante.Outbox.for_OutboxForwarder.given;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Execution;
@@ -61,7 +62,7 @@ public class and_the_append_succeeds : Specification
         _secondNotifier = Substitute.For<IPublicationStatusNotifier>();
     }
 
-    async Task Because() => await _eventStore.PublishToOutbox(_context, _event, [_firstNotifier, _secondNotifier]);
+    async Task Because() => await _eventStore.PublishToOutbox(Deliveries.Of(_context), _context, _event, [_firstNotifier, _secondNotifier]);
 
     [Fact]
     void should_forward_the_event_for_the_same_event_source() =>
@@ -78,7 +79,7 @@ public class and_the_append_succeeds : Specification
             Arg.Any<Cratis.Chronicle.Subject>());
 
     [Fact]
-    void should_not_require_an_outbox_sequence_number() =>
+    void should_scope_the_append_to_this_fact_on_the_event_source() =>
         _outbox.Received(1).Append(
             Arg.Any<EventSourceId>(),
             Arg.Any<object>(),
@@ -87,7 +88,10 @@ public class and_the_append_succeeds : Specification
             Arg.Any<EventSourceType>(),
             Arg.Any<CorrelationId>(),
             Arg.Any<IEnumerable<string>>(),
-            Arg.Is<ConcurrencyScope>(scope => scope == ConcurrencyScope.None),
+            Arg.Is<ConcurrencyScope>(scope =>
+                scope.SequenceNumber == EventSequenceNumber.BeforeFirst &&
+                scope.EventSourceId! == _invitationId &&
+                scope.EventTypes!.SequenceEqual(new[] { typeof(InvitationToJoinTenantAccepted).GetEventType() })),
             Arg.Any<DateTimeOffset?>(),
             Arg.Any<Cratis.Chronicle.Subject>());
 

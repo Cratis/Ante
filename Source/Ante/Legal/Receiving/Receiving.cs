@@ -189,6 +189,7 @@ public class LegalDocumentSetActivationOutbox(IEventStore store) : IReactor
     /// </summary>
     /// <param name="received">The activated set.</param>
     /// <param name="context">The local activation context.</param>
-    public Task On(LegalDocumentSetReceived received, EventContext context) =>
-        store.PublishToOutbox(context, new LegalDocumentSetActivated(received.Revision, received.Version), []);
+    /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
+    public Task On(LegalDocumentSetReceived received, EventContext context, ReactorDelivery delivery) =>
+        store.PublishToOutbox(delivery, context, new LegalDocumentSetActivated(received.Revision, received.Version), []);
 }
