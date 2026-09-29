@@ -6,12 +6,12 @@ using Ante.Invitations.Issuing.for_InvitationTokenUpgradeWindow.when_deciding_on
 
 namespace Ante.Invitations.Issuing.for_InvitationTokenUpgradeWindow.when_deciding_on_a_legacy_token;
 
-public class and_it_was_issued_within_the_rollout_grace : a_window_activated_at_a_known_time
+public class and_the_window_is_one_moment_from_closing : a_window_activated_at_a_known_time
 {
     bool _accepted;
 
-    void Because() => _accepted = Window.AcceptsLegacyToken(ActivatedAt.AddMinutes(15), ActivatedAt.AddMinutes(15) + Lifetime, ActivatedAt.AddHours(1));
+    void Because() => _accepted = Window.AcceptsLegacyToken(ActivatedAt.AddDays(-2), ActivatedAt.AddDays(-2) + TimeSpan.FromDays(5), ActivatedAt + InvitationTokenUpgradeWindow.RolloutGrace + Lifetime - TimeSpan.FromSeconds(1));
 
-    [Fact] void should_accept_it() => Assert.True(_accepted);
+    [Fact] void should_still_accept_it() => Assert.True(_accepted);
 }
 #endif

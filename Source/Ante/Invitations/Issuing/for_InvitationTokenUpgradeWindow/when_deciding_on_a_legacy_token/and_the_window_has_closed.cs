@@ -10,7 +10,7 @@ public class and_the_window_has_closed : a_window_activated_at_a_known_time
 {
     bool _accepted;
 
-    void Because() => _accepted = Window.AcceptsLegacyToken(ActivatedAt.AddDays(-2), ActivatedAt.AddDays(-2) + TimeSpan.FromDays(5), ActivatedAt + Lifetime);
+    void Because() => _accepted = Window.AcceptsLegacyToken(ActivatedAt.AddDays(-2), ActivatedAt.AddDays(-2) + TimeSpan.FromDays(5), ActivatedAt + InvitationTokenUpgradeWindow.RolloutGrace + Lifetime);
 
     [Fact] void should_refuse_it() => Assert.False(_accepted);
 }

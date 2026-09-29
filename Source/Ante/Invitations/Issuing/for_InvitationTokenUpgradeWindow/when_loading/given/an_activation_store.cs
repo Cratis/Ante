@@ -33,7 +33,9 @@ public class an_activation_store : Specification
         Database.GetCollection<InvitationTokenIsolationActivation>("invitation-token-isolation", Arg.Any<MongoCollectionSettings>()).Returns(collection);
     }
 
-    protected BsonDocument RenderedUpdate() => Update!.Render(new RenderArgs<InvitationTokenIsolationActivation>(
+    protected BsonDocument RenderedUpdate() => Rendered(Update!);
+
+    protected static BsonDocument Rendered(UpdateDefinition<InvitationTokenIsolationActivation> update) => update.Render(new RenderArgs<InvitationTokenIsolationActivation>(
         BsonSerializer.SerializerRegistry.GetSerializer<InvitationTokenIsolationActivation>(),
         BsonSerializer.SerializerRegistry)).AsBsonDocument;
 }
