@@ -1,0 +1,24 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+#if DEBUG
+using Ante.Invitations.OrganizationSetup.for_OrganizationSetupAcceptanceStatusView.given;
+
+namespace Ante.Invitations.OrganizationSetup.for_OrganizationSetupAcceptanceStatusView.when_getting_registration_status;
+
+public class and_the_outbox_read_model_lags_behind_a_published_registration : an_organization_status_query_with_lagging_read_models
+{
+    OrganizationSetupAcceptanceStatusView _result = null!;
+
+    void Establish()
+    {
+        Local.Add(Registered());
+        Outbox.Add(Registered());
+    }
+
+    async Task Because() => _result = await SeededForRegistration();
+
+    [Fact] void should_seed_accepted() => _result.Status.ShouldEqual(OrganizationSetupAcceptanceStatus.Accepted);
+    [Fact] void should_seed_the_registered_organization_name() => _result.OrganizationName.Value.ShouldEqual("Registered Org");
+}
+#endif

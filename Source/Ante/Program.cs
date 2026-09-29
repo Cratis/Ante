@@ -94,6 +94,8 @@ builder.Services.AddHttpClient<IHostOutcomeBackchannel, HostOutcomeBackchannel>(
 builder.Services.AddIdentityProvider<InvitationIdentityProvider>();
 builder.Services.AddSingleton<UserSetupStatusSubscriptions>();
 builder.Services.AddSingleton<OrganizationSetupStatusSubscriptions>();
+builder.Services.AddScoped<IJoinTenantPublicationFacts, JoinTenantPublicationFacts>();
+builder.Services.AddScoped<IOrganizationSetupPublicationFacts, OrganizationSetupPublicationFacts>();
 
 // A host that wants Ante's wizards to collect terms-and-conditions acceptance registers its own
 // ILegalDocumentSource - before or after this call, either order works because the last registration
