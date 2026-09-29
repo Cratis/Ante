@@ -274,8 +274,9 @@ public static class RegistrationSourceAvailability
 /// </remarks>
 /// <param name="eventStore">The event store.</param>
 /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>, given a chance to accelerate a live status subscription once this fact is durably published.</param>
+/// <param name="logger">The logger.</param>
 [Reactor(eventSequence: EventSequenceId.LogId)]
-public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers) : IReactor
+public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<OrganizationRegistrationOutbox> logger) : IReactor
 {
     /// <summary>
     /// Forwards the registration completed event to the outbox.
@@ -283,5 +284,5 @@ public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
     public async Task On(OrganizationRegistrationCompleted @event, EventContext context) =>
-        await eventStore.PublishToOutbox(context, @event, notifiers);
+        await eventStore.PublishToOutbox(context, @event, notifiers, logger);
 }

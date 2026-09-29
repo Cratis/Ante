@@ -323,8 +323,9 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
 /// </remarks>
 /// <param name="eventStore">The event store.</param>
 /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>, given a chance to accelerate a live status subscription once this fact is durably published.</param>
+/// <param name="logger">The logger.</param>
 [Reactor(eventSequence: EventSequenceId.LogId)]
-public class JoinTenantAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers) : IReactor
+public class JoinTenantAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<JoinTenantAcceptanceOutbox> logger) : IReactor
 {
     /// <summary>
     /// Forwards the join-tenant accepted event to the outbox.
@@ -332,7 +333,7 @@ public class JoinTenantAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPu
     /// <param name="event">The event.</param>
     /// <param name="context">The event context.</param>
     public async Task On(InvitationToJoinTenantAccepted @event, EventContext context) =>
-        await eventStore.PublishToOutbox(context, @event, notifiers);
+        await eventStore.PublishToOutbox(context, @event, notifiers, logger);
 }
 
 /// <summary>
