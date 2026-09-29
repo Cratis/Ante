@@ -61,6 +61,12 @@ public static class KernelObservers
     /// Replays an observer of Ante from the first event and waits until the replay job has completed and the observer
     /// is active and has handled the last event of its types again.
     /// </summary>
+    /// <remarks>
+    /// An observer that was already caught up before the replay looks the same after it, so the wait insists on positive
+    /// evidence that the replay ran: the replay job read back as completed successfully, or - since a completed job may be
+    /// removed and then reads as no job - the job seen earlier, the observer seen replaying, or its handled count seen
+    /// reset below what it was before. Without any of these within the timeout the replay counts as never having run.
+    /// </remarks>
     /// <param name="ante">The running Ante.</param>
     /// <param name="observerId">The observer (reactor or projection) id.</param>
     /// <returns>The observer as the kernel reports it once the replay is complete.</returns>
@@ -82,20 +88,44 @@ public static class KernelObservers
         }
 
         var jobId = new JobId(id);
-        await Eventually.Until(
-            async () =>
-            {
-                // A completed job may be removed, which reads as no job.
-                var job = await store.Jobs.GetJob(jobId);
-                return job?.Status switch
+        var jobSeen = false;
+        var replayingSeen = false;
+        var resetSeen = false;
+        JobStatus? lastStatus = null;
+        try
+        {
+            await Eventually.Until(
+                async () =>
                 {
-                    null or JobStatus.CompletedSuccessfully => true,
-                    JobStatus.CompletedWithFailures or JobStatus.Failed or JobStatus.Stopped =>
-                        throw new InvalidOperationException($"The replay job for {observerId} ended as {job.Status}."),
-                    _ => false,
-                };
-            },
-            what: $"the replay job for {observerId} to complete");
+                    var job = await store.Jobs.GetJob(jobId);
+                    var current = await Get(Services(store), store.Name.Value, store.Namespace.Value, observerId);
+                    replayingSeen |= current.RunningState == Kernel.Observation.ObserverRunningState.Replaying;
+                    resetSeen |= current.HandledEventCount < observer.HandledEventCount;
+                    if (job is null)
+                    {
+                        // No job: either not visible yet, or completed and removed - only the latter once it was seen running.
+                        return jobSeen || replayingSeen || resetSeen;
+                    }
+
+                    jobSeen = true;
+                    lastStatus = job.Status;
+                    return job.Status switch
+                    {
+                        JobStatus.CompletedSuccessfully => true,
+                        JobStatus.CompletedWithFailures or JobStatus.Failed or JobStatus.Stopped =>
+                            throw new InvalidOperationException($"The replay job for {observerId} ended as {job.Status}."),
+                        _ => false,
+                    };
+                },
+                what: $"evidence that the replay of {observerId} ran and completed");
+        }
+        catch (TimeoutException timeout)
+        {
+            throw new TimeoutException(
+                $"{timeout.Message} Replay job {jobId} seen: {jobSeen} (last status {lastStatus}); observer seen replaying: {replayingSeen}; handled count seen reset below {observer.HandledEventCount}: {resetSeen}.",
+                timeout);
+        }
+
         return await WaitUntilCaughtUp(ante, observerId);
     }
 
@@ -189,6 +219,14 @@ public static class KernelObservers
         catch (TimeoutException timeout)
         {
             throw new TimeoutException($"{timeout.Message} Last outcome: {outcome}.", timeout);
+        }
+
+        // The removal reported, and the kernel no longer knows the observer: the next registration starts a new one with
+        // no cursor and no handled count, so whatever it has handled afterwards it handled again from the beginning.
+        var remaining = await services.Observers.GetObservers(new() { EventStore = eventStore, Namespace = @namespace });
+        if (remaining.Any(observer => observer.Id == observerId))
+        {
+            throw new InvalidOperationException($"The kernel reported {observerId} removed but still lists it.");
         }
     }
 
