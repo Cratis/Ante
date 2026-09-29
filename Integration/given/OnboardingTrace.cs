@@ -51,7 +51,8 @@ public sealed record OnboardingTrace(
 
     /// <summary>
     /// Waits until every hop satisfies <paramref name="complete"/>, then waits <paramref name="settle"/> and reads
-    /// again so a duplicate that arrives late is part of what the spec compares.
+    /// again so a duplicate that arrives late is part of what the spec compares. This catches duplicates that
+    /// arrive within the settle window only; it cannot prove a duplicate never arrives later.
     /// </summary>
     /// <param name="ante">The running Ante.</param>
     /// <param name="host">The host store the onboarding belongs to.</param>
