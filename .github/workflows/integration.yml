@@ -8,7 +8,7 @@ on:
       chronicle-image:
         description: Chronicle development image to run the specifications against
         required: true
-        default: cratis/chronicle:19.13.1-development
+        default: cratis/chronicle:19.22.1-development
   schedule:
     - cron: '37 4 * * *'
   pull_request:
