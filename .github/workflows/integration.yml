@@ -1,7 +1,8 @@
 name: Integration
 
-# Container-backed specifications against a real Chronicle kernel. They take long enough that they do not run on
-# every push: on demand, nightly, or on a pull request carrying the `run-integration` label.
+# Container-backed specifications against a real Chronicle kernel, and the lobby's journeys in a real browser against
+# the same kernel (E2E/). They take long enough that they do not run on every push: on demand, nightly, or on a pull
+# request carrying the `run-integration` label.
 on:
   workflow_dispatch:
     inputs:
@@ -51,3 +52,100 @@ jobs:
           # Empty on pull requests: the fixture then uses the server release matching the pinned client.
           ANTE_CHRONICLE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.chronicle-image || github.event_name == 'schedule' && 'cratis/chronicle:latest-development' || '' }}
         run: dotnet test Integration/Ante.Integration.Specs.csproj --configuration Debug --logger "console;verbosity=minimal"
+
+  browser:
+    name: Browser end-to-end
+    # The lobby's journeys in a real browser against a real Chronicle kernel (E2E/). Same triggers as the
+    # container-backed specifications above.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (contains(github.event.pull_request.labels.*.name, 'run-integration') &&
+       (github.event.action != 'labeled' || github.event.label.name == 'run-integration'))
+    # Its own group: sharing the integration job's group would let one job cancel the other.
+    concurrency:
+      group: ${{ github.workflow }}-browser-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANTE_PRIMEUI_LICENSE: ${{ secrets.PRIMEUI_LICENSE }}
+    steps:
+      # PRIMEUI_LICENSE is an Actions secret, which pull requests from forks never receive (nor does Dependabot).
+      # The lobby does not render without it, so those two are skipped with a visible notice, as build.yml skips
+      # the production build. Everywhere else a missing or renamed secret fails the job.
+      - name: Check for the PrimeUI license
+        id: license
+        env:
+          SKIP_WITHOUT_SECRET: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]') }}
+        run: |
+          if [ -n "$ANTE_PRIMEUI_LICENSE" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          elif [ "$SKIP_WITHOUT_SECRET" = "true" ]; then
+            echo "::notice title=Browser end-to-end skipped::PRIMEUI_LICENSE is not available to this pull request (fork or Dependabot), and the lobby does not render without it."
+            echo "Browser end-to-end skipped: PRIMEUI_LICENSE is not available to this pull request." >> "$GITHUB_STEP_SUMMARY"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error title=PRIMEUI_LICENSE missing::The browser end-to-end suite needs the PRIMEUI_LICENSE secret."
+            exit 1
+          fi
+
+      - name: Checkout code
+        if: steps.license.outputs.available == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        if: steps.license.outputs.available == 'true'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Node
+        if: steps.license.outputs.available == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Yarn install
+        if: steps.license.outputs.available == 'true'
+        run: |
+          corepack enable
+          yarn install --immutable
+
+      - name: Lint and compile the specs
+        if: steps.license.outputs.available == 'true'
+        working-directory: E2E
+        run: |
+          yarn lint:ci
+          yarn compile
+
+      - name: Install Chromium
+        if: steps.license.outputs.available == 'true'
+        working-directory: E2E
+        run: yarn install-browsers
+
+      - name: Build the frontend
+        if: steps.license.outputs.available == 'true'
+        working-directory: E2E
+        run: yarn build-frontend
+
+      - name: Build the E2E host
+        if: steps.license.outputs.available == 'true'
+        run: dotnet build E2E/Host/Ante.E2E.Host.csproj --configuration Debug
+
+      - name: Run the browser specifications
+        if: steps.license.outputs.available == 'true'
+        working-directory: E2E
+        env:
+          # Empty on pull requests: the fixture then uses the server release matching the pinned client.
+          ANTE_CHRONICLE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.chronicle-image || github.event_name == 'schedule' && 'cratis/chronicle:latest-development' || '' }}
+        run: yarn test
+
+      - name: Upload the Playwright report
+        if: failure() && steps.license.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-e2e-report
+          path: |
+            E2E/playwright-report/
+            E2E/test-results/
+          retention-days: 7
