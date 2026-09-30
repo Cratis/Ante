@@ -224,7 +224,9 @@ public sealed class AnteApplication(
 
         if (remoteIpAddress is not null)
         {
-            builder.ConfigureTestServices(services => services.AddSingleton<IStartupFilter>(new RemoteAddressStartupFilter(remoteIpAddress)));
+            // First in line, so the address is there for any middleware ahead of Ante's own - the forwarded-headers
+            // middleware a deployment enables decides on it whether the connection is a trusted proxy.
+            builder.ConfigureTestServices(services => services.Insert(0, ServiceDescriptor.Singleton<IStartupFilter>(new RemoteAddressStartupFilter(remoteIpAddress))));
         }
 
         if (legalDocuments is not null)
