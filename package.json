@@ -2,7 +2,8 @@
     "private": true,
     "name": "ante-workspace-root",
     "workspaces": [
-        "Source/Ante"
+        "Source/Ante",
+        "E2E"
     ],
     "engines": {
         "node": ">=20.0.0"

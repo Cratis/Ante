@@ -37,6 +37,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@axe-core/playwright@npm:4.13.0":
+  version: 4.13.0
+  resolution: "@axe-core/playwright@npm:4.13.0"
+  dependencies:
+    axe-core: "npm:~4.13.0"
+  peerDependencies:
+    playwright-core: ">= 1.0.0"
+  checksum: 10/2400e309d6f6d96b3f3f12b00a80e32cb0213726fcfc3c457b36d17f7136a3361f02a7523286024d7e8ceba9045a5f9c18edd8bc352f76b549faedce298fada2
+  languageName: node
+  linkType: hard
+
 "@babel/code-frame@npm:^7.10.4, @babel/code-frame@npm:^7.29.7":
   version: 7.29.7
   resolution: "@babel/code-frame@npm:7.29.7"
@@ -1219,6 +1230,17 @@ __metadata:
   version: 0.3.6
   resolution: "@pkgr/core@npm:0.3.6"
   checksum: 10/29082aa13d36f13fc41cdc64cb1feb36b630de0d6ebde84e2ff68e3d7a7f1dce4462cca91f76176c46e50bbca6b1e7f1fd9cf907af12d5d70da83bc981ca4ccf
+  languageName: node
+  linkType: hard
+
+"@playwright/test@npm:1.63.0":
+  version: 1.63.0
+  resolution: "@playwright/test@npm:1.63.0"
+  dependencies:
+    playwright: "npm:1.63.0"
+  bin:
+    playwright: cli.js
+  checksum: 10/b5e561b8f11488b8062b98c5cf975740f48ae7e9b455fb7152e0fb90d8e13f20c3c3ae6a15833655364246b99f5a46f6601daa5a9eef01de5004c8be7e2b3af3
   languageName: node
   linkType: hard
 
@@ -2610,6 +2632,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"ante-e2e@workspace:E2E":
+  version: 0.0.0-use.local
+  resolution: "ante-e2e@workspace:E2E"
+  dependencies:
+    "@axe-core/playwright": "npm:4.13.0"
+    "@playwright/test": "npm:1.63.0"
+    "@types/node": "npm:26.2.0"
+    eslint: "npm:10.8.1"
+    typescript: "npm:6.0.3"
+  languageName: unknown
+  linkType: soft
+
 "ante-workspace-root@workspace:.":
   version: 0.0.0-use.local
   resolution: "ante-workspace-root@workspace:."
@@ -2874,6 +2908,13 @@ __metadata:
   dependencies:
     possible-typed-array-names: "npm:^1.0.0"
   checksum: 10/6c9da3a66caddd83c875010a1ca8ef11eac02ba15fb592dc9418b2b5e7b77b645fa7729380a92d9835c2f05f2ca1b6251f39b993e0feb3f1517c74fa1af02cab
+  languageName: node
+  linkType: hard
+
+"axe-core@npm:~4.13.0":
+  version: 4.13.0
+  resolution: "axe-core@npm:4.13.0"
+  checksum: 10/b9319bedc705fde00e4abd981d8724202cc20102e4ae6d8edfde33cb5265e0fb8f67f32adcb4ad33fbd4a2c8d7ad7ef5af1d933d9ad859bed90e3eae0ee8c52f
   languageName: node
   linkType: hard
 
@@ -6810,6 +6851,26 @@ __metadata:
   version: 4.0.7
   resolution: "picomatch@npm:4.0.7"
   checksum: 10/66e1df34bc39c72fa3756be4069f7887ea3e35e94bba1c3f6167763007698cb04b8a0a365161d186fda6e9571a2d3efb606b2966eb6a7dea6252911224dc2f48
+  languageName: node
+  linkType: hard
+
+"playwright-core@npm:1.63.0":
+  version: 1.63.0
+  resolution: "playwright-core@npm:1.63.0"
+  bin:
+    playwright-core: cli.js
+  checksum: 10/d0f7c70786f5e08aa7553a77ba28c07427086e323ae8c4126a647debd8181966dc11d6f8fe1462f2a776ad60c95451b08f01fbee17b11e69a5bd9a2070fe75a6
+  languageName: node
+  linkType: hard
+
+"playwright@npm:1.63.0":
+  version: 1.63.0
+  resolution: "playwright@npm:1.63.0"
+  dependencies:
+    playwright-core: "npm:1.63.0"
+  bin:
+    playwright: cli.js
+  checksum: 10/ec87c22888148603a8955bc2a092f416455af931fe53925b9143ce333b83e42a6d8c159c00a4f2d232b27100cf3eadd93cec8a6e5c4e12c1c00663d2034dd515
   languageName: node
   linkType: hard
 
