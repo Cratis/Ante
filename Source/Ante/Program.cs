@@ -61,6 +61,10 @@ builder.AddCratis(
         .WithCamelCaseNamingPolicy()
         .WithNamespaceResolver(new FixedNamespaceResolver(anteOptions.Namespace)));
 
+// Arc's convention binding registers Chronicle's [Singleton]-marked serializer before Chronicle can register it
+// scoped; see EventSerializerRegistration.
+builder.Services.AddScopedEventSerializer();
+
 builder.Services.AddControllers();
 builder.Services.AddMvc();
 builder.Services.AddOpenApi();

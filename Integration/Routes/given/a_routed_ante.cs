@@ -51,11 +51,6 @@ public abstract class a_routed_ante : a_running_ante
 
     protected bool IsDevelopment => EnvironmentName == "Development";
 
-    // Development turns on the service provider's scope validation, which the incoming invitation reactor trips over
-    // (Cratis/Ante#142), so no invitation reaches Ante there. Journeys that need one run with validation off until
-    // that is fixed; every other specification keeps the environment's own setting.
-    protected override bool? ValidateScopes => IsDevelopment && ReceivesInvitations ? false : null;
-
     protected override string? WebRootPath { get; } = CreateWebRoot();
 
     protected override IReadOnlyDictionary<string, string?>? ExtraSettings
