@@ -27,6 +27,7 @@ import { LegalDocumentsUnavailable } from '../../Legal/LegalDocumentsUnavailable
 import { LegalVersionValues } from '../../Legal/LegalVersionValues';
 import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
 import { ErrorSummary } from '../../Accessibility/ErrorSummary';
+import { FieldError } from '../../Accessibility/FieldError';
 import { LiveRegion } from '../../Accessibility/LiveRegion';
 import { useAccessibleStepper } from '../../Accessibility/useAccessibleStepper';
 import strings from 'Strings';
@@ -187,6 +188,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
                     key={invitationIdText}
                     command={SetupOrganization}
                     validateOnInit
+                    errorDisplayComponent={FieldError}
                     onFieldValidate={validateChangedName}
                     isBusy={isNameValidating}
                     onFieldChange={nameValidation.onFieldChange}

@@ -1,0 +1,11 @@
+/* Copyright (c) Cratis. All rights reserved. */
+/* Licensed under the MIT license. See LICENSE file in the project root for full license information. */
+
+/* Matches the message a command form draws by default: a block under the field, in the error color
+   (--color-error, set in index.css). */
+.ante-field-error {
+    display: block;
+    margin-top: 0.25rem;
+    color: var(--color-error);
+    font-size: 0.875rem;
+}

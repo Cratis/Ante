@@ -15,7 +15,8 @@
 
 .display-preferences-menu__description {
     margin: 0;
-    color: var(--text-color-secondary);
+    /* The dialog is a Cratis Components surface, so its text comes from the same token family. */
+    color: var(--cratis-text-color-secondary);
     font-size: 0.875rem;
 }
 
@@ -31,7 +32,7 @@
     padding: 0;
     margin-bottom: 0.25rem;
     font-weight: 500;
-    color: var(--text-color);
+    color: var(--cratis-text-color);
 }
 
 .display-preferences-menu__actions {

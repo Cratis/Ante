@@ -10,6 +10,6 @@
 
 .legal-document .wmde-markdown {
     background: transparent;
-    color: var(--text-color);
+    color: var(--cratis-text-color);
     font-size: 0.95rem;
 }

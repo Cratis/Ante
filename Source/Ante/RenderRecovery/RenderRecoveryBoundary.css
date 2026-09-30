@@ -29,21 +29,41 @@
     margin: 0;
 }
 
+/* The button carries its own pair instead of the theme's primary color: the fallback must be readable
+   whichever theme failed, and Lara's dark primary (#34d399) under white text is only 1.9:1. White on
+   #2563eb is 5.2:1 and on the hover #1d4ed8 6.7:1 (Cratis/Ante#150). */
 .render-recovery__action {
     padding: 0.6rem 1.5rem;
     font-size: 1rem;
     border-radius: 0.375rem;
-    border: 1px solid var(--primary-color, #3b82f6);
-    background: var(--primary-color, #3b82f6);
-    color: var(--primary-contrast-color, #ffffff);
+    border: 1px solid #2563eb;
+    background: #2563eb;
+    color: #ffffff;
     cursor: pointer;
 }
 
 .render-recovery__action:hover {
-    opacity: 0.9;
+    border-color: #1d4ed8;
+    background: #1d4ed8;
 }
 
 .render-recovery__action:focus-visible {
-    outline: 2px solid var(--primary-color, #3b82f6);
+    outline: 2px solid #93c5fd;
     outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+    .render-recovery__action {
+        border-color: ButtonText;
+        background: ButtonFace;
+        color: ButtonText;
+    }
+
+    .render-recovery__action:hover {
+        border-color: Highlight;
+    }
+
+    .render-recovery__action:focus-visible {
+        outline-color: Highlight;
+    }
 }
