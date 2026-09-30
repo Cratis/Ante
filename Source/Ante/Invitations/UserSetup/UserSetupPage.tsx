@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@cratis/components/Common';
 import { ProgressSpinner } from '@cratis/components/Display';
 import { InputTextField } from '@cratis/components/CommandForm';
@@ -76,8 +76,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
         privacyPolicy: displayedDocuments?.privacyPolicy ?? ''
     });
 
-    const stepperContainerRef = useRef<HTMLDivElement>(null);
-    const { announcement } = useAccessibleStepper(stepperContainerRef, {
+    const { announcement, containerRef: stepperContainerRef } = useAccessibleStepper({
         idPrefix: 'user-setup',
         announcementTemplate: strings.accessibility.stepAnnouncement
     });

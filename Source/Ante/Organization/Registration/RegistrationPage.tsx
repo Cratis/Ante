@@ -120,8 +120,7 @@ const OpenRegistration = ({ configuration }: { configuration: RegistrationConfig
         privacyPolicy: displayedDocuments?.privacyPolicy ?? ''
     });
 
-    const stepperContainerRef = useRef<HTMLDivElement>(null);
-    const { announcement } = useAccessibleStepper(stepperContainerRef, {
+    const { announcement, containerRef: stepperContainerRef } = useAccessibleStepper({
         idPrefix: 'registration',
         announcementTemplate: strings.accessibility.stepAnnouncement
     });
