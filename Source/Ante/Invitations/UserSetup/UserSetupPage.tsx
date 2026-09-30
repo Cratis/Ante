@@ -58,7 +58,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     const { documents: availableDocuments, lastAvailableDocuments, isChecking: checkingLegalDocuments, refresh: refreshLegalDocuments } = useFreshLegalDocuments();
     const displayedDocuments = availableDocuments ?? lastAvailableDocuments;
 
-    const hasStatus = hasReadStatus(statusResult);
+    const hasStatus = hasReadStatus(statusResult, resolvedInvitationId);
     const isRecorded = hasStatus && statusResult.data.status !== UserSetupAcceptanceStatus.pending;
     const isAccepted = hasStatus && statusResult.data.status === UserSetupAcceptanceStatus.accepted;
     const recovery = useOnboardingRecovery(isRecorded, isAccepted);
@@ -66,7 +66,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     // Never looked up before Ante's own onboarding has actually published - a host has nothing to report
     // on an invitation it has not been notified of accepting yet.
     const hostOutcome = useHostOutcome(recovery.isAccepted ? resolvedInvitationId : Guid.empty);
-    const hostOutcomeGate = resolveHostOutcomeGate(recovery.isAccepted, hostOutcome.isConfigured);
+    const hostOutcomeGate = resolveHostOutcomeGate(recovery.isAccepted, hostOutcome.isConfigured, hostOutcome.isRead);
 
     // Static form defaults apply once per command; legal document updates must not replay names.
     const legalDocumentsConfigured = displayedDocuments?.isConfigured ?? false;

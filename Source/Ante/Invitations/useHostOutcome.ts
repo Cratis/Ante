@@ -5,10 +5,17 @@ import { useCallback } from 'react';
 import { Guid } from '@cratis/fundamentals';
 import { ForAttempt } from './HostOutcome/HostOutcome';
 import { HostOutcomeStatus } from './HostOutcome/HostOutcomeStatus';
+import { hasReadHostOutcome } from './hasReadHostOutcome';
 
 export type HostOutcomeState = {
     /** Whether this deployment has a host outcome backchannel configured at all. */
     isConfigured: boolean;
+    /**
+     * Whether the lookup for this attempt has settled, so `isConfigured` can be trusted. Not until the
+     * lookup has answered for this very attempt - Arc starts with its default value and keeps the previous
+     * attempt's result while re-running (Cratis/Ante#146) - unless it failed, which reads as not configured.
+     */
+    isRead: boolean;
     /** The host-reported outcome, defaulted to unknown until the first read arrives. */
     status: HostOutcomeStatus;
     /** A stable, low-cardinality reason code accompanying a terminal result; empty otherwise. */
@@ -33,6 +40,7 @@ export const useHostOutcome = (attemptId: Guid): HostOutcomeState => {
 
     return {
         isConfigured: result.data?.isConfigured ?? false,
+        isRead: hasReadHostOutcome(result, attemptId),
         status: result.data?.status ?? HostOutcomeStatus.unknown,
         reasonCode: result.data?.reasonCode ?? '',
         checkAgain,

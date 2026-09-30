@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { afterEach, describe, it, vi } from 'vitest';
+import { QueryResultWithState } from '@cratis/arc/queries';
 import { Guid } from '@cratis/fundamentals';
 import { useOrganizationSetupHandoff } from '../useOrganizationSetupHandoff';
 
@@ -12,14 +13,15 @@ const harness = vi.hoisted(() => {
     const cleanups: Array<(() => void) | undefined> = [];
     let index = 0;
     let dirty = false;
-    let status = { hasData: true, isPerforming: false, data: { status: 0, organizationName: '' } };
+    // Set by each specification, starting from the result Arc really starts a query with.
+    let status: unknown;
     const refresh = vi.fn(async () => {});
-    const reset = () => { cleanups.forEach(cleanup => cleanup?.()); slots.length = 0; cleanups.length = 0; index = 0; dirty = false; refresh.mockClear(); status = { hasData: true, isPerforming: false, data: { status: 0, organizationName: '' } }; };
+    const reset = () => { cleanups.forEach(cleanup => cleanup?.()); slots.length = 0; cleanups.length = 0; index = 0; dirty = false; refresh.mockClear(); status = undefined; };
     const begin = () => { index = 0; dirty = false; };
     const needsRender = () => dirty;
     const next = () => index++;
     const changed = (before: unknown[], after: unknown[]) => before.length !== after.length || before.some((value, i) => !Object.is(value, after[i]));
-    return { slots, cleanups, next, begin, needsRender, changed, reset, refresh, get status() { return status; }, set status(value: typeof status) { status = value; }, markDirty: () => { dirty = true; } };
+    return { slots, cleanups, next, begin, needsRender, changed, reset, refresh, get status() { return status; }, set status(value: unknown) { status = value; }, markDirty: () => { dirty = true; } };
 });
 
 vi.mock('react', async importOriginal => ({
@@ -51,11 +53,12 @@ vi.mock('react', async importOriginal => ({
 }));
 
 vi.mock('../OrganizationSetup', () => ({
-    StatusForInvitation: { when: () => ({ use: () => [{ hasData: false, data: {} }] }) },
+    // A disabled query is Arc's empty result over the proxy's default value.
+    StatusForInvitation: { when: () => ({ use: () => [QueryResultWithState.empty({})] }) },
     StatusForRegistration: { when: () => ({ use: () => [harness.status, harness.refresh] }) },
 }));
 vi.mock('../../../Configuration/Configuration', () => ({ HostUrl: { use: () => [{ isSuccess: false }] } }));
-vi.mock('../../useHostOutcome', () => ({ useHostOutcome: () => ({ status: 0, reasonCode: '', isConfigured: false, checkAgain: () => {} }) }));
+vi.mock('../../useHostOutcome', () => ({ useHostOutcome: () => ({ status: 0, reasonCode: '', isConfigured: false, isRead: true, checkAgain: () => {} }) }));
 vi.mock('../../HostOutcomeGate', () => ({ resolveHostOutcomeGate: (accepted: boolean) => accepted ? 'showHostOutcome' : 'keepWaiting' }));
 
 const invitationId = Guid.parse('f61541c5-0ee8-429a-b29a-a37e8434d1b9');
@@ -74,8 +77,9 @@ describe('when a recovered registration is submitted after its initial polling w
 
     it('should restart polling and observe publication without Check Again', async () => {
         vi.useFakeTimers();
+        harness.status = QueryResultWithState.initial({});
         render();
-        harness.status = { hasData: true, isPerforming: false, data: { status: 0, organizationName: '' } };
+        harness.status = { hasData: true, isPerforming: false, data: { invitationId, status: 0, organizationName: '' } };
         render();
         await vi.advanceTimersByTimeAsync(21000);
         const expired = render();
@@ -84,7 +88,7 @@ describe('when a recovered registration is submitted after its initial polling w
         render();
         await vi.advanceTimersByTimeAsync(1600);
         harness.refresh.mock.calls.length.should.be.greaterThan(oldRefreshCount);
-        harness.status = { hasData: true, isPerforming: false, data: { status: 2, organizationName: 'Acme' } };
+        harness.status = { hasData: true, isPerforming: false, data: { invitationId, status: 2, organizationName: 'Acme' } };
         render().phase.should.equal('hostOutcome');
     });
 });

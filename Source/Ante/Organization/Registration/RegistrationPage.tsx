@@ -31,6 +31,7 @@ import { LiveRegion } from '../../Accessibility/LiveRegion';
 import { useAccessibleStepper } from '../../Accessibility/useAccessibleStepper';
 import { Registration as RegistrationConfigurationQuery, RegistrationConfiguration } from '../../Configuration/Configuration';
 import { RegistrationClosed } from './RegistrationClosed';
+import { hasRegistrationConfiguration } from './hasRegistrationConfiguration';
 import { RegistrationIntro } from './RegistrationIntro';
 import { captureSignupContext, clearSignupContext } from './signupContext';
 import { HostOutcomeCompletion } from '../../Invitations/OrganizationSetup/HostOutcomeCompletion';
@@ -38,7 +39,7 @@ import strings from 'Strings';
 
 export const RegistrationPage = () => {
     const [configuration] = RegistrationConfigurationQuery.use();
-    if (!configuration.hasData) {
+    if (!hasRegistrationConfiguration(configuration)) {
         return (
             <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
                 <div className='organization-setup-card__content'>

@@ -80,7 +80,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     const [errorMessages, setErrorMessages] = useState<string[]>([]);
     const organizationNameRef = useRef('');
 
-    const hasStatus = hasReadStatus(statusResult);
+    const hasStatus = hasReadStatus(statusResult, invitationId);
     const isRecorded = hasStatus && statusResult.data.status !== OrganizationSetupAcceptanceStatus.pending;
     const isAccepted = hasStatus && statusResult.data.status === OrganizationSetupAcceptanceStatus.accepted;
     const recovery = useOnboardingRecovery(isRecorded, isAccepted);
@@ -118,7 +118,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     // on an attempt it has not been notified of yet - and never looked up at all for a caller that has
     // not opted in.
     const hostOutcome = useHostOutcome(supportsHostOutcome && recovery.isAccepted ? invitationId : Guid.empty);
-    const gate = resolveHostOutcomeGate(recovery.isAccepted, supportsHostOutcome && hostOutcome.isConfigured);
+    const gate = resolveHostOutcomeGate(recovery.isAccepted, supportsHostOutcome && hostOutcome.isConfigured, !supportsHostOutcome || hostOutcome.isRead);
 
     const navigateToHost = useCallback(() => {
         if (!hostUrlResult.isSuccess) {
