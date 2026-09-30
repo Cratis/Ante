@@ -46,7 +46,24 @@ public abstract class setting_cookies : a_routed_ante
     [Fact] public void should_scope_the_identity_cookie_to_the_whole_host() => (_signedInMe.Cookie(IdentityCookie)!.Path == "/" && !_signedInMe.Cookie(IdentityCookie)!.HasDomain).ShouldBeTrue();
     [Fact] public void should_restrict_the_identity_cookie_to_same_site_navigations_that_are_safe() => _signedInMe.Cookie(IdentityCookie)!.SameSite.ShouldEqual("lax");
     [Fact] public void should_leave_the_identity_cookie_readable_by_the_frontend() => _signedInMe.Cookie(IdentityCookie)!.IsHttpOnly.ShouldBeFalse();
-    [Fact] public void should_mark_the_identity_cookie_secure_only_when_ante_sees_https() => _signedInMe.Cookie(IdentityCookie)!.IsSecure.ShouldEqual(!Proxied);
+    [Fact] public void should_mark_the_identity_cookie_secure_when_ante_sees_https()
+    {
+        if (!Proxied)
+        {
+            _signedInMe.Cookie(IdentityCookie)!.IsSecure.ShouldBeTrue();
+        }
+    }
+
+    // An observation, not a requirement: behind a TLS-terminating proxy Ante sees plain HTTP unless forwarded headers
+    // are enabled, so the display-only identity cookie is not marked Secure. If forwarded-header handling becomes the
+    // default, this is expected to change - update the observation then.
+    [Fact] public void should_currently_leave_the_identity_cookie_not_secure_behind_a_proxy_without_forwarded_headers_as_observed()
+    {
+        if (Proxied)
+        {
+            _signedInMe.Cookie(IdentityCookie)!.IsSecure.ShouldBeFalse();
+        }
+    }
     [Fact] public void should_remove_the_identity_cookie_when_the_registration_completes() => (_registered.IsSuccess && _registered.Cookie(IdentityCookie)!.Value.Length == 0 && _registered.Cookie(IdentityCookie)!.IsExpired && _registered.Cookie(IdentityCookie)!.Path == "/").ShouldBeTrue();
     [Fact] public void should_set_no_other_cookie_anywhere() => _others.Append(_registered).Append(_signedInMe).SelectMany(reply => reply.SetCookies).Select(header => SetCookie.Parse(header).Name).Where(name => name != IdentityCookie).ShouldBeEmpty();
     [Fact] public void should_set_no_cookie_on_the_other_routes() => _others.Where(reply => reply.SetCookies.Count > 0).Select(reply => (int)reply.Status).ShouldBeEmpty();
