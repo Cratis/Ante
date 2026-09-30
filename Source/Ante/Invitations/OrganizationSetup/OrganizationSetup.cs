@@ -130,11 +130,17 @@ public class SetupOrganizationValidator : CommandValidator<SetupOrganization>
 /// would read no match. Both events are declared under one constraint name, so an invited creation and
 /// a self-registration compete for the name under a single coordinated decision instead of two
 /// independent ones that could each let the name through.
+/// <para>
+/// The constraint applies to the event log only. The outbox carries copies of facts the event log has already
+/// validated, so an outbox index would only hold on to a name the host later releases: the release is appended to
+/// the event log, never to the outbox, and a second registration of the released name could not be forwarded.
+/// </para>
 /// </remarks>
 public class UniqueOrganizationNameConstraint : IConstraint
 {
     /// <inheritdoc/>
     public void Define(IConstraintBuilder builder) => builder
+        .ForEventLog()
         .Unique(unique => unique
             .WithName(OrganizationSetupConstraintNames.UniqueOrganizationName)
             .On<InvitationToCreateTenantAccepted>(@event => @event.TenantName)
@@ -154,12 +160,14 @@ public class UniqueOrganizationNameConstraint : IConstraint
 /// that is a read-model check and races: two concurrent submits of the same invitation can both observe
 /// it as still pending before either append lands. This constraint is the atomic backstop, enforced by
 /// the kernel at append time - only one <see cref="InvitationToCreateTenantAccepted"/> can ever be
-/// appended per invitation (its event source).
+/// appended per invitation (its event source). It applies to the event log only: the outbox holds one forwarded
+/// copy per delivery, so it needs no index of its own.
 /// </remarks>
 public class OneUseCreateTenantInvitationConstraint : IConstraint
 {
     /// <inheritdoc/>
     public void Define(IConstraintBuilder builder) => builder
+        .ForEventLog()
         .Unique<InvitationToCreateTenantAccepted>(
             "This invitation has already been accepted.",
             OrganizationSetupConstraintNames.OneUseInvitation);

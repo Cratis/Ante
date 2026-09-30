@@ -31,7 +31,7 @@ namespace Ante.Integration.given;
 /// </remarks>
 public sealed class ChronicleInfrastructure : IAsyncLifetime
 {
-    public const string DefaultImage = "cratis/chronicle:19.22.1-development";
+    public const string DefaultImage = "cratis/chronicle:19.23.0-development";
     const ushort ChroniclePort = 35000;
     const ushort HttpPort = 8080;
     const ushort MongoDBPort = 27017;

@@ -13,8 +13,13 @@ namespace Ante.Integration.Organization.when_a_visitor_registers_an_organization
 /// <summary>
 /// A self-service registration claims its name through a generation-2 event, which the kernel does not AutoMap
 /// (Cratis/Chronicle#4367). Against a real kernel, the claim must still carry the name, and a host release of
-/// that name must free it for the next visitor.
+/// that name must free it for the next visitor, and the host must receive that next visitor's registration.
 /// </summary>
+/// <remarks>
+/// The release is appended to Ante's event log only, so the name must be unique in the event log alone. When the
+/// outbox enforced it too, the first registration published to the outbox still held the name there, the second
+/// registration could not be forwarded, and the host never received it (Cratis/Ante#138).
+/// </remarks>
 [Collection(ChronicleCollection.Name)]
 public class and_the_host_later_releases_the_name : a_running_ante
 {
@@ -22,6 +27,8 @@ public class and_the_host_later_releases_the_name : a_running_ante
     JsonDocument _registered;
     OrganizationNameClaim _claim;
     JsonDocument _afterRelease;
+    Guid _secondRegistrationId;
+    OrganizationRegistrationCompleted _secondCompleted;
 
     protected override ILegalDocumentSource? LegalDocuments => new CurrentLegalDocuments();
 
@@ -39,10 +46,18 @@ public class and_the_host_later_releases_the_name : a_running_ante
         _afterRelease = await Eventually.Get(
             async () =>
             {
-                var result = await Register(Guid.NewGuid());
-                return IsSuccess(result) ? result : null;
+                var secondRegistrationId = Guid.NewGuid();
+                var result = await Register(secondRegistrationId);
+                if (!IsSuccess(result))
+                {
+                    return null;
+                }
+
+                _secondRegistrationId = secondRegistrationId;
+                return result;
             },
             what: "the released name to be accepted");
+        _secondCompleted = await Host.WaitForFromAnte<OrganizationRegistrationCompleted>(_secondRegistrationId.ToString());
     }
 
     async Task<JsonDocument> Register(Guid registrationId)
@@ -58,4 +73,5 @@ public class and_the_host_later_releases_the_name : a_running_ante
     [Fact] void should_register_the_name() => IsSuccess(_registered).ShouldBeTrue();
     [Fact] void should_claim_the_name_it_registered() => (_claim.TenantName?.Value).ShouldEqual(_organization);
     [Fact] void should_accept_it_once_released() => IsSuccess(_afterRelease).ShouldBeTrue();
+    [Fact] void should_publish_the_second_registration_to_the_host() => _secondCompleted.TenantName.Value.ShouldEqual(_organization);
 }
