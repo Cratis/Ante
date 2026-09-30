@@ -39,8 +39,9 @@ export const DisplayPreferencesMenu = () => {
                 className='display-preferences-menu__trigger'
                 onClick={() => setVisible(true)}
             />
+            {/* Without buttons the dialog is not dismissable by default; Escape must still close it (Cratis/Ante#149). */}
             {visible && (
-                <Dialog title={s.title} width='28rem' buttons={null} onCancel={() => setVisible(false)}>
+                <Dialog title={s.title} width='28rem' buttons={null} dismissable onCancel={() => setVisible(false)}>
                     <div className='display-preferences-menu__content'>
                         <p className='display-preferences-menu__description'>{s.description}</p>
                         <OptionGroup
