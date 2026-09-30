@@ -88,6 +88,7 @@ public abstract class a_routed_ante : a_running_ante
     /// <param name="origin">The <c>Origin</c> a browser would send from another site.</param>
     /// <param name="forwardedFor">The <c>X-Forwarded-For</c> the proxy adds; a fixed client address by default.</param>
     /// <param name="cookie">A <c>Cookie</c> header value a browser would replay.</param>
+    /// <param name="headers">Further request headers, such as a preflight's <c>Access-Control-Request-Method</c>.</param>
     /// <returns>What the route answered.</returns>
     protected async Task<Reply> Send(
         HttpMethod method,
@@ -99,9 +100,15 @@ public abstract class a_routed_ante : a_running_ante
         string? bearer = default,
         string? origin = default,
         string forwardedFor = "203.0.113.7",
-        string? cookie = default)
+        string? cookie = default,
+        IReadOnlyDictionary<string, string>? headers = default)
     {
         using var request = BuildRequest(method, path, subject, provider, body, contentType, bearer, origin, forwardedFor, cookie);
+        foreach (var (name, value) in headers ?? new Dictionary<string, string>())
+        {
+            request.Headers.Add(name, value);
+        }
+
         using var response = await NewClient().SendAsync(request);
         return await ReplyOf(response);
     }
