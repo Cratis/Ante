@@ -11,6 +11,7 @@ import { Guid } from '@cratis/fundamentals';
 import { AcceptInvitation, StatusForInvitation } from './UserSetup';
 import { UserSetupAcceptanceStatus } from './UserSetupAcceptanceStatus';
 import { useOnboardingRecovery } from '../useOnboardingRecovery';
+import { hasReadStatus } from '../hasReadStatus';
 import { useHostOutcome } from '../useHostOutcome';
 import { resolveHostOutcomeGate } from '../HostOutcomeGate';
 import { HostOutcomeStatus } from '../HostOutcome/HostOutcomeStatus';
@@ -57,8 +58,9 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     const { documents: availableDocuments, lastAvailableDocuments, isChecking: checkingLegalDocuments, refresh: refreshLegalDocuments } = useFreshLegalDocuments();
     const displayedDocuments = availableDocuments ?? lastAvailableDocuments;
 
-    const isRecorded = statusResult.hasData && statusResult.data.status !== UserSetupAcceptanceStatus.pending;
-    const isAccepted = statusResult.hasData && statusResult.data.status === UserSetupAcceptanceStatus.accepted;
+    const hasStatus = hasReadStatus(statusResult);
+    const isRecorded = hasStatus && statusResult.data.status !== UserSetupAcceptanceStatus.pending;
+    const isAccepted = hasStatus && statusResult.data.status === UserSetupAcceptanceStatus.accepted;
     const recovery = useOnboardingRecovery(isRecorded, isAccepted);
 
     // Never looked up before Ante's own onboarding has actually published - a host has nothing to report
@@ -122,7 +124,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     // Identity/invitation resolution and the first durable status read both have to complete before it
     // is safe to decide between the form and the waiting phase - showing the form even briefly beforehand
     // would let a recovered, already-submitted acceptance flash a form it must never resubmit.
-    if ((!invitationId && !identity.isSet) || !statusResult.hasData) {
+    if ((!invitationId && !identity.isSet) || !hasStatus) {
         return (
             <UserSetupFrame>
                 <div className='user-setup-card__content'>
