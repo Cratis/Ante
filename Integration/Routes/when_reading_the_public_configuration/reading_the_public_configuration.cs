@@ -30,15 +30,15 @@ public abstract class reading_the_public_configuration : a_routed_ante
         _localeVisits = await Visit(["/api/locale-config"]);
     }
 
-    [Fact] void should_answer_every_query_to_everyone() => _visits.Failing(reply => reply.IsOk && reply.IsSuccess).ShouldBeEmpty();
-    [Fact] void should_not_ask_anyone_to_sign_in() => _visits.Failing(reply => reply.Json.GetProperty("isAuthorized").GetBoolean()).ShouldBeEmpty();
-    [Fact] void should_publish_the_branding_to_an_anonymous_visitor() => _visits.Anonymous("/api/configuration/get-configuration").Data.GetProperty("logoUrl").GetString().ShouldEqual(string.Empty);
-    [Fact] void should_open_registration_to_an_anonymous_visitor() => _visits.Anonymous("/api/configuration/registration").Data.GetProperty("isEnabled").GetBoolean().ShouldBeTrue();
-    [Fact] void should_report_that_no_legal_documents_are_configured() => _visits.Anonymous("/api/legal/current").Data.GetProperty("isConfigured").GetBoolean().ShouldBeFalse();
-    [Fact] void should_answer_a_signed_in_user_exactly_as_an_anonymous_visitor() => _queries.Where(path => _visits.Anonymous(path).Data.ToString() != _visits.SignedIn(path).Data.ToString()).ShouldBeEmpty();
-    [Fact] void should_publish_the_supported_locales_to_everyone() => _localeVisits.Failing(["/api/locale-config"], reply => reply.IsOk && reply.Json.GetProperty("defaultLocale").GetString() == "en" && reply.Json.GetProperty("supportedLocales").GetArrayLength() == 2).ShouldBeEmpty();
+    [Fact] public void should_answer_every_query_to_everyone() => _visits.Failing(reply => reply.IsOk && reply.IsSuccess).ShouldBeEmpty();
+    [Fact] public void should_not_ask_anyone_to_sign_in() => _visits.Failing(reply => reply.Json.GetProperty("isAuthorized").GetBoolean()).ShouldBeEmpty();
+    [Fact] public void should_publish_the_branding_to_an_anonymous_visitor() => _visits.Anonymous("/api/configuration/get-configuration").Data.GetProperty("logoUrl").GetString().ShouldEqual(string.Empty);
+    [Fact] public void should_open_registration_to_an_anonymous_visitor() => _visits.Anonymous("/api/configuration/registration").Data.GetProperty("isEnabled").GetBoolean().ShouldBeTrue();
+    [Fact] public void should_report_that_no_legal_documents_are_configured() => _visits.Anonymous("/api/legal/current").Data.GetProperty("isConfigured").GetBoolean().ShouldBeFalse();
+    [Fact] public void should_answer_a_signed_in_user_exactly_as_an_anonymous_visitor() => _queries.Where(path => _visits.Anonymous(path).Data.ToString() != _visits.SignedIn(path).Data.ToString()).ShouldBeEmpty();
+    [Fact] public void should_publish_the_supported_locales_to_everyone() => _localeVisits.Failing(["/api/locale-config"], reply => reply.IsOk && reply.Json.GetProperty("defaultLocale").GetString() == "en" && reply.Json.GetProperty("supportedLocales").GetArrayLength() == 2).ShouldBeEmpty();
 
     // Development layers appsettings.Development.json over the base settings; any other environment keeps the base template.
-    [Fact] void should_publish_the_host_url_of_the_environment() => _visits.Anonymous(HostUrl).Data.GetProperty("hostAppUrl").GetString().ShouldEqual(IsDevelopment ? "http://{tenant}.localhost:8090/" : "https://{tenant}.example.com/");
-    [Fact] void should_not_set_a_cookie() => _visits.Failing(reply => reply.SetCookies.Count == 0).ShouldBeEmpty();
+    [Fact] public void should_publish_the_host_url_of_the_environment() => _visits.Anonymous(HostUrl).Data.GetProperty("hostAppUrl").GetString().ShouldEqual(IsDevelopment ? "http://{tenant}.localhost:8090/" : "https://{tenant}.example.com/");
+    [Fact] public void should_not_set_a_cookie() => _visits.Failing(reply => reply.SetCookies.Count == 0).ShouldBeEmpty();
 }

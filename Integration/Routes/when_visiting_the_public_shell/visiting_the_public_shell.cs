@@ -22,10 +22,10 @@ public abstract class visiting_the_public_shell : a_routed_ante
 
     async Task Because() => _visits = await Visit([.. _clientRoutes, .. _invitationLink, .. _assets, .. _missingFiles, .. _outsideTheWebRoot]);
 
-    [Fact] void should_serve_the_shell_for_client_routes_to_everyone() => _visits.Failing(_clientRoutes, reply => reply.IsOk && reply.IsShell && reply.ContentType!.StartsWith("text/html")).ShouldBeEmpty();
-    [Fact] void should_serve_the_shell_for_an_invitation_link_to_everyone() => _visits.Failing(_invitationLink, reply => reply.IsOk && reply.IsShell).ShouldBeEmpty();
-    [Fact] void should_serve_assets_from_the_web_root_to_everyone() => _visits.Failing(_assets, reply => reply.IsOk && reply.Body.Contains("globalThis.ante") && !reply.IsShell).ShouldBeEmpty();
-    [Fact] void should_answer_a_missing_file_with_404_instead_of_the_shell() => _visits.Failing(_missingFiles, reply => reply.Status == System.Net.HttpStatusCode.NotFound && !reply.IsShell).ShouldBeEmpty();
-    [Fact] void should_not_serve_files_outside_the_web_root() => _visits.Failing(_outsideTheWebRoot, reply => reply.Status == System.Net.HttpStatusCode.NotFound && !reply.IsShell && !reply.Body.Contains("Ante")).ShouldBeEmpty();
-    [Fact] void should_not_set_a_cookie() => _visits.Failing(reply => reply.SetCookies.Count == 0).ShouldBeEmpty();
+    [Fact] public void should_serve_the_shell_for_client_routes_to_everyone() => _visits.Failing(_clientRoutes, reply => reply.IsOk && reply.IsShell && reply.ContentType!.StartsWith("text/html")).ShouldBeEmpty();
+    [Fact] public void should_serve_the_shell_for_an_invitation_link_to_everyone() => _visits.Failing(_invitationLink, reply => reply.IsOk && reply.IsShell).ShouldBeEmpty();
+    [Fact] public void should_serve_assets_from_the_web_root_to_everyone() => _visits.Failing(_assets, reply => reply.IsOk && reply.Body.Contains("globalThis.ante") && !reply.IsShell).ShouldBeEmpty();
+    [Fact] public void should_answer_a_missing_file_with_404_instead_of_the_shell() => _visits.Failing(_missingFiles, reply => reply.Status == System.Net.HttpStatusCode.NotFound && !reply.IsShell).ShouldBeEmpty();
+    [Fact] public void should_not_serve_files_outside_the_web_root() => _visits.Failing(_outsideTheWebRoot, reply => reply.Status == System.Net.HttpStatusCode.NotFound && !reply.IsShell && !reply.Body.Contains("Ante")).ShouldBeEmpty();
+    [Fact] public void should_not_set_a_cookie() => _visits.Failing(reply => reply.SetCookies.Count == 0).ShouldBeEmpty();
 }

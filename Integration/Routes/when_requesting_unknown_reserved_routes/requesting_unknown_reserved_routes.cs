@@ -28,8 +28,8 @@ public abstract class requesting_unknown_reserved_routes : a_routed_ante
         _unknownPost = await Send(HttpMethod.Post, "/api/nope", body: new { });
     }
 
-    [Fact] void should_answer_an_unknown_reserved_path_with_404() => _visits.Failing(_unknown, reply => reply.Status == HttpStatusCode.NotFound).ShouldBeEmpty();
-    [Fact] void should_never_answer_an_unknown_reserved_path_with_the_shell() => _visits.Failing(_unknown, reply => !reply.IsShell).ShouldBeEmpty();
-    [Fact] void should_answer_an_unknown_command_route_with_404() => _unknownPost.Status.ShouldEqual(HttpStatusCode.NotFound);
-    [Fact] void should_publish_the_openapi_document_only_in_development() => _visits.Failing([OpenApiDocument], reply => IsDevelopment ? reply.IsOk && reply.Json.GetProperty("openapi").ValueKind == System.Text.Json.JsonValueKind.String : reply.Status == HttpStatusCode.NotFound && !reply.IsShell).ShouldBeEmpty();
+    [Fact] public void should_answer_an_unknown_reserved_path_with_404() => _visits.Failing(_unknown, reply => reply.Status == HttpStatusCode.NotFound).ShouldBeEmpty();
+    [Fact] public void should_never_answer_an_unknown_reserved_path_with_the_shell() => _visits.Failing(_unknown, reply => !reply.IsShell).ShouldBeEmpty();
+    [Fact] public void should_answer_an_unknown_command_route_with_404() => _unknownPost.Status.ShouldEqual(HttpStatusCode.NotFound);
+    [Fact] public void should_publish_the_openapi_document_only_in_development() => _visits.Failing([OpenApiDocument], reply => IsDevelopment ? reply.IsOk && reply.Json.GetProperty("openapi").ValueKind == System.Text.Json.JsonValueKind.String : reply.Status == HttpStatusCode.NotFound && !reply.IsShell).ShouldBeEmpty();
 }

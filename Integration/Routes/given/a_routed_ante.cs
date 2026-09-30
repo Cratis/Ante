@@ -30,7 +30,6 @@ public abstract class a_routed_ante : a_running_ante
     public const string InvitationLinkToken = "eyJhbGciOiJSUzI1NiJ9.eyJqdGkiOiJ4In0.c2ln";
 
     static readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
-    readonly string _webRoot = CreateWebRoot();
     readonly List<HttpClient> _clients = [];
 
     /// <summary>Gets a value indicating whether Ante is reached through the authentication proxy.</summary>
@@ -47,7 +46,7 @@ public abstract class a_routed_ante : a_running_ante
 
     protected bool IsDevelopment => EnvironmentName == "Development";
 
-    protected override string? WebRootPath => _webRoot;
+    protected override string? WebRootPath { get; } = CreateWebRoot();
 
     protected override IReadOnlyDictionary<string, string?>? ExtraSettings
     {
@@ -148,7 +147,7 @@ public abstract class a_routed_ante : a_running_ante
             client.Dispose();
         }
 
-        Directory.Delete(_webRoot, recursive: true);
+        Directory.Delete(WebRootPath!, recursive: true);
     }
 
     static string CreateWebRoot()
