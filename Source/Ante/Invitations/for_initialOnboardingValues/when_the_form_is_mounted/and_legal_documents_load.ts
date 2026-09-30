@@ -145,6 +145,6 @@ function specifyMountedForm<T extends OnboardingCommand>(flow: string, commandTy
     });
 }
 
-specifyMountedForm('registration', RegisterOrganization, initialRegistrationValues(id), true);
-specifyMountedForm('invited organization setup', SetupOrganization, initialOrganizationSetupValues(id), true);
-specifyMountedForm('join', AcceptInvitation, initialUserSetupValues(id), false);
+specifyMountedForm('registration', RegisterOrganization, initialRegistrationValues(id, true), true);
+specifyMountedForm('invited organization setup', SetupOrganization, initialOrganizationSetupValues(id, true), true);
+specifyMountedForm('join', AcceptInvitation, initialUserSetupValues(id, true), false);

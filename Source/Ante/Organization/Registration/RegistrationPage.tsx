@@ -31,6 +31,7 @@ import { LiveRegion } from '../../Accessibility/LiveRegion';
 import { useAccessibleStepper } from '../../Accessibility/useAccessibleStepper';
 import { Registration as RegistrationConfigurationQuery, RegistrationConfiguration } from '../../Configuration/Configuration';
 import { RegistrationClosed } from './RegistrationClosed';
+import { hasRegistrationConfiguration } from './hasRegistrationConfiguration';
 import { RegistrationIntro } from './RegistrationIntro';
 import { captureSignupContext, clearSignupContext } from './signupContext';
 import { HostOutcomeCompletion } from '../../Invitations/OrganizationSetup/HostOutcomeCompletion';
@@ -38,7 +39,7 @@ import strings from 'Strings';
 
 export const RegistrationPage = () => {
     const [configuration] = RegistrationConfigurationQuery.use();
-    if (!configuration.hasData) {
+    if (!hasRegistrationConfiguration(configuration)) {
         return (
             <OrganizationSetupFrame subtitle={strings.registration.subtitle}>
                 <div className='organization-setup-card__content'>
@@ -113,15 +114,15 @@ const OpenRegistration = ({ configuration }: { configuration: RegistrationConfig
 
     // Without currentValues the form seeds this command once. The legal document version is
     // applied separately when it arrives, without replaying editable defaults on every render.
-    const initialValues = useMemo(() => initialRegistrationValues(registrationId), [registrationId]);
+    const legalDocumentsConfigured = displayedDocuments?.isConfigured ?? false;
+    const initialValues = useMemo(() => initialRegistrationValues(registrationId, legalDocumentsConfigured), [registrationId, legalDocumentsConfigured]);
 
     const legalDocuments = useLegalDocumentViewer({
         termsAndConditions: displayedDocuments?.termsAndConditions ?? '',
         privacyPolicy: displayedDocuments?.privacyPolicy ?? ''
     });
 
-    const stepperContainerRef = useRef<HTMLDivElement>(null);
-    const { announcement } = useAccessibleStepper(stepperContainerRef, {
+    const { announcement, containerRef: stepperContainerRef } = useAccessibleStepper({
         idPrefix: 'registration',
         announcementTemplate: strings.accessibility.stepAnnouncement
     });

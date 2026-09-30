@@ -1,0 +1,21 @@
+{
+    "name": "ante-e2e",
+    "private": true,
+    "version": "0.0.0",
+    "type": "module",
+    "scripts": {
+        "e2e": "node build-frontend.mjs && playwright test",
+        "build-frontend": "node build-frontend.mjs",
+        "test": "playwright test",
+        "lint:ci": "eslint --config ../Source/Ante/.frontend/eslint.config.mjs --quiet .",
+        "compile": "tsc -p tsconfig.json",
+        "install-browsers": "playwright install --with-deps chromium"
+    },
+    "devDependencies": {
+        "@axe-core/playwright": "4.13.0",
+        "@playwright/test": "1.63.0",
+        "@types/node": "26.2.0",
+        "eslint": "10.8.1",
+        "typescript": "6.0.3"
+    }
+}

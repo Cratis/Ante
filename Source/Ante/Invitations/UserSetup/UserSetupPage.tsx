@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@cratis/components/Common';
 import { ProgressSpinner } from '@cratis/components/Display';
 import { InputTextField } from '@cratis/components/CommandForm';
@@ -11,6 +11,7 @@ import { Guid } from '@cratis/fundamentals';
 import { AcceptInvitation, StatusForInvitation } from './UserSetup';
 import { UserSetupAcceptanceStatus } from './UserSetupAcceptanceStatus';
 import { useOnboardingRecovery } from '../useOnboardingRecovery';
+import { hasReadStatus } from '../hasReadStatus';
 import { useHostOutcome } from '../useHostOutcome';
 import { resolveHostOutcomeGate } from '../HostOutcomeGate';
 import { HostOutcomeStatus } from '../HostOutcome/HostOutcomeStatus';
@@ -57,25 +58,26 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     const { documents: availableDocuments, lastAvailableDocuments, isChecking: checkingLegalDocuments, refresh: refreshLegalDocuments } = useFreshLegalDocuments();
     const displayedDocuments = availableDocuments ?? lastAvailableDocuments;
 
-    const isRecorded = statusResult.hasData && statusResult.data.status !== UserSetupAcceptanceStatus.pending;
-    const isAccepted = statusResult.hasData && statusResult.data.status === UserSetupAcceptanceStatus.accepted;
+    const hasStatus = hasReadStatus(statusResult, resolvedInvitationId);
+    const isRecorded = hasStatus && statusResult.data.status !== UserSetupAcceptanceStatus.pending;
+    const isAccepted = hasStatus && statusResult.data.status === UserSetupAcceptanceStatus.accepted;
     const recovery = useOnboardingRecovery(isRecorded, isAccepted);
 
     // Never looked up before Ante's own onboarding has actually published - a host has nothing to report
     // on an invitation it has not been notified of accepting yet.
     const hostOutcome = useHostOutcome(recovery.isAccepted ? resolvedInvitationId : Guid.empty);
-    const hostOutcomeGate = resolveHostOutcomeGate(recovery.isAccepted, hostOutcome.isConfigured);
+    const hostOutcomeGate = resolveHostOutcomeGate(recovery.isAccepted, hostOutcome.isConfigured, hostOutcome.isRead);
 
     // Static form defaults apply once per command; legal document updates must not replay names.
-    const initialValues = useMemo(() => initialUserSetupValues(resolvedInvitationId), [resolvedInvitationId]);
+    const legalDocumentsConfigured = displayedDocuments?.isConfigured ?? false;
+    const initialValues = useMemo(() => initialUserSetupValues(resolvedInvitationId, legalDocumentsConfigured), [resolvedInvitationId, legalDocumentsConfigured]);
 
     const legalDocuments = useLegalDocumentViewer({
         termsAndConditions: displayedDocuments?.termsAndConditions ?? '',
         privacyPolicy: displayedDocuments?.privacyPolicy ?? ''
     });
 
-    const stepperContainerRef = useRef<HTMLDivElement>(null);
-    const { announcement } = useAccessibleStepper(stepperContainerRef, {
+    const { announcement, containerRef: stepperContainerRef } = useAccessibleStepper({
         idPrefix: 'user-setup',
         announcementTemplate: strings.accessibility.stepAnnouncement
     });
@@ -122,7 +124,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     // Identity/invitation resolution and the first durable status read both have to complete before it
     // is safe to decide between the form and the waiting phase - showing the form even briefly beforehand
     // would let a recovered, already-submitted acceptance flash a form it must never resubmit.
-    if ((!invitationId && !identity.isSet) || !statusResult.hasData) {
+    if ((!invitationId && !identity.isSet) || !hasStatus) {
         return (
             <UserSetupFrame>
                 <div className='user-setup-card__content'>

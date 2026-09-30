@@ -21,9 +21,11 @@ export type HostOutcomeGateDecision = 'redirectAutomatically' | 'showHostOutcome
  * only decides what the person sees once it is true.
  * @param isAccepted Whether durable evidence confirms Ante's own onboarding facts have published.
  * @param isHostOutcomeConfigured Whether this deployment has a host outcome backchannel configured.
+ * @param isHostOutcomeRead Whether the host outcome lookup has settled, so `isHostOutcomeConfigured` can be
+ * trusted - until then an accepted onboarding keeps waiting rather than redirecting past the screen.
  * @returns The decision the wizard should render from.
  */
-export const resolveHostOutcomeGate = (isAccepted: boolean, isHostOutcomeConfigured: boolean): HostOutcomeGateDecision => {
-    if (!isAccepted) return 'keepWaiting';
+export const resolveHostOutcomeGate = (isAccepted: boolean, isHostOutcomeConfigured: boolean, isHostOutcomeRead: boolean): HostOutcomeGateDecision => {
+    if (!isAccepted || !isHostOutcomeRead) return 'keepWaiting';
     return isHostOutcomeConfigured ? 'showHostOutcome' : 'redirectAutomatically';
 };

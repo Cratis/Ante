@@ -10,6 +10,7 @@ import { startRegistrationStatusPolling } from './registrationStatusPolling';
 import { HostUrl } from '../../Configuration/Configuration';
 import { resolveHostAppRedirectUrl } from '../../Configuration/hostAppRedirect';
 import { useOnboardingRecovery } from '../useOnboardingRecovery';
+import { hasReadStatus } from '../hasReadStatus';
 import { useHostOutcome } from '../useHostOutcome';
 import { resolveHostOutcomeGate } from '../HostOutcomeGate';
 import { OnboardingRecoveryPhase } from '../OnboardingRecoveryPhase';
@@ -79,8 +80,9 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     const [errorMessages, setErrorMessages] = useState<string[]>([]);
     const organizationNameRef = useRef('');
 
-    const isRecorded = statusResult.hasData && statusResult.data.status !== OrganizationSetupAcceptanceStatus.pending;
-    const isAccepted = statusResult.hasData && statusResult.data.status === OrganizationSetupAcceptanceStatus.accepted;
+    const hasStatus = hasReadStatus(statusResult, invitationId);
+    const isRecorded = hasStatus && statusResult.data.status !== OrganizationSetupAcceptanceStatus.pending;
+    const isAccepted = hasStatus && statusResult.data.status === OrganizationSetupAcceptanceStatus.accepted;
     const recovery = useOnboardingRecovery(isRecorded, isAccepted);
     const [submitted, setSubmitted] = useState(false);
     const [pollWindowExpired, setPollWindowExpired] = useState(false);
@@ -116,7 +118,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     // on an attempt it has not been notified of yet - and never looked up at all for a caller that has
     // not opted in.
     const hostOutcome = useHostOutcome(supportsHostOutcome && recovery.isAccepted ? invitationId : Guid.empty);
-    const gate = resolveHostOutcomeGate(recovery.isAccepted, supportsHostOutcome && hostOutcome.isConfigured);
+    const gate = resolveHostOutcomeGate(recovery.isAccepted, supportsHostOutcome && hostOutcome.isConfigured, !supportsHostOutcome || hostOutcome.isRead);
 
     const navigateToHost = useCallback(() => {
         if (!hostUrlResult.isSuccess) {
@@ -146,7 +148,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     }, [gate, navigateToHost]);
 
     return {
-        hasStatus: statusResult.hasData,
+        hasStatus,
         phase: gate === 'showHostOutcome' ? 'hostOutcome' : recovery.phase,
         errorMessages,
         captureOrganizationName: (organizationName: string) => { organizationNameRef.current = organizationName; },

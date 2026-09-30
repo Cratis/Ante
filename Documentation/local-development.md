@@ -57,11 +57,33 @@ A run takes a few minutes and removes its container afterwards. Three environmen
 | `ANTE_INTEGRATION_KEEP_CONTAINER=true` | Leaves the container running for inspection, for example with `docker exec <id> mongosh`. Remove it yourself afterwards. |
 | `ANTE_INTEGRATION_DEBUG_LOG` | A logging category, such as `Cratis`, to log at Debug level. |
 
-The fixture does not cover the authentication proxy's token verification, host provisioning or the frontend. The command posts use the forwarded identity headers the proxy would set.
+The fixture does not cover the authentication proxy's token verification or host provisioning; the frontend is covered by the [browser end-to-end specifications](#run-the-browser-end-to-end-specifications). The command posts use the forwarded identity headers the proxy would set.
 
 These specifications are the Tier 2 check. Run them locally before opening a pull request, or before marking one ready for review, when the change touches Chronicle wiring (event stores, sequences, inbox/outbox routing, compliance), contracts, reactors or projections. The in-process specifications substitute the sink and the kernel, so a read model can pass there and still never be populated by a real kernel.
 
 They do not run on every push. `.github/workflows/integration.yml` runs them nightly against `cratis/chronicle:latest-development`, on demand from the Actions tab (pick the image with the `chronicle-image` input), and on a pull request that carries the `run-integration` label. Adding the label starts a run, and while it stays on the pull request every new push runs them again; remove it when the extra runs are no longer needed.
+
+## Run the browser end-to-end specifications
+
+`E2E/` drives the lobby's three journeys - join by invitation, invited organization setup and self-service registration - in Chromium with Playwright, and runs axe on every wizard step. It covers the happy paths with and without legal consent, editable validation errors, reloading and a second tab, keyboard-only operation and focus visibility, live-region announcements, 200% zoom and a 320-pixel screen, reduced motion, forced colors with high contrast, English and Norwegian Bokmål, and the render recovery notice.
+
+Playwright starts `E2E/Host`, a small .NET program that reuses the fixture above: one Chronicle kernel in Docker, and two real Ante instances served over Kestrel with the built frontend - `plain` on port 5611 without legal documents and `legal` on 5612 with a host-provided set - each wired to a minimal host store. Port 5610 is a control endpoint the specifications use to publish invitations and read what the host received, and it also stands in for the host application Ante hands over to. The host plays the authentication proxy: a browser carrying the `ante-e2e-subject` cookie reaches Ante with the forwarded identity headers for that subject on every request, Server-Sent Events included. Set `ANTE_E2E_PORT` to move all three ports; `ANTE_CHRONICLE_IMAGE` works as for the fixture.
+
+The lobby does not render without a PrimeUI license, so building the frontend needs `ANTE_PRIMEUI_LICENSE`, from the environment or the repository root's `.env`. With Docker running, from the repository root:
+
+```bash
+corepack enable
+yarn install --immutable
+cd E2E
+yarn install-browsers
+yarn e2e
+```
+
+`yarn e2e` builds the frontend into `Source/Ante/wwwroot` and runs the suite; `yarn test` runs it against the frontend already built. Outside CI, a host you already started with `dotnet run --project Host/Ante.E2E.Host.csproj` is reused, which keeps reruns quick. Without the team's license, `ANTE_E2E_ALLOW_UNLICENSED_PRIMEUI=1 yarn e2e` builds with a placeholder key, and PrimeUI shows its invalid-license banner on every page; that is enough to run the suite locally, but it is not the licensed build CI verifies.
+
+axe violations of serious or critical impact fail the run, except the ones listed in `E2E/support/accessibility.ts`, each tied to an open issue by rule and element. Every violation, listed or not, is attached to its test in the HTML report. Add to the list only with an issue, and remove an entry together with its fix.
+
+The `Browser end-to-end` job in `.github/workflows/integration.yml` runs the suite on the same triggers as the container-backed specifications, with the `PRIMEUI_LICENSE` secret. A pull request from a fork or from Dependabot does not receive the secret, so the job is skipped there with a notice. A failed run uploads the Playwright report and traces as the `browser-e2e-report` artifact.
 
 ## Run a development server
 
