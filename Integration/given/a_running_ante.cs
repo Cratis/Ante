@@ -79,6 +79,12 @@ public class a_running_ante : Specification
     /// </summary>
     protected virtual IPAddress? RemoteIpAddress => null;
 
+    /// <summary>
+    /// Gets an override of the default service provider's scope validation; none by default, which keeps whatever the
+    /// hosting environment sets.
+    /// </summary>
+    protected virtual bool? ValidateScopes => null;
+
     protected string LegalDocumentSetId => $"legal-documents-{Suffix}";
 
     protected string AnteStoreName => $"Ante{Suffix}";
@@ -106,7 +112,8 @@ public class a_running_ante : Specification
             environmentName: EnvironmentName,
             webRootPath: WebRootPath,
             settings: ExtraSettings,
-            remoteIpAddress: RemoteIpAddress);
+            remoteIpAddress: RemoteIpAddress,
+            validateScopes: ValidateScopes);
 
         // Startup registers the runtime inbox reactors and subscriptions; readiness includes their kernel state.
         using var client = Ante.CreateClient();
@@ -160,7 +167,8 @@ public class a_running_ante : Specification
             environmentName: EnvironmentName,
             webRootPath: WebRootPath,
             settings: ExtraSettings,
-            remoteIpAddress: RemoteIpAddress);
+            remoteIpAddress: RemoteIpAddress,
+            validateScopes: ValidateScopes);
         _otherInstances.Add(instance);
         using var client = instance.CreateClient();
         await Eventually.Until(
@@ -203,7 +211,8 @@ public class a_running_ante : Specification
             environmentName: EnvironmentName,
             webRootPath: WebRootPath,
             settings: ExtraSettings,
-            remoteIpAddress: RemoteIpAddress);
+            remoteIpAddress: RemoteIpAddress,
+            validateScopes: ValidateScopes);
         using var client = Ante.CreateClient();
         await Eventually.Until(
             async () => (await client.GetAsync("/healthz/ready")).StatusCode == HttpStatusCode.OK,

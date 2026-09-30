@@ -39,6 +39,7 @@ namespace Ante.Integration.given;
 /// <param name="webRootPath">Optional directory served as the web root, standing in for the published frontend the image ships in <c>wwwroot</c>.</param>
 /// <param name="settings">Optional extra configuration keys, set the way a deployment sets them (for example <c>ForwardedHeaders_Enabled</c>).</param>
 /// <param name="remoteIpAddress">Optional address the transport reports as the connection's remote address, as a proxy's connection would.</param>
+/// <param name="validateScopes">Optional override of the default service provider's scope validation, which the Development environment turns on.</param>
 public sealed class AnteApplication(
     ChronicleInfrastructure infrastructure,
     string eventStore,
@@ -57,7 +58,8 @@ public sealed class AnteApplication(
     string environmentName = "Integration",
     string? webRootPath = default,
     IReadOnlyDictionary<string, string?>? settings = default,
-    IPAddress? remoteIpAddress = default) : WebApplicationFactory<Program>
+    IPAddress? remoteIpAddress = default,
+    bool? validateScopes = default) : WebApplicationFactory<Program>
 {
     public const string IdentityProvider = "integration-idp";
     public const string DefaultEnvironment = "Integration";
@@ -208,6 +210,11 @@ public sealed class AnteApplication(
         if (webRootPath is not null)
         {
             builder.UseWebRoot(webRootPath);
+        }
+
+        if (validateScopes is not null)
+        {
+            builder.UseDefaultServiceProvider(options => options.ValidateScopes = validateScopes.Value);
         }
 
         foreach (var (key, value) in settings ?? new Dictionary<string, string?>())

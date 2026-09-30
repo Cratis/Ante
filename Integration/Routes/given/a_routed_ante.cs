@@ -44,7 +44,17 @@ public abstract class a_routed_ante : a_running_ante
     /// <summary>Gets the deployment's own configuration keys for this specification.</summary>
     protected virtual IReadOnlyDictionary<string, string?> DeploymentSettings => new Dictionary<string, string?>();
 
+    /// <summary>
+    /// Gets a value indicating whether the specification takes a host's invitation through Ante's incoming reactor.
+    /// </summary>
+    protected virtual bool ReceivesInvitations => false;
+
     protected bool IsDevelopment => EnvironmentName == "Development";
+
+    // Development turns on the service provider's scope validation, which the incoming invitation reactor trips over
+    // (Cratis/Ante#142), so no invitation reaches Ante there. Journeys that need one run with validation off until
+    // that is fixed; every other specification keeps the environment's own setting.
+    protected override bool? ValidateScopes => IsDevelopment && ReceivesInvitations ? false : null;
 
     protected override string? WebRootPath { get; } = CreateWebRoot();
 
@@ -77,6 +87,7 @@ public abstract class a_routed_ante : a_running_ante
     /// <param name="bearer">An <c>Authorization: Bearer</c> value.</param>
     /// <param name="origin">The <c>Origin</c> a browser would send from another site.</param>
     /// <param name="forwardedFor">The <c>X-Forwarded-For</c> the proxy adds; a fixed client address by default.</param>
+    /// <param name="cookie">A <c>Cookie</c> header value a browser would replay.</param>
     /// <returns>What the route answered.</returns>
     protected async Task<Reply> Send(
         HttpMethod method,
@@ -87,12 +98,52 @@ public abstract class a_routed_ante : a_running_ante
         string? contentType = "application/json",
         string? bearer = default,
         string? origin = default,
-        string forwardedFor = "203.0.113.7")
+        string forwardedFor = "203.0.113.7",
+        string? cookie = default)
     {
-        using var request = BuildRequest(method, path, subject, provider, body, contentType, bearer, origin, forwardedFor);
+        using var request = BuildRequest(method, path, subject, provider, body, contentType, bearer, origin, forwardedFor, cookie);
         using var response = await NewClient().SendAsync(request);
         return await ReplyOf(response);
     }
+
+    /// <summary>
+    /// Repeats a request until the command succeeds, tolerating the pending-invitation projection lagging the token.
+    /// </summary>
+    /// <param name="path">The command route.</param>
+    /// <param name="subject">The signed-in subject the proxy forwards.</param>
+    /// <param name="body">The command.</param>
+    /// <param name="provider">The identity provider the forwarded principal reports.</param>
+    /// <returns>The reply that reported success; throws with the last reply when it never does.</returns>
+    protected async Task<Reply> SendUntilSuccess(string path, string subject, object body, string? provider = AnteApplication.IdentityProvider)
+    {
+        var deadline = DateTimeOffset.UtcNow + Eventually.DefaultTimeout;
+        while (true)
+        {
+            var reply = await Send(HttpMethod.Post, path, subject, provider, body);
+            if (reply.IsOk && reply.IsSuccess)
+            {
+                return reply;
+            }
+
+            if (DateTimeOffset.UtcNow > deadline)
+            {
+                throw new InvalidOperationException($"{path} did not succeed: {reply.Status} {reply.Body}");
+            }
+
+            await Task.Delay(250);
+        }
+    }
+
+    /// <summary>
+    /// What the authentication proxy does after the invitee's login in <c>Legacy</c> mode: exchanges the invitation token
+    /// for a session bound to the signed-in subject.
+    /// </summary>
+    /// <param name="token">The invitation token the host received.</param>
+    /// <param name="subject">The subject that signed in.</param>
+    /// <param name="provider">The provider the exchange body reports; none reports nothing.</param>
+    /// <returns>The exchange reply.</returns>
+    protected Task<Reply> Exchange(string token, string subject, string? provider = AnteApplication.IdentityProvider) =>
+        Send(HttpMethod.Post, "/_invite/exchange", body: new { subject, identityProvider = provider }, bearer: token);
 
     /// <summary>
     /// Requests each path with GET, once anonymously and once signed in.
@@ -122,7 +173,7 @@ public abstract class a_routed_ante : a_running_ante
         var client = NewClient(owned: false);
         try
         {
-            using var request = BuildRequest(HttpMethod.Get, path, subject, AnteApplication.IdentityProvider, null, null, null, null, "203.0.113.7");
+            using var request = BuildRequest(HttpMethod.Get, path, subject, AnteApplication.IdentityProvider, null, null, null, null, "203.0.113.7", null);
             request.Headers.Accept.ParseAdd("text/event-stream");
             var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
@@ -185,7 +236,7 @@ public abstract class a_routed_ante : a_running_ante
         return client;
     }
 
-    HttpRequestMessage BuildRequest(HttpMethod method, string path, string? subject, string? provider, object? body, string? contentType, string? bearer, string? origin, string forwardedFor)
+    HttpRequestMessage BuildRequest(HttpMethod method, string path, string? subject, string? provider, object? body, string? contentType, string? bearer, string? origin, string forwardedFor, string? cookie)
     {
         var request = new HttpRequestMessage(method, path);
         if (body is not null)
@@ -202,6 +253,11 @@ public abstract class a_routed_ante : a_running_ante
         if (origin is not null)
         {
             request.Headers.Add("Origin", origin);
+        }
+
+        if (cookie is not null)
+        {
+            request.Headers.Add("Cookie", cookie);
         }
 
         if (Proxied)
