@@ -23,6 +23,42 @@
     -webkit-text-size-adjust: 100%;
 }
 
+/* Arc's command form paints a field's validation message with `var(--color-error, #c00)`, and
+   #c00 is 3.0:1 on the dark card. Pointing it at the Components red keeps the message on the
+   theme: 6.4:1 on the dark card, 4.8:1 on a light one (Cratis/Ante#150). */
+:root {
+    --color-error: var(--cratis-red-500);
+}
+
+/* Forced colors replaces every color the page sets, but a checker still reads the authored one - the
+   dark palette's #a1a1aa secondary text measured 2.56:1 against the Canvas white it was painted on. Ante
+   states the system colors itself, as @cratis/components/theme does for its own tokens, so what is
+   authored is what is shown (Cratis/Ante#150). */
+@media (forced-colors: active) {
+    :root {
+        --color-error: CanvasText;
+        --surface-ground: Canvas;
+        --surface-card: Canvas;
+        --surface-overlay: Canvas;
+        --surface-border: CanvasText;
+        --text-color: CanvasText;
+        --text-color-secondary: CanvasText;
+        --primary-color: LinkText;
+        --gray-800: Canvas;
+        --gray-900: Canvas;
+
+        /* The PrimeReact buttons Components renders read their label color from these; Lara's is the
+           primary #34d399, which measured 1.92:1 against Canvas on the wizard's Previous button. */
+        --p-button-outlined-primary-color: ButtonText;
+        --p-button-outlined-primary-border-color: ButtonText;
+        --p-button-outlined-primary-hover-background: transparent;
+        --p-button-outlined-primary-active-background: transparent;
+        --p-button-text-primary-color: ButtonText;
+        --p-button-text-primary-hover-background: transparent;
+        --p-button-text-primary-active-background: transparent;
+    }
+}
+
 body {
     margin: 0;
     display: flex;
