@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using Ante.Invitations.Accepting;
 using Ante.Legal;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -33,6 +34,8 @@ namespace Ante.Integration.given;
 /// <param name="signingKeyConfigured">Whether to configure the invitation token keys; false runs Ante as a deployment without a signing key.</param>
 /// <param name="registrationContextKeys">Optional <c>Ante:Registration:ContextKeys</c> allowlist for signup context.</param>
 /// <param name="configureServices">Optional test service overrides applied after Ante's own registrations.</param>
+/// <param name="environmentName">The hosting environment; <c>Integration</c> (neither Development nor Production) by default.</param>
+/// <param name="validateScopes">Optional override of the default service provider's scope validation, which the Development environment turns on.</param>
 public sealed class AnteApplication(
     ChronicleInfrastructure infrastructure,
     string eventStore,
@@ -47,9 +50,12 @@ public sealed class AnteApplication(
     IExchangeIndexReadiness? exchangeIndexes = default,
     bool signingKeyConfigured = true,
     IReadOnlyList<string>? registrationContextKeys = default,
-    Action<IServiceCollection>? configureServices = default) : WebApplicationFactory<Program>
+    Action<IServiceCollection>? configureServices = default,
+    string environmentName = "Integration",
+    bool? validateScopes = default) : WebApplicationFactory<Program>
 {
     public const string IdentityProvider = "integration-idp";
+    public const string DefaultEnvironment = "Integration";
 
     static readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
     public string EventStore { get; } = eventStore;
@@ -148,7 +154,7 @@ public sealed class AnteApplication(
         using var signingKey = RSA.Create();
         signingKey.ImportFromPem(AttestationPrivateKeyPem);
         builder
-            .UseEnvironment("Integration")
+            .UseEnvironment(environmentName)
             .UseSetting("Ante:Invitations:Token:PrivateKeyPem", SigningKeyConfigured ? AttestationPrivateKeyPem : string.Empty)
             .UseSetting("Ante:Invitations:Token:PublicKeyPem", SigningKeyConfigured ? signingKey.ExportSubjectPublicKeyInfoPem() : string.Empty)
             .UseSetting("Cratis:Chronicle:ConnectionString", chronicleConnectionString ?? infrastructure.ChronicleConnectionString)
@@ -192,6 +198,11 @@ public sealed class AnteApplication(
         if (Environment.GetEnvironmentVariable("ANTE_INTEGRATION_DEBUG_LOG") is { Length: > 0 } diagnosticCategory)
         {
             builder.UseSetting($"Logging:LogLevel:{diagnosticCategory}", "Debug");
+        }
+
+        if (validateScopes is not null)
+        {
+            builder.UseDefaultServiceProvider(options => options.ValidateScopes = validateScopes.Value);
         }
 
         if (legalDocuments is not null)
