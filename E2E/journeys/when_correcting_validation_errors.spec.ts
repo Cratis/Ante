@@ -23,6 +23,10 @@ for (const journey of journeys) {
         const required = s.nameValidation.required.replace('{field}', steps[0].fields[0].label);
         await expect(field).toHaveAttribute('aria-invalid', 'true');
         await expect(stepRegion(page, steps[0]).getByText(required).first()).toBeVisible();
+        // The field is described by its own error element; the message drawn under it is for the eye only, so a
+        // screen reader does not come across it a second time.
+        await expect(field).toHaveAccessibleDescription(new RegExp(required.replace('.', '\\.')));
+        await expect(stepRegion(page, steps[0]).locator('small[aria-hidden="true"]').filter({ hasText: required })).toHaveCount(1);
         await expect(next).toBeDisabled();
         await expectNoSeriousViolations(page, testInfo, `${steps[0].header} with a missing field`);
 
@@ -72,8 +76,9 @@ test(`${joinByInvitation.name} keeps what was entered when the server refuses a 
     await advance(page, s, journey, true);
 
     // The refusal is summarised in an alert that takes focus, above the form that still holds every value.
-    // The summary is the outermost alert; each message inside it is an alert of its own.
-    const summary = page.getByRole('alert').filter({ hasText: /control or text-direction-override/ }).first();
+    // The summary is the one alert: its messages are plain text, not alerts nested inside it.
+    const summary = page.getByRole('alert').filter({ hasText: /control or text-direction-override/ });
+    await expect(summary).toHaveCount(1);
     await expect(summary).toBeVisible();
     await expect(summary).toBeFocused();
     const firstName = stepRegion(page, steps[0]).getByRole('textbox', { name: s.userSetup.firstName, exact: true });

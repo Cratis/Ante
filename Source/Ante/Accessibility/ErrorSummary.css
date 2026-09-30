@@ -1,0 +1,26 @@
+/* Copyright (c) Cratis. All rights reserved. */
+/* Licensed under the MIT license. See LICENSE file in the project root for full license information. */
+
+/* One message of the error summary. Mirrors how Cratis Components draws an error message - a bordered
+   surface with a red edge - from the same tokens, without the alert role that `Message` carries. */
+.ante-error-summary__item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--cratis-red-500);
+    border-radius: var(--cratis-border-radius);
+    background: var(--cratis-surface-section);
+    color: var(--cratis-text-color);
+}
+
+.ante-error-summary__icon {
+    flex: 0 0 auto;
+}
+
+@media (forced-colors: active) {
+    .ante-error-summary__item {
+        border-color: CanvasText;
+    }
+}

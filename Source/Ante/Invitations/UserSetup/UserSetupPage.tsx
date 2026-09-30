@@ -25,6 +25,7 @@ import { LegalDocumentsUnavailable } from '../../Legal/LegalDocumentsUnavailable
 import { LegalVersionValues } from '../../Legal/LegalVersionValues';
 import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
 import { ErrorSummary } from '../../Accessibility/ErrorSummary';
+import { FieldError } from '../../Accessibility/FieldError';
 import { LiveRegion } from '../../Accessibility/LiveRegion';
 import { useAccessibleStepper } from '../../Accessibility/useAccessibleStepper';
 import { InitialNameErrors } from '../InitialNameErrors';
@@ -256,6 +257,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
                     key={resolvedInvitationId.toString()}
                     command={AcceptInvitation}
                     validateOnInit
+                    errorDisplayComponent={FieldError}
                     onFieldValidate={validateChangedName}
                     onFieldChange={() => setValidationMessages([])}
                     okLabel={strings.userSetup.acceptInvitation}
