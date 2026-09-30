@@ -1,0 +1,14 @@
+{
+    "$comment": [
+        "Ante's frontend is a Yarn workspace at Source/Ante (the root package.json only declares the workspace).",
+        "Its scripts are lint:ci, compile and test (see Source/Ante/package.json), matching .github/workflows/build.yml.",
+        "Source/Ante/.frontend/tsconfig.json includes every .ts/.tsx under Source/Ante, specs included, so `yarn compile`",
+        "already type-checks the specs; there is no separate compile:specs script, so frontend-compile-specs never runs here."
+    ],
+    "gates": [
+        { "id": "frontend-lint", "workingDirectory": "Source/Ante" },
+        { "id": "frontend-compile", "workingDirectory": "Source/Ante", "command": ["yarn", "compile"] },
+        { "id": "frontend-compile-specs", "changed": [] },
+        { "id": "frontend-specs", "workingDirectory": "Source/Ante" }
+    ]
+}
