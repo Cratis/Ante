@@ -23,12 +23,18 @@ interface LegalAcceptanceFieldComponentProps extends WrappedFieldProps<boolean> 
  * and `CheckboxField` only accepts a string. Going through `asCommandFormField` keeps it a real CommandForm
  * field, so validation still re-runs and the submit button is not permanently disabled.
  *
- * It deliberately renders no message of its own for `errors`: the CommandForm field wrapper it is composed
- * into already renders them below the field, so doing it here too showed every rejection twice.
+ * The visible message is the CommandForm field wrapper's, drawn below the field by `FieldError`, which hides it
+ * from assistive technology (`Cratis/Ante#151`) because Cratis Components' own fields carry a visually hidden
+ * error element the control points at. This field is not one of them, so it renders that element itself -
+ * visually hidden, linked with `aria-describedby`, the checkbox marked `aria-invalid` - or a rejected acceptance
+ * would be shown but never reach a screen reader.
  */
 export const LegalAcceptanceField = asCommandFormField(
-    ({ value, onChange, onBlur, invalid, required, onShowDocument }: LegalAcceptanceFieldComponentProps) => {
+    ({ value, onChange, onBlur, invalid, required, errors, onShowDocument }: LegalAcceptanceFieldComponentProps) => {
         const inputId = useId();
+        const errorId = `${inputId}-errors`;
+        // The same message can arrive twice (Cratis/Arc#2842); say it once.
+        const message = [...new Set(errors)].join(' ');
         const legalStrings = strings.legal;
         const segments = buildLegalAcceptanceLabel(legalStrings.acceptance, legalStrings.documents);
 
@@ -41,6 +47,7 @@ export const LegalAcceptanceField = asCommandFormField(
                         onChange={onChange}
                         onBlur={onBlur}
                         invalid={invalid}
+                        aria-describedby={message ? errorId : undefined}
                         required={required} />
                     <label className='legal-acceptance__label' htmlFor={inputId}>
                         {segments.map(({ text, kind }, index) => kind === undefined
@@ -59,6 +66,7 @@ export const LegalAcceptanceField = asCommandFormField(
                             ))}
                     </label>
                 </div>
+                {message && <span id={errorId} className='ante-visually-hidden'>{message}</span>}
             </div>
         );
     },
