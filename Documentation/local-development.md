@@ -45,7 +45,7 @@ The specifications under `Integration/Replay` build a store that has seen every 
 The project is not part of `Ante.slnx`, so the backend commands above never need Docker. With Docker running, from the repository root:
 
 ```bash
-docker pull cratis/chronicle:19.22.1-development
+docker pull cratis/chronicle:19.23.0-development
 dotnet test Integration/Ante.Integration.Specs.csproj
 ```
 
@@ -53,7 +53,7 @@ A run takes a few minutes and removes its container afterwards. Three environmen
 
 | Variable | Effect |
 | --- | --- |
-| `ANTE_CHRONICLE_IMAGE` | Kernel image to run instead of `cratis/chronicle:19.22.1-development`, for example `cratis/chronicle:19.4.7-development`. |
+| `ANTE_CHRONICLE_IMAGE` | Kernel image to run instead of `cratis/chronicle:19.23.0-development`, for example `cratis/chronicle:19.4.7-development`. |
 | `ANTE_INTEGRATION_KEEP_CONTAINER=true` | Leaves the container running for inspection, for example with `docker exec <id> mongosh`. Remove it yourself afterwards. |
 | `ANTE_INTEGRATION_DEBUG_LOG` | A logging category, such as `Cratis`, to log at Debug level. |
 

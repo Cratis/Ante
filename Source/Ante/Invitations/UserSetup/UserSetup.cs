@@ -96,12 +96,14 @@ public class AcceptInvitationValidator : CommandValidator<AcceptInvitation>
 /// check and races: two concurrent submits of the same invitation can both observe it as still pending
 /// before either append lands. This constraint is the atomic backstop, enforced by the kernel at append
 /// time - only one <see cref="InvitationToJoinTenantAccepted"/> can ever be appended per invitation
-/// (its event source).
+/// (its event source). It applies to the event log only: the outbox holds one forwarded copy per delivery, so it
+/// needs no index of its own.
 /// </remarks>
 public class OneUseJoinTenantInvitationConstraint : IConstraint
 {
     /// <inheritdoc/>
     public void Define(IConstraintBuilder builder) => builder
+        .ForEventLog()
         .Unique<InvitationToJoinTenantAccepted>(
             "This invitation has already been accepted.",
             UserSetupConstraintNames.OneUseInvitation);
