@@ -73,7 +73,8 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
     useEffect(() => nameValidation.onLocaleChange(), [nameValidation, locale]);
 
     // Seed editable fields once; later legal document updates must not replay these defaults.
-    const initialValues = useMemo(() => initialOrganizationSetupValues(resolvedInvitationId), [resolvedInvitationId]);
+    const legalDocumentsConfigured = displayedDocuments?.isConfigured ?? false;
+    const initialValues = useMemo(() => initialOrganizationSetupValues(resolvedInvitationId, legalDocumentsConfigured), [resolvedInvitationId, legalDocumentsConfigured]);
 
     const legalDocuments = useLegalDocumentViewer({
         termsAndConditions: displayedDocuments?.termsAndConditions ?? '',

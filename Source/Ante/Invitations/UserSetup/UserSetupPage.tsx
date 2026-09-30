@@ -69,7 +69,8 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     const hostOutcomeGate = resolveHostOutcomeGate(recovery.isAccepted, hostOutcome.isConfigured);
 
     // Static form defaults apply once per command; legal document updates must not replay names.
-    const initialValues = useMemo(() => initialUserSetupValues(resolvedInvitationId), [resolvedInvitationId]);
+    const legalDocumentsConfigured = displayedDocuments?.isConfigured ?? false;
+    const initialValues = useMemo(() => initialUserSetupValues(resolvedInvitationId, legalDocumentsConfigured), [resolvedInvitationId, legalDocumentsConfigured]);
 
     const legalDocuments = useLegalDocumentViewer({
         termsAndConditions: displayedDocuments?.termsAndConditions ?? '',

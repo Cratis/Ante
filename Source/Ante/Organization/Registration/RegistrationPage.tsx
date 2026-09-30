@@ -113,7 +113,8 @@ const OpenRegistration = ({ configuration }: { configuration: RegistrationConfig
 
     // Without currentValues the form seeds this command once. The legal document version is
     // applied separately when it arrives, without replaying editable defaults on every render.
-    const initialValues = useMemo(() => initialRegistrationValues(registrationId), [registrationId]);
+    const legalDocumentsConfigured = displayedDocuments?.isConfigured ?? false;
+    const initialValues = useMemo(() => initialRegistrationValues(registrationId, legalDocumentsConfigured), [registrationId, legalDocumentsConfigured]);
 
     const legalDocuments = useLegalDocumentViewer({
         termsAndConditions: displayedDocuments?.termsAndConditions ?? '',
