@@ -65,6 +65,21 @@ public class a_running_ante : Specification
     protected virtual string EnvironmentName => AnteApplication.DefaultEnvironment;
 
     /// <summary>
+    /// Gets a directory to serve as the web root, standing in for the published frontend; none by default.
+    /// </summary>
+    protected virtual string? WebRootPath => null;
+
+    /// <summary>
+    /// Gets extra configuration keys set the way a deployment sets them; none by default.
+    /// </summary>
+    protected virtual IReadOnlyDictionary<string, string?>? ExtraSettings => null;
+
+    /// <summary>
+    /// Gets the connection remote address the transport reports for every request; none by default.
+    /// </summary>
+    protected virtual IPAddress? RemoteIpAddress => null;
+
+    /// <summary>
     /// Gets an override of the default service provider's scope validation; none by default, which keeps whatever the
     /// hosting environment sets.
     /// </summary>
@@ -95,6 +110,9 @@ public class a_running_ante : Specification
             registrationContextKeys: RegistrationContextKeys,
             configureServices: ConfigureServices,
             environmentName: EnvironmentName,
+            webRootPath: WebRootPath,
+            settings: ExtraSettings,
+            remoteIpAddress: RemoteIpAddress,
             validateScopes: ValidateScopes);
 
         // Startup registers the runtime inbox reactors and subscriptions; readiness includes their kernel state.
@@ -147,6 +165,9 @@ public class a_running_ante : Specification
             registrationContextKeys: RegistrationContextKeys,
             configureServices: configureServices ?? ConfigureServices,
             environmentName: EnvironmentName,
+            webRootPath: WebRootPath,
+            settings: ExtraSettings,
+            remoteIpAddress: RemoteIpAddress,
             validateScopes: ValidateScopes);
         _otherInstances.Add(instance);
         using var client = instance.CreateClient();
@@ -188,6 +209,9 @@ public class a_running_ante : Specification
             registrationContextKeys: RegistrationContextKeys,
             configureServices: ConfigureServices,
             environmentName: EnvironmentName,
+            webRootPath: WebRootPath,
+            settings: ExtraSettings,
+            remoteIpAddress: RemoteIpAddress,
             validateScopes: ValidateScopes);
         using var client = Ante.CreateClient();
         await Eventually.Until(

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -35,6 +36,9 @@ namespace Ante.Integration.given;
 /// <param name="registrationContextKeys">Optional <c>Ante:Registration:ContextKeys</c> allowlist for signup context.</param>
 /// <param name="configureServices">Optional test service overrides applied after Ante's own registrations.</param>
 /// <param name="environmentName">The hosting environment; <c>Integration</c> (neither Development nor Production) by default.</param>
+/// <param name="webRootPath">Optional directory served as the web root, standing in for the published frontend the image ships in <c>wwwroot</c>.</param>
+/// <param name="settings">Optional extra configuration keys, set the way a deployment sets them (for example <c>ForwardedHeaders_Enabled</c>).</param>
+/// <param name="remoteIpAddress">Optional address the transport reports as the connection's remote address, as a proxy's connection would.</param>
 /// <param name="validateScopes">Optional override of the default service provider's scope validation, which the Development environment turns on.</param>
 public sealed class AnteApplication(
     ChronicleInfrastructure infrastructure,
@@ -52,6 +56,9 @@ public sealed class AnteApplication(
     IReadOnlyList<string>? registrationContextKeys = default,
     Action<IServiceCollection>? configureServices = default,
     string environmentName = "Integration",
+    string? webRootPath = default,
+    IReadOnlyDictionary<string, string?>? settings = default,
+    IPAddress? remoteIpAddress = default,
     bool? validateScopes = default) : WebApplicationFactory<Program>
 {
     public const string IdentityProvider = "integration-idp";
@@ -200,9 +207,26 @@ public sealed class AnteApplication(
             builder.UseSetting($"Logging:LogLevel:{diagnosticCategory}", "Debug");
         }
 
+        if (webRootPath is not null)
+        {
+            builder.UseWebRoot(webRootPath);
+        }
+
         if (validateScopes is not null)
         {
             builder.UseDefaultServiceProvider(options => options.ValidateScopes = validateScopes.Value);
+        }
+
+        foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
+        {
+            builder.UseSetting(key, value);
+        }
+
+        if (remoteIpAddress is not null)
+        {
+            // First in line, so the address is there for any middleware ahead of Ante's own - the forwarded-headers
+            // middleware a deployment enables decides on it whether the connection is a trusted proxy.
+            builder.ConfigureTestServices(services => services.Insert(0, ServiceDescriptor.Singleton<IStartupFilter>(new RemoteAddressStartupFilter(remoteIpAddress))));
         }
 
         if (legalDocuments is not null)
@@ -247,4 +271,22 @@ public sealed class AnteApplication(
         request.Headers.Add("x-ms-client-principal-name", name);
         request.Headers.Add("x-ms-client-principal", Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(principal, _json))));
     }
+}
+
+/// <summary>
+/// Gives every request the connection remote address a real transport would report; the in-process test server
+/// reports none, which is not what a deployment's proxy connection looks like.
+/// </summary>
+/// <param name="address">The address to report.</param>
+sealed class RemoteAddressStartupFilter(IPAddress address) : IStartupFilter
+{
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+    {
+        app.Use((context, nextMiddleware) =>
+        {
+            context.Connection.RemoteIpAddress = address;
+            return nextMiddleware(context);
+        });
+        next(app);
+    };
 }
