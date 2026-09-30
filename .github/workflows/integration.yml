@@ -67,15 +67,15 @@ jobs:
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      ANTE_PRIMEUI_LICENSE: ${{ secrets.PRIMEUI_LICENSE }}
     steps:
       # PRIMEUI_LICENSE is an Actions secret, which pull requests from forks never receive (nor does Dependabot).
       # The lobby does not render without it, so those two are skipped with a visible notice, as build.yml skips
       # the production build. Everywhere else a missing or renamed secret fails the job.
+      # The secret is only handed to the two steps that need it, never to third-party actions or install scripts.
       - name: Check for the PrimeUI license
         id: license
         env:
+          ANTE_PRIMEUI_LICENSE: ${{ secrets.PRIMEUI_LICENSE }}
           SKIP_WITHOUT_SECRET: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]') }}
         run: |
           if [ -n "$ANTE_PRIMEUI_LICENSE" ]; then
@@ -126,14 +126,25 @@ jobs:
       - name: Build the frontend
         if: steps.license.outputs.available == 'true'
         working-directory: E2E
+        env:
+          ANTE_PRIMEUI_LICENSE: ${{ secrets.PRIMEUI_LICENSE }}
         run: yarn build-frontend
 
       - name: Build the E2E host
         if: steps.license.outputs.available == 'true'
         run: dotnet build E2E/Host/Ante.E2E.Host.csproj --configuration Debug
 
+      # Pulled up front so the download does not count against Playwright's wait for the E2E host to start. The
+      # fallback is the fixture's default image (ChronicleInfrastructure.DefaultImage).
+      - name: Pull the Chronicle image
+        if: steps.license.outputs.available == 'true'
+        env:
+          ANTE_CHRONICLE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.chronicle-image || github.event_name == 'schedule' && 'cratis/chronicle:latest-development' || '' }}
+        run: docker pull "${ANTE_CHRONICLE_IMAGE:-cratis/chronicle:19.23.0-development}"
+
       - name: Run the browser specifications
         if: steps.license.outputs.available == 'true'
+        timeout-minutes: 20
         working-directory: E2E
         env:
           # Empty on pull requests: the fixture then uses the server release matching the pinned client.

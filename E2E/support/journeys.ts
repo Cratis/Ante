@@ -202,6 +202,9 @@ export const expectHandedOverToHost = async (page: Page): Promise<void> => {
     await expect(page.getByRole('heading', { name: 'Host application', level: 1 })).toBeVisible({ timeout: 30_000 });
 };
 
+/** How long the host's count of completions has to stay at one. */
+const duplicateWindowMs = 2_000;
+
 /**
  * Expects the host to have received the journey's completion exactly once, and nothing like it again after a while.
  * @param lobby The lobby.
@@ -212,7 +215,12 @@ export const expectCompletedOnce = async (lobby: LobbyName, journey: Journey, ev
     const completions = async () => (await received(lobby, eventSourceId)).filter(name => name === journey.completedEvent).length;
     await expect.poll(completions, { message: `${journey.completedEvent} at the host`, timeout: 30_000 }).toBeGreaterThan(0);
 
-    // A duplicate submission would follow within moments of the first; give it time to show up.
-    await new Promise(resolve => setTimeout(resolve, 2_000));
-    expect(await completions(), `${journey.completedEvent} deliveries to the host`).toBe(1);
+    // Absence cannot be awaited: a duplicate would reach the host within moments of the first delivery, so the
+    // count has to hold at one for a short quiet window. This can only miss a very late duplicate, never fail a
+    // correct run.
+    const quietUntil = Date.now() + duplicateWindowMs;
+    while (Date.now() < quietUntil) {
+        expect(await completions(), `${journey.completedEvent} deliveries to the host`).toBe(1);
+        await new Promise(resolve => setTimeout(resolve, 250));
+    }
 };

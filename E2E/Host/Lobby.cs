@@ -65,15 +65,30 @@ public sealed class Lobby : IAsyncDisposable
                 ["Ante:HostAppUrl"] = hostApplication.ToString(),
                 ["Logging:LogLevel:Default"] = "Warning",
             });
-        ante.UseKestrel(port);
-        ante.StartServer();
-
         var lobby = new Lobby(name, new Uri($"http://localhost:{port}"), ante, host);
-        await Eventually.Until(
-            async () => (await lobby._client.GetAsync(new Uri("/healthz/ready", UriKind.Relative))).StatusCode == HttpStatusCode.OK,
-            _timeout,
-            $"the {name} lobby's readiness (/healthz/ready)");
-        return lobby;
+        try
+        {
+            ante.UseKestrel(port);
+            try
+            {
+                ante.StartServer();
+            }
+            catch (IOException exception)
+            {
+                throw new InvalidOperationException($"The {name} lobby could not listen on port {port}. Stop whatever uses it, or set ANTE_E2E_PORT to move the E2E ports.", exception);
+            }
+
+            await Eventually.Until(
+                async () => (await lobby._client.GetAsync(new Uri("/healthz/ready", UriKind.Relative))).StatusCode == HttpStatusCode.OK,
+                _timeout,
+                $"the {name} lobby's readiness (/healthz/ready)");
+            return lobby;
+        }
+        catch
+        {
+            await lobby.DisposeAsync();
+            throw;
+        }
     }
 
     /// <summary>
