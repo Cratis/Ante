@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!--
+        The server side of the browser end-to-end suite (E2E/): one real Chronicle kernel in Docker and two real
+        Ante instances served over Kestrel - "plain" without legal documents and "legal" with a host-provided
+        set - each wired to a minimal host store, plus a small control endpoint the Playwright specs use to
+        publish invitations and read what the host received.
+
+        It reuses the Integration fixture (Integration/given) rather than copying it, so the kernel image,
+        configuration keys and host wiring stay the same as the container-backed specifications.
+
+        Deliberately NOT part of Ante.slnx, so `dotnet build Ante.slnx` never needs Docker. Playwright starts it
+        (E2E/playwright.config.ts); see Documentation/local-development.md.
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <IsPackable>false</IsPackable>
+        <AssemblyName>Ante.E2E.Host</AssemblyName>
+        <RootNamespace>Ante.E2E.Host</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../Integration/Ante.Integration.Specs.csproj" />
+        <ProjectReference Include="../../Source/Ante/Ante.csproj" />
+        <ProjectReference Include="../../Source/Ante.Contracts/Ante.Contracts.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Direct, so its build targets place Ante's content-root manifest next to this program. -->
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    </ItemGroup>
+</Project>
