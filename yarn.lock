@@ -248,59 +248,59 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cratis/arc.react@npm:^22.44.0":
-  version: 22.44.0
-  resolution: "@cratis/arc.react@npm:22.44.0"
+"@cratis/arc.react@npm:^22.44.2":
+  version: 22.44.2
+  resolution: "@cratis/arc.react@npm:22.44.2"
   dependencies:
-    "@cratis/arc": "npm:22.44.0"
+    "@cratis/arc": "npm:22.44.2"
     "@cratis/fundamentals": "npm:^7.19.8"
     tsyringe: "npm:^4.10.0"
   peerDependencies:
     react: ^18.0.0 || ^19.0.0
-  checksum: 10/0acf5891f69ab2465cdcf3a1d849e91c43bfcc751d8e37d8ac9462d7c088d601cb8756d6c23f0c01385f3263bbbff5592ac554dad6cdc79809d8efe074932093
+  checksum: 10/80fa487fb12139e5b4b00da996725299b0f6085cbab10dcffbc78faa8cedf8bda1c1bbb566fe29e0757d6ca978439075c83f1e257790b2dbd121e11b0dcf8c76
   languageName: node
   linkType: hard
 
-"@cratis/arc.vite@npm:^22.44.0":
-  version: 22.44.0
-  resolution: "@cratis/arc.vite@npm:22.44.0"
+"@cratis/arc.vite@npm:^22.44.2":
+  version: 22.44.2
+  resolution: "@cratis/arc.vite@npm:22.44.2"
   dependencies:
-    "@cratis/arc": "npm:22.44.0"
+    "@cratis/arc": "npm:22.44.2"
     "@swc/core": "npm:^1.16.13"
   peerDependencies:
     react: ^18.0.0 || ^19.0.0
-  checksum: 10/864307481bb5112a43fac8b6369d22592771565f821f3987b93794cde64a518aa4e3000301e9e44c142bebde2b0efd887a1c31bfb57fda095f02d9aac8bd8bbe
+  checksum: 10/b19ffd05923cd957f5ebd04ef6474faa212e98869fab95006759f596491e51f14b28de5607479277daa2cdb4f6952dbe808884f787210c2d9854d734c3547c35
   languageName: node
   linkType: hard
 
-"@cratis/arc@npm:22.44.0, @cratis/arc@npm:^22.44.0":
-  version: 22.44.0
-  resolution: "@cratis/arc@npm:22.44.0"
+"@cratis/arc@npm:22.44.2, @cratis/arc@npm:^22.44.2":
+  version: 22.44.2
+  resolution: "@cratis/arc@npm:22.44.2"
   dependencies:
     "@cratis/fundamentals": "npm:^7.19.8"
     rxjs: "npm:^7.8.2"
-  checksum: 10/11af5f884dcbc4bbc4fd3240ac375579511c1d0431b2d5bb3be2770bf65e5b8c93a40efa3db567099afa94af558340e7c407e988639ec06ae3e43f2263c4f31b
+  checksum: 10/0cef13840abe09a700d0aabd852a2764895d1c957d1163024141615f47ddb69dc9e6633f1c8bf768cced54ffdd4957f7e22ac0d9f7f35e3238aba18c12c9212b
   languageName: node
   linkType: hard
 
-"@cratis/components.primereact@npm:^4.22.1":
-  version: 4.22.1
-  resolution: "@cratis/components.primereact@npm:4.22.1"
+"@cratis/components.primereact@npm:^4.23.0":
+  version: 4.23.0
+  resolution: "@cratis/components.primereact@npm:4.23.0"
   peerDependencies:
-    "@cratis/components": 4.22.1
+    "@cratis/components": 4.23.0
     "@primereact/core": ">=11 <12"
     "@primereact/ui": ">=11 <12"
     "@primeuix/themes": ">=3 <4"
     primereact: ">=11 <12"
     react: ^19.0.0
     react-dom: ^19.0.0
-  checksum: 10/1e6261126a81c148e80e81b9c158bf2ffc8acb64c4046dc384bbf6286d0765a1a9c3da72aa94f64c997e9dba85c1e49cf021987952527629a4a612fe88872caa
+  checksum: 10/e5808719d1abee98b4d6fc055af5f6951c391f119de709b29ddb41911bf171a420c40fc54b08b476e51f014e8a4ae1f294d2bef16f92d56128f4c132467f7ac5
   languageName: node
   linkType: hard
 
-"@cratis/components@npm:^4.22.1":
-  version: 4.22.1
-  resolution: "@cratis/components@npm:4.22.1"
+"@cratis/components@npm:^4.23.0":
+  version: 4.23.0
+  resolution: "@cratis/components@npm:4.23.0"
   dependencies:
     "@internationalized/date": "npm:3.12.4"
     allotment: "npm:1.20.5"
@@ -323,7 +323,7 @@ __metadata:
       optional: true
     tsyringe:
       optional: true
-  checksum: 10/b5160f1c3ee090940475ccfececbde09a7fe8cbb210da3680dcdef1f6ad671a4865780f12b13609ade9f9ae8b56af1f1089aa59b5f7a098c3a7cab9aa27e7e2f
+  checksum: 10/db9c18ffcf961092179bcc29e5aa078764679cd4ded6c3f4651d472525112971cbc617149bec0072201331b17e73c325ffe64658a259069d643ab611875cc924
   languageName: node
   linkType: hard
 
@@ -2647,11 +2647,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "ante@workspace:Source/Ante"
   dependencies:
-    "@cratis/arc": "npm:^22.44.0"
-    "@cratis/arc.react": "npm:^22.44.0"
-    "@cratis/arc.vite": "npm:^22.44.0"
-    "@cratis/components": "npm:^4.22.1"
-    "@cratis/components.primereact": "npm:^4.22.1"
+    "@cratis/arc": "npm:^22.44.2"
+    "@cratis/arc.react": "npm:^22.44.2"
+    "@cratis/arc.vite": "npm:^22.44.2"
+    "@cratis/components": "npm:^4.23.0"
+    "@cratis/components.primereact": "npm:^4.23.0"
     "@cratis/fundamentals": "npm:^7.19.8"
     "@eslint/eslintrc": "npm:3.3.6"
     "@eslint/js": "npm:10.0.1"
