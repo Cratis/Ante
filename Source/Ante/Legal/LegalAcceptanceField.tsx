@@ -33,8 +33,7 @@ export const LegalAcceptanceField = asCommandFormField(
     ({ value, onChange, onBlur, invalid, required, errors, onShowDocument }: LegalAcceptanceFieldComponentProps) => {
         const inputId = useId();
         const errorId = `${inputId}-errors`;
-        // The same message can arrive twice (Cratis/Arc#2842); say it once.
-        const message = [...new Set(errors)].join(' ');
+        const message = errors.join(' ');
         const legalStrings = strings.legal;
         const segments = buildLegalAcceptanceLabel(legalStrings.acceptance, legalStrings.documents);
 
