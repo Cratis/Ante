@@ -10,11 +10,13 @@ namespace Ante.Invitations.Issuing;
 public static class InvitationTokenIsolation
 {
     /// <summary>
-    /// Gets the issuer a deployment derives when none is configured.
+    /// Gets the issuer a deployment derives when none is configured. Each component is percent-encoded so
+    /// the colon separator is unambiguous and two deployments can never derive the same issuer.
     /// </summary>
     /// <param name="options">The deployment's options.</param>
     /// <returns>The derived issuer.</returns>
-    public static string DerivedIssuer(AnteOptions options) => $"urn:cratis:ante:{options.EventStore}:{options.Namespace}";
+    public static string DerivedIssuer(AnteOptions options) =>
+        $"urn:cratis:ante:{Uri.EscapeDataString(options.EventStore)}:{Uri.EscapeDataString(options.Namespace)}";
 
     /// <summary>
     /// Gets the audience a deployment derives when none is configured.
