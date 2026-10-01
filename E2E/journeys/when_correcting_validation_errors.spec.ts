@@ -76,11 +76,13 @@ test(`${joinByInvitation.name} keeps what was entered when the server refuses a 
     await advance(page, s, journey, true);
 
     // The refusal is summarised in an alert that takes focus, above the form that still holds every value.
-    // The summary is the one alert: its messages are plain text, not alerts nested inside it.
+    // The summary is the one alert: its Components messages disable their own live regions.
     const summary = page.getByRole('alert').filter({ hasText: /control or text-direction-override/ });
     await expect(summary).toHaveCount(1);
     await expect(summary).toBeVisible();
     await expect(summary).toBeFocused();
+    await expect(summary.locator('.cratis-message[data-severity="error"]')).toHaveCount(1);
+    await expect(summary.locator('[role="alert"], [role="status"], [aria-live]')).toHaveCount(0);
     const firstName = stepRegion(page, steps[0]).getByRole('textbox', { name: s.userSetup.firstName, exact: true });
     const lastName = stepRegion(page, steps[0]).getByRole('textbox', { name: s.userSetup.lastName, exact: true });
     await expect(firstName).toHaveValue(values.firstName);

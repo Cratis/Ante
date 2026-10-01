@@ -39,10 +39,11 @@ describe('when showing messages', () => {
     it('should have no live region nested inside another', () => liveRegions.length.should.equal(1));
     it('should be the alert that has the focus', () => (document.activeElement === alerts[0]).should.be.true);
     it('should have the page class on the alert', () => alerts[0].className.should.equal('summary'));
-    it('should list every message once', () => [...alerts[0].querySelectorAll('p')].map(item => item.textContent).should.deep.equal([
-        '\u2A2FLast name contains a control character.',
-        '\u2A2FOrganization name cannot contain spaces.'
+    it('should list every message once', () => [...alerts[0].querySelectorAll('.cratis-message__text')].map(item => item.textContent).should.deep.equal([
+        'Last name contains a control character.',
+        'Organization name cannot contain spaces.'
     ]));
-    it('should have the item class on each message', () => alerts[0].querySelectorAll('p.item').length.should.equal(2));
-    it('should hide the icon from assistive technology', () => alerts[0].querySelectorAll('span[aria-hidden="true"]').length.should.equal(2));
+    it('should use error messages from Components', () => alerts[0].querySelectorAll('.cratis-message[data-severity="error"]').length.should.equal(2));
+    it('should have the item class on each message', () => alerts[0].querySelectorAll('.cratis-message.item').length.should.equal(2));
+    it('should hide the icon from assistive technology', () => alerts[0].querySelectorAll('.cratis-message__icon[aria-hidden="true"]').length.should.equal(2));
 });

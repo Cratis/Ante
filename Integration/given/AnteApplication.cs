@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.FileProviders;
 
 namespace Ante.Integration.given;
 
@@ -210,6 +211,10 @@ public sealed class AnteApplication(
         if (webRootPath is not null)
         {
             builder.UseWebRoot(webRootPath);
+            // Development's static-web-assets manifest can overlay a frontend built in Source/Ante/wwwroot
+            // onto this root. An explicit test root must serve only its own files, whether or not the
+            // frontend was built before the specifications ran.
+            builder.ConfigureServices((context, _) => context.HostingEnvironment.WebRootFileProvider = new PhysicalFileProvider(webRootPath));
         }
 
         if (validateScopes is not null)
