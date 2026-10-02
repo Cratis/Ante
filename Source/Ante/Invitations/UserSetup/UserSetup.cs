@@ -9,6 +9,7 @@ using Ante.Invitations.Receiving;
 using Ante.Legal;
 using Ante.Outbox;
 using Ante.Resources;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Validation;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Types;
@@ -125,7 +126,13 @@ public record AcceptingUserIdentity(IdentityProviderName Provider, Cratis.Chroni
 /// <param name="LastName">The last name of the user being onboarded.</param>
 /// <param name="AcceptedLegalTerms">Whether the user has accepted the terms and conditions and the privacy policy.</param>
 /// <param name="AcceptedLegalVersion">The version of the legal document set that was presented and accepted.</param>
+/// <remarks>
+/// Reads <see cref="PendingInvitationToJoin"/> and <see cref="OrganizationSetupProgress"/> as advisory
+/// pre-checks only - both can race, as documented on <see cref="OneUseJoinTenantInvitationConstraint"/>, which
+/// is the atomic backstop actually enforced by the kernel at append time.
+/// </remarks>
 [Command]
+[Unprotected]
 public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, MiddleName? MiddleName, LastName LastName, bool AcceptedLegalTerms, LegalVersion AcceptedLegalVersion)
 {
     /// <summary>

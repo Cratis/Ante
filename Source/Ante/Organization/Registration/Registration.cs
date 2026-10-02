@@ -208,8 +208,6 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             return legalError;
         }
 
-        httpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
-
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),

@@ -12,6 +12,7 @@ using Ante.Organization.Names;
 using Ante.Organization.Registration;
 using Ante.Outbox;
 using Ante.Resources;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Chronicle.Keys;
 using Cratis.Types;
@@ -183,7 +184,14 @@ public class OneUseCreateTenantInvitationConstraint : IConstraint
 /// <param name="LastName">The last name of the user being onboarded.</param>
 /// <param name="AcceptedLegalTerms">Whether the user has accepted the terms and conditions and the privacy policy.</param>
 /// <param name="AcceptedLegalVersion">The version of the legal document set that was presented and accepted.</param>
+/// <remarks>
+/// Reads <see cref="PendingInvitationToCreateOrganization"/>, <see cref="OrganizationSetupProgress"/> and
+/// <see cref="UserSetupProgress"/> as advisory pre-checks only - each one can race, as documented on
+/// <see cref="OneUseCreateTenantInvitationConstraint"/> and <see cref="UniqueOrganizationNameConstraint"/>, which
+/// are the atomic backstops actually enforced by the kernel at append time.
+/// </remarks>
 [Command]
+[Unprotected]
 public record SetupOrganization(InvitationId InvitationId, TenantName OrganizationName, FirstName FirstName, MiddleName? MiddleName, LastName LastName, bool AcceptedLegalTerms, LegalVersion AcceptedLegalVersion)
 {
     /// <summary>
@@ -191,7 +199,6 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// when the host has a legal document source configured, the <see cref="LegalTermsAccepted"/>
     /// record of what the onboarding user agreed to.
     /// </summary>
-    /// <param name="httpContextAccessor">Accessor for the current request, used to clear the stale identity cookie.</param>
     /// <param name="pendingInvitation">Read model for validating the command.</param>
     /// <param name="existingSetup">Durable evidence that this stream was already used before the shared claim event existed.</param>
     /// <param name="existingJoin">Durable join acceptance on a reused id predating the shared claim event.</param>
@@ -211,7 +218,6 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
-        IHttpContextAccessor httpContextAccessor,
         PendingInvitationToCreateOrganization? pendingInvitation,
         OrganizationSetupProgress? existingSetup,
         UserSetupProgress? existingJoin,
@@ -291,8 +297,6 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         {
             return ValidationResult.Error(Messages.Get("SetupNotPending"));
         }
-
-        httpContextAccessor.HttpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
 
         return (complianceSubject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence, scope));
     }
