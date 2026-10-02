@@ -10,6 +10,16 @@
         <AssemblyName>Ante</AssemblyName>
         <RootNamespace>Ante</RootNamespace>
 
+        <!-- Ante doesn't use the Screenplay feature, and the embedding target's own MSBuild wiring
+             deadlocks the build: GenerateCratisEmbeddedScreenplayDocuments runs BeforeTargets
+             PrepareResourceNames while depending (through GenerateMSBuildEditorConfigFile) on
+             Microsoft.CodeAnalysis.Analyzers' AddAllResxFilesAsAdditionalFiles, which itself depends on
+             PrepareResourceNames - a cycle that only surfaces in this project's Debug/test configuration
+             (see Source/Directory.Build.props), because that is where Microsoft.CodeAnalysis.Analyzers'
+             buildTransitive targets are pulled in. Reported upstream as Cratis/Arc#3002; remove this
+             once fixed there. -->
+        <CratisEmbeddedScreenplayEnabled>false</CratisEmbeddedScreenplayEnabled>
+
         <NoWarn>$(NoWarn);CS7022</NoWarn>
         <UserSecretsId>b3c5d8f1-6a2e-4f9d-9c1a-7e4d2b8f0a3c</UserSecretsId>
     </PropertyGroup>
