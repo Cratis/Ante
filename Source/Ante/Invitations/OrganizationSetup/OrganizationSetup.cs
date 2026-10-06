@@ -292,7 +292,8 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
             return ValidationResult.Error(Messages.Get("SetupNotPending"));
         }
 
-        httpContextAccessor.HttpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
+        // Clear display cookies issued before Arc 22.46.0; Arc no longer issues or trusts them.
+        httpContextAccessor.HttpContext?.Response.Cookies.Delete(".cratis-identity");
 
         return (complianceSubject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence, scope));
     }
