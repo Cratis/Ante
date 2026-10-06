@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
+using System.Text;
 using Ante.Integration.Routes.given;
 
 namespace Ante.Integration.Routes.when_setting_cookies;
@@ -22,6 +23,9 @@ public abstract class setting_cookies : a_routed_ante
     Reply _anonymousMe;
     Reply _signedInMe;
     Reply _registered;
+    Reply _forgedMe;
+    Reply _replayedMe;
+    Reply _malformedMe;
     readonly List<Reply> _others = [];
 
     protected override bool ServedOverHttps => !Proxied;
@@ -31,6 +35,10 @@ public abstract class setting_cookies : a_routed_ante
         var visitor = $"visitor-{Suffix}";
         _anonymousMe = await Send(HttpMethod.Get, "/.cratis/me");
         _signedInMe = await Send(HttpMethod.Get, "/.cratis/me", visitor);
+        var forged = Convert.ToBase64String(Encoding.UTF8.GetBytes(/*lang=json,strict*/ """{"id":"admin","name":"admin","isAuthenticated":true,"isAuthorized":true,"roles":["admin"],"details":{}}"""));
+        _forgedMe = await Send(HttpMethod.Get, "/.cratis/me", cookie: $"{IdentityCookie}={forged}");
+        _replayedMe = await Send(HttpMethod.Get, "/.cratis/me", cookie: $"{IdentityCookie}={_signedInMe.Cookie(IdentityCookie)!.Value}");
+        _malformedMe = await Send(HttpMethod.Get, "/.cratis/me", cookie: $"{IdentityCookie}=garbage");
         _others.Add(await Send(HttpMethod.Get, "/healthz/ready", visitor));
         _others.Add(await Send(HttpMethod.Get, "/", visitor));
         _others.Add(await Send(HttpMethod.Get, "/api/configuration/get-configuration", visitor));
@@ -42,6 +50,9 @@ public abstract class setting_cookies : a_routed_ante
     }
 
     [Fact] public void should_not_set_the_identity_cookie_for_an_anonymous_caller() => (_anonymousMe.Status == HttpStatusCode.Unauthorized && _anonymousMe.SetCookies.Count == 0).ShouldBeTrue();
+    [Fact] public void should_reject_a_forged_identity_cookie_without_a_forwarded_principal() => _forgedMe.Status.ShouldEqual(HttpStatusCode.Unauthorized);
+    [Fact] public void should_reject_a_replayed_identity_cookie_without_a_forwarded_principal() => _replayedMe.Status.ShouldEqual(HttpStatusCode.Unauthorized);
+    [Fact] public void should_reject_a_malformed_identity_cookie() => _malformedMe.Status.ShouldEqual(HttpStatusCode.Unauthorized);
     [Fact] public void should_set_only_the_identity_cookie_for_a_signed_in_caller() => _signedInMe.SetCookies.Select(header => SetCookie.Parse(header).Name).ShouldContainOnly([IdentityCookie]);
     [Fact] public void should_scope_the_identity_cookie_to_the_whole_host() => (_signedInMe.Cookie(IdentityCookie)!.Path == "/" && !_signedInMe.Cookie(IdentityCookie)!.HasDomain).ShouldBeTrue();
     [Fact] public void should_restrict_the_identity_cookie_to_same_site_navigations_that_are_safe() => _signedInMe.Cookie(IdentityCookie)!.SameSite.ShouldEqual("lax");
