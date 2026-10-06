@@ -43,6 +43,7 @@ public abstract class forging_a_request : a_routed_ante
         var json = System.Text.Json.JsonSerializer.Serialize(command);
 
         _started = await Send(HttpMethod.Post, Start, visitor, body: new { registrationId = _registration });
+
         // Arc no longer issues identity cookies; replay the display-cookie format from earlier versions.
         var identityCookie = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { id = visitor, name = visitor, isAuthenticated = true, isAuthorized = true, roles = Array.Empty<string>(), details = new { } })));
 
