@@ -20,6 +20,11 @@ public static class ForwardedIdentitySubject
     public static string? Resolve(IHttpContextAccessor httpContextAccessor)
     {
         var context = httpContextAccessor.HttpContext;
+        if (context?.User.Identity?.IsAuthenticated != true)
+        {
+            return null;
+        }
+
         return Resolve(
             context?.User?.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value)) ?? [],
             context?.Request.Headers[MicrosoftIdentityPlatformHeaders.IdentityIdHeader].FirstOrDefault());

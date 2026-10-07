@@ -210,11 +210,14 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// forwarded to the outbox. <see cref="OrganizationSetupOutbox"/> marks it once the acceptance is
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
+    // Projected inputs are advisory. The returned batch carries authoritative invitation/legal
+    // revision scopes; one-use, onboarding-attempt and organization-name constraints arbitrate append.
+    // Arc documents parameter-level Unprotected for these intentional legacy reads.
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
         IHttpContextAccessor httpContextAccessor,
-        PendingInvitationToCreateOrganization? pendingInvitation,
-        OrganizationSetupProgress? existingSetup,
-        UserSetupProgress? existingJoin,
+        [Cratis.Arc.Chronicle.ReadModels.Unprotected] PendingInvitationToCreateOrganization? pendingInvitation,
+        [Cratis.Arc.Chronicle.ReadModels.Unprotected] OrganizationSetupProgress? existingSetup,
+        [Cratis.Arc.Chronicle.ReadModels.Unprotected] UserSetupProgress? existingJoin,
         IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
         ISignedInIdentity signedInIdentity,
         ILegalDocumentSource legalDocumentSource,

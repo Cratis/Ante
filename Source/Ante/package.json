@@ -17,9 +17,9 @@
         "build-storybook": "storybook build -c .frontend/.storybook"
     },
     "dependencies": {
-        "@cratis/arc": "^22.44.2",
-        "@cratis/arc.react": "^22.44.2",
-        "@cratis/arc.vite": "^22.44.2",
+        "@cratis/arc": "22.46.0",
+        "@cratis/arc.react": "22.46.0",
+        "@cratis/arc.vite": "22.46.0",
         "@cratis/components": "^4.23.0",
         "@cratis/components.primereact": "^4.23.0",
         "@cratis/fundamentals": "^7.19.8",

@@ -7,7 +7,13 @@ description: Prepare a secure Ante instance, connect dependencies, and check the
 Legacy `/_invite/exchange` verifies the invitation capability (fixed in [Ante #51](https://github.com/Cratis/Ante/issues/51)); Attested exchange verifies signed AuthProxy stage/completion assertions and the recipient-bound capability. Ante must still only be reachable through a trusted proxy that controls forwarded identity claims and headers. A forwarded `jti` is an ownership shortcut only in Legacy mode, not in Attested mode. Restrict generated `/api` routes as well, even though pending-invitation and status queries now check ownership. See [Security and trust](./security.md), [trust protocol #11](https://github.com/Cratis/Ante/issues/11), and [ownership #13](https://github.com/Cratis/Ante/issues/13).
 :::
 
-Arc 22.46.0 no longer issues or trusts `.cratis-identity` cookies. The frontend reads identity from `/.cratis/me`; forged or replayed legacy cookies do not authenticate a request. After establishing the trusted-proxy boundary above, explicitly set `Cratis__Arc__TrustForwardedIdentityHeaders=true` so Arc accepts the proxy's forwarded principal. Leave it false when that boundary is absent; do not expose Ante directly or trust headers supplied by clients.
+Ante uses Arc 22.46.0 on the server and frontend. The server no longer issues or trusts `.cratis-identity` cookies. The frontend reads identity from `/.cratis/me`; forged or replayed legacy cookies cannot override a successful server response or a 401/403 rejection. The ingress must expose this endpoint and preserve those statuses: Arc's frontend still has a legacy-cookie transition fallback when the endpoint returns 404. Ante reads forwarded subject and name headers only when the request has an authenticated principal. Without the trusted-proxy boundary above, leave forwarded identity trust disabled; this does not make direct exposure of Ante supported.
+
+## Upgrade forwarded identity authentication
+
+Deployments behind an authenticating proxy **must set `Cratis__Arc__TrustForwardedIdentityHeaders=true` before upgrading**. Arc 22.46.0 ignores forwarded identity headers by default. Without this setting, proxy sign-in stops working: `/.cratis/me` returns 401 and registration and invitation ownership cannot resolve the visitor. Enable it only after restricting Ante to an ingress that authenticates requests and strips and replaces client-supplied `x-ms-client-principal*` headers. Neither forwarded scheme handling nor configuring a single identity provider enables authentication.
+
+Direct's DirectLobby deployment must add `Cratis__Arc__TrustForwardedIdentityHeaders=true` to the environment list in [`Deployment/AnteDeployment.cs`](https://github.com/Cratis/Direct/blob/main/Deployment/AnteDeployment.cs) behind its authenticating lobby ingress before upgrading its Ante image.
 
 ## Prepare the dependencies
 

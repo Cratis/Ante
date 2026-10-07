@@ -1,16 +1,15 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <ArcVersion>22.46.0</ArcVersion>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Upgrade Arc's identity provider directly without adopting unrelated Chronicle/embedded
-         Screenplay migrations from a newer Cratis metapackage. Ante.csproj references Arc explicitly. -->
-    <PackageVersion Include="Cratis" Version="22.38.0" />
-    <PackageVersion Include="Cratis.Arc" Version="22.46.0" />
-    <PackageVersion Include="Cratis.Arc.ProxyGenerator.Build" Version="22.38.0" />
-    <PackageVersion Include="Cratis.Arc.Chronicle.Testing" Version="22.38.0" />
-    <PackageVersion Include="Cratis.Arc.MongoDB" Version="22.38.0" />
-    <PackageVersion Include="Cratis.Arc.Core" Version="22.46.0" />
+    <!-- Keep the Arc family on one release, including the metapackage's transitive dependencies. -->
+    <PackageVersion Include="Cratis" Version="$(ArcVersion)" />
+    <PackageVersion Include="Cratis.Arc" Version="$(ArcVersion)" />
+    <PackageVersion Include="Cratis.Arc.ProxyGenerator.Build" Version="$(ArcVersion)" />
+    <PackageVersion Include="Cratis.Arc.Chronicle.Testing" Version="$(ArcVersion)" />
+    <PackageVersion Include="Cratis.Arc.MongoDB" Version="$(ArcVersion)" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.19.6" />
     <!-- Keep Chronicle clients and testing support on the same release. -->
     <PackageVersion Include="Cratis.Chronicle" Version="19.23.0" />
