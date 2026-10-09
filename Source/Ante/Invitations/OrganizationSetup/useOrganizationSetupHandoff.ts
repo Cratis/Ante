@@ -118,7 +118,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     // on an attempt it has not been notified of yet - and never looked up at all for a caller that has
     // not opted in.
     const hostOutcome = useHostOutcome(supportsHostOutcome && recovery.isAccepted ? invitationId : Guid.empty);
-    const gate = resolveHostOutcomeGate(recovery.isAccepted, supportsHostOutcome && hostOutcome.isConfigured, !supportsHostOutcome || hostOutcome.isRead);
+    const gate = resolveHostOutcomeGate(recovery.isAccepted, supportsHostOutcome && hostOutcome.isConfigured, !supportsHostOutcome || hostOutcome.isRead, hostOutcome.status, hostOutcome.hasGivenUp);
 
     const navigateToHost = useCallback(() => {
         if (!hostUrlResult.isSuccess) {
