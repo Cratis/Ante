@@ -67,7 +67,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     // Never looked up before Ante's own onboarding has actually published - a host has nothing to report
     // on an invitation it has not been notified of accepting yet.
     const hostOutcome = useHostOutcome(recovery.isAccepted ? resolvedInvitationId : Guid.empty);
-    const hostOutcomeGate = resolveHostOutcomeGate(recovery.isAccepted, hostOutcome.isConfigured, hostOutcome.isRead);
+    const hostOutcomeGate = resolveHostOutcomeGate(recovery.isAccepted, hostOutcome.isConfigured, hostOutcome.isRead, hostOutcome.status, hostOutcome.hasGivenUp);
 
     // Static form defaults apply once per command; legal document updates must not replay names.
     const legalDocumentsConfigured = displayedDocuments?.isConfigured ?? false;

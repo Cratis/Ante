@@ -8,13 +8,17 @@
     right: 0;
     bottom: 0;
     display: flex;
-    align-items: center;
     justify-content: center;
+    padding: 1rem;
+    box-sizing: border-box;
+    overflow-y: auto;
     background: linear-gradient(135deg, var(--gray-900) 0%, var(--gray-800) 100%);
 }
 
 .organization-setup-card {
     position: relative;
+    /* Centers vertically while the card fits, and lets the container scroll - rather than clip the top - when it does not. */
+    margin: auto;
     background: var(--surface-card);
     border-radius: 12px;
     width: 100%;
@@ -65,15 +69,15 @@
     gap: 0;
 }
 
-.organization-setup-card__content--stepper .p-stepper {
+.organization-setup-card__content--stepper .cratis-command-stepper__root {
     padding: 2rem 2.5rem 0;
 }
 
-.organization-setup-card__content--stepper .p-steplist {
+.organization-setup-card__content--stepper .cratis-command-stepper__list {
     margin-bottom: 1.5rem;
 }
 
-.organization-setup-card__content--stepper .p-steppanels {
+.organization-setup-card__content--stepper .cratis-command-stepper__panels {
     padding-bottom: 0;
 }
 
@@ -155,7 +159,7 @@
         padding-right: 1.5rem;
     }
 
-    .organization-setup-card__content--stepper .p-stepper {
+    .organization-setup-card__content--stepper .cratis-command-stepper__root {
         padding-left: 1.5rem;
         padding-right: 1.5rem;
     }
