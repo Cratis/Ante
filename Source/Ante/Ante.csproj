@@ -16,6 +16,7 @@
 
     <ItemGroup>
         <PackageReference Include="Cratis" />
+        <PackageReference Include="Cratis.Arc" />
         <PackageReference Include="Cratis.Arc.ProxyGenerator.Build">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

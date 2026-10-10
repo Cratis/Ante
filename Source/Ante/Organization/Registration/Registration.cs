@@ -208,7 +208,8 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             return legalError;
         }
 
-        httpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
+        // Clear display cookies issued before Arc 22.46.0; Arc no longer issues or trusts them.
+        httpContext?.Response.Cookies.Delete(".cratis-identity");
 
         var events = new List<object>
         {

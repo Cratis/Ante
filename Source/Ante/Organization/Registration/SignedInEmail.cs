@@ -50,7 +50,7 @@ public static class SignedInEmail
     {
         var candidates = _claimTypes
             .Select(claimType => user?.FindFirstValue(claimType))
-            .Append(headers?[MicrosoftIdentityPlatformHeaders.IdentityNameHeader].FirstOrDefault());
+            .Append(user?.Identity?.IsAuthenticated == true ? headers?[MicrosoftIdentityPlatformHeaders.IdentityNameHeader].FirstOrDefault() : null);
 
         return candidates.FirstOrDefault(IsAddress) ?? string.Empty;
     }
