@@ -71,6 +71,8 @@ public record AcceptedInvitation(
 /// </summary>
 public static class InviteExchangeProcessor
 {
+    internal const string InvitationIdField = "invitationId";
+
     /// <summary>
     /// Validates the bearer token carried on the exchange request and, when valid, records the session.
     /// </summary>
@@ -161,8 +163,6 @@ public static class InviteExchangeProcessor
             Builders<AcceptedInvitation>.Filter.Eq(a => a.Subject, subject),
             Builders<AcceptedInvitation>.Filter.Eq(a => a.IdentityProvider, identityProvider),
             Builders<AcceptedInvitation>.Filter.Eq(InvitationIdField, new BsonBinaryData(invitationId.Value, GuidRepresentation.Standard)));
-
-    internal const string InvitationIdField = "invitationId";
 }
 
 /// <summary>
@@ -175,7 +175,7 @@ public static class AcceptedInvitationIndexes
     const string LegacyUniqueSessionIndexName = "UniqueAcceptedInvitationSession";
     const int IndexNotFoundCode = 27;
     const int NamespaceNotFoundCode = 26;
-    static readonly FieldDefinition<AcceptedInvitation> InvitationIdentifierField = InviteExchangeProcessor.InvitationIdField;
+    static readonly FieldDefinition<AcceptedInvitation> _invitationIdentifierField = InviteExchangeProcessor.InvitationIdField;
 
     /// <summary>
     /// Creates the indexes, if they do not already exist. Safe to call every time the application
@@ -191,7 +191,7 @@ public static class AcceptedInvitationIndexes
             Builders<AcceptedInvitation>.IndexKeys
                 .Ascending(a => a.Subject)
                 .Ascending(a => a.IdentityProvider)
-                .Ascending(InvitationIdentifierField),
+                .Ascending(_invitationIdentifierField),
             new CreateIndexOptions { Unique = true, Name = UniqueSessionIndexName });
 
         // Storage cleanup only - not the authorization-time expiry check. MongoDB only sweeps expired

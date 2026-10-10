@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
-using System.Text.RegularExpressions;
 
 namespace Ante;
 
@@ -16,8 +15,9 @@ namespace Ante;
 /// be shaped on the server, not by the application's own branding, which arrives after the script has loaded.
 /// A shell that carries none of the places it fills (a title, the root element) is returned as it is.
 /// </remarks>
-public static partial class ShellRenderer
+public static class ShellRenderer
 {
+    const string RootElement = "<div id=\"root\"></div>";
     const string SplashStyle =
         ":root{--ante-splash-background:#0f1115;--ante-splash-foreground:#e8eaed;--ante-splash-accent:#6c8cff;--ante-splash-logo-height:3rem}" +
         "html,body{margin:0}" +
@@ -38,9 +38,9 @@ public static partial class ShellRenderer
     /// <returns>The shell markup for the visitor.</returns>
     public static string Render(string shell, AnteOptions options)
     {
-        var rendered = TitlePattern().Replace(shell, _ => $"<title>{WebUtility.HtmlEncode(options.PageTitle)}</title>", 1);
-        rendered = HeadPattern().Replace(rendered, match => match.Value + HeadMarkup(options), 1);
-        return RootPattern().Replace(rendered, _ => $"<div id=\"root\">{Splash(options)}</div>", 1);
+        var rendered = ReplaceBetween(shell, "<title>", "</title>", $"<title>{WebUtility.HtmlEncode(options.PageTitle)}</title>");
+        rendered = InsertAfterOpeningTag(rendered, "<head", HeadMarkup(options));
+        return ReplaceFirst(rendered, RootElement, $"<div id=\"root\">{Splash(options)}</div>");
     }
 
     /// <summary>
@@ -93,12 +93,30 @@ public static partial class ShellRenderer
     // a javascript: or data: address.
     static string? TrustedLogo(string url) => TrustedStylesheet(url);
 
-    [GeneratedRegex(@"<title>[^<]*</title>", RegexOptions.IgnoreCase)]
-    private static partial Regex TitlePattern();
+    // Plain searches rather than patterns: the shell is a file the frontend build produces, and each of the three
+    // places is a fixed piece of markup - a missing one just means that part is left as built.
+    static string ReplaceBetween(string text, string open, string close, string replacement)
+    {
+        var start = text.IndexOf(open, StringComparison.OrdinalIgnoreCase);
+        var end = start < 0 ? -1 : text.IndexOf(close, start, StringComparison.OrdinalIgnoreCase);
+        return end < 0 ? text : string.Concat(text.AsSpan(0, start), replacement, text.AsSpan(end + close.Length));
+    }
 
-    [GeneratedRegex(@"<head(\s[^>]*)?>", RegexOptions.IgnoreCase)]
-    private static partial Regex HeadPattern();
+    static string InsertAfterOpeningTag(string text, string tag, string insertion)
+    {
+        var start = text.IndexOf(tag, StringComparison.OrdinalIgnoreCase);
+        if (start < 0 || start + tag.Length >= text.Length || !(text[start + tag.Length] is '>' or ' ' or '\t' or '\r' or '\n'))
+        {
+            return text;
+        }
 
-    [GeneratedRegex(@"<div id=""root""\s*></div>")]
-    private static partial Regex RootPattern();
+        var end = text.IndexOf('>', start);
+        return end < 0 ? text : text.Insert(end + 1, insertion);
+    }
+
+    static string ReplaceFirst(string text, string search, string replacement)
+    {
+        var start = text.IndexOf(search, StringComparison.Ordinal);
+        return start < 0 ? text : string.Concat(text.AsSpan(0, start), replacement, text.AsSpan(start + search.Length));
+    }
 }
