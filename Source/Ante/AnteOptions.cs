@@ -79,6 +79,27 @@ public class AnteOptions
     public string CustomCssUrl { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the title of the browser tab. It is written into the page before any script runs, so it is
+    /// right from the first paint rather than after the application has loaded.
+    /// </summary>
+    public string PageTitle { get; set; } = "Ante";
+
+    /// <summary>
+    /// Gets or sets the accessible name announced for the screen shown while the application loads
+    /// (for example <c language="csharp">Loading Studio</c>).
+    /// </summary>
+    public string SplashMessage { get; set; } = "Loading";
+
+    /// <summary>
+    /// Gets or sets the markup of the screen shown from the first byte until the application has loaded,
+    /// replacing the default one - the logo above a spinner. It is trusted markup from deployment
+    /// configuration and is written into the page as it is; style it with <see cref="CustomCssUrl"/>.
+    /// When empty, the default screen is used, which already follows <see cref="LogoUrl"/>,
+    /// <see cref="CustomCssUrl"/> and the <c language="csharp">--ante-splash-*</c> custom properties.
+    /// </summary>
+    public string SplashHtml { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the base URL of the identity backchannel Ante calls to check whether the identity a
     /// user signed in with is already associated with a user in the organization they are joining
     /// (for example <c language="csharp">https://host.example.com/api/internal/identity-providers</c>).

@@ -1,8 +1,13 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Ante;
 
@@ -37,7 +42,53 @@ public static class SpaFallback
     /// <param name="endpoints">The endpoint route builder to map on.</param>
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapFallbackToFile(InvitationLinkPattern, ShellFile);
-        endpoints.MapFallbackToFile(ShellFile);
+        endpoints.MapFallback(InvitationLinkPattern, Serve);
+        endpoints.MapFallback(Serve);
+    }
+
+    /// <summary>
+    /// Serves the shell for the application root and for the shell file itself, ahead of the static files.
+    /// </summary>
+    /// <param name="app">The application to add the middleware to.</param>
+    /// <remarks>
+    /// This replaces the default-files middleware, which would hand the root the unrendered file from disk and so
+    /// skip the host's title and loading screen on exactly the request that matters most.
+    /// </remarks>
+    public static void UseShell(IApplicationBuilder app) =>
+        app.Use(async (context, next) =>
+        {
+            var isShell = context.Request.Path == "/" || context.Request.Path.Equals("/" + ShellFile, StringComparison.OrdinalIgnoreCase);
+            if (isShell && (HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method)))
+            {
+                await Serve(context);
+                return;
+            }
+
+            await next(context);
+        });
+
+    static async Task Serve(HttpContext context)
+    {
+        var file = context.RequestServices.GetRequiredService<IWebHostEnvironment>().WebRootFileProvider.GetFileInfo(ShellFile);
+        if (!file.Exists)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        using var reader = new StreamReader(file.CreateReadStream(), Encoding.UTF8);
+        var options = context.RequestServices.GetService<IOptions<AnteOptions>>()?.Value ?? new AnteOptions();
+        var shell = ShellRenderer.Render(await reader.ReadToEndAsync(context.RequestAborted), options);
+
+        // The shell names hashed assets and carries configuration that can change on a deploy, so a
+        // browser must ask again rather than keep a copy of it.
+        context.Response.Headers.CacheControl = "no-cache";
+        context.Response.ContentType = "text/html; charset=utf-8";
+        if (HttpMethods.IsHead(context.Request.Method))
+        {
+            return;
+        }
+
+        await context.Response.WriteAsync(shell, Encoding.UTF8, context.RequestAborted);
     }
 }

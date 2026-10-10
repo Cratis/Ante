@@ -7,6 +7,7 @@ using Ante.Invitations.Issuing;
 using Cratis.Arc.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
+using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace Ante.Invitations.Accepting;
@@ -70,6 +71,8 @@ public record AcceptedInvitation(
 /// </summary>
 public static class InviteExchangeProcessor
 {
+    internal const string InvitationIdField = "invitationId";
+
     /// <summary>
     /// Validates the bearer token carried on the exchange request and, when valid, records the session.
     /// </summary>
@@ -130,13 +133,36 @@ public static class InviteExchangeProcessor
         // token, which always resolves to the same invitation id and the same expiry (copied from the
         // token's own exp claim, never computed from "now"). A retry therefore replaces the session with
         // an equivalent one instead of creating a duplicate or extending its lifetime.
+        //
+        // The session belongs to the invitation as well as to the login. One person is routinely holding
+        // several invitations to the same organization - a resend, a refresh and a revocation each mint a
+        // new invitation id - and a login that opens a second link must not take over the session of the
+        // first: that made the first, still-pending invitation fail its owner check with "no longer
+        // pending" (Cratis/StudioIssues#581, #582).
         await acceptedInvitations.ReplaceOneAsync(
-            a => a.Subject == request.Subject && a.IdentityProvider == normalizedIdentityProvider,
+            SessionFilter(request.Subject, normalizedIdentityProvider, verifiedToken.InvitationId),
             acceptedInvitation,
             new ReplaceOptions { IsUpsert = true });
 
         return InviteExchangeOutcome.Accepted;
     }
+
+    /// <summary>
+    /// The filter identifying the one session a login holds for one invitation.
+    /// </summary>
+    /// <param name="subject">The subject of the authenticated user.</param>
+    /// <param name="identityProvider">The resolved identity provider the user authenticated with.</param>
+    /// <param name="invitationId">The invitation the session belongs to.</param>
+    /// <returns>The filter.</returns>
+    /// <remarks>
+    /// The invitation id is matched on its stored form - a standard BSON UUID - rather than through its
+    /// <see cref="EventSourceId{T}"/> wrapper, which a driver-side filter can silently fail to match.
+    /// </remarks>
+    internal static FilterDefinition<AcceptedInvitation> SessionFilter(string subject, string identityProvider, InvitationId invitationId) =>
+        Builders<AcceptedInvitation>.Filter.And(
+            Builders<AcceptedInvitation>.Filter.Eq(a => a.Subject, subject),
+            Builders<AcceptedInvitation>.Filter.Eq(a => a.IdentityProvider, identityProvider),
+            Builders<AcceptedInvitation>.Filter.Eq(InvitationIdField, new BsonBinaryData(invitationId.Value, GuidRepresentation.Standard)));
 }
 
 /// <summary>
@@ -145,6 +171,12 @@ public static class InviteExchangeProcessor
 /// </summary>
 public static class AcceptedInvitationIndexes
 {
+    const string UniqueSessionIndexName = "UniqueAcceptedInvitationSessionPerInvitation";
+    const string LegacyUniqueSessionIndexName = "UniqueAcceptedInvitationSession";
+    const int IndexNotFoundCode = 27;
+    const int NamespaceNotFoundCode = 26;
+    static readonly FieldDefinition<AcceptedInvitation> _invitationIdentifierField = InviteExchangeProcessor.InvitationIdField;
+
     /// <summary>
     /// Creates the indexes, if they do not already exist. Safe to call every time the application
     /// starts - <c language="csharp">CreateManyAsync</c> is a no-op for an index that already matches.
@@ -153,13 +185,14 @@ public static class AcceptedInvitationIndexes
     /// <param name="cancellationToken">Cancels a pending connection on shutdown.</param>
     public static Task EnsureCreated(IMongoCollection<AcceptedInvitation> acceptedInvitations, CancellationToken cancellationToken = default)
     {
-        // Backstops the single-document-per-login invariant the exchange's upsert relies on; the upsert
-        // itself is already atomic, so this is defense in depth rather than the source of that guarantee.
+        // Backstops the single-document-per-login-and-invitation invariant the exchange's upsert relies on; the
+        // upsert itself is already atomic, so this is defense in depth rather than the source of that guarantee.
         var uniqueSession = new CreateIndexModel<AcceptedInvitation>(
             Builders<AcceptedInvitation>.IndexKeys
                 .Ascending(a => a.Subject)
-                .Ascending(a => a.IdentityProvider),
-            new CreateIndexOptions { Unique = true, Name = "UniqueAcceptedInvitationSession" });
+                .Ascending(a => a.IdentityProvider)
+                .Ascending(_invitationIdentifierField),
+            new CreateIndexOptions { Unique = true, Name = UniqueSessionIndexName });
 
         // Storage cleanup only - not the authorization-time expiry check. MongoDB only sweeps expired
         // documents periodically, but InvitationIdentityProvider must stop honoring a session the instant
@@ -168,7 +201,26 @@ public static class AcceptedInvitationIndexes
             Builders<AcceptedInvitation>.IndexKeys.Ascending(a => a.ExpiresAtUtc),
             new CreateIndexOptions { ExpireAfter = TimeSpan.Zero, Name = "AcceptedInvitationExpiry" });
 
-        return acceptedInvitations.Indexes.CreateManyAsync([uniqueSession, expiryCleanup], cancellationToken: cancellationToken);
+        return CreateWithoutTheLegacyIndex(acceptedInvitations, [uniqueSession, expiryCleanup], cancellationToken);
+    }
+
+    // The index this replaces allowed a login a single session, so a second invitation exchanged by the same
+    // person overwrote the first. It has to go before sessions per invitation can be stored, and it is dropped
+    // on every start-up that finds it - dropping what is not there is not an error.
+    static async Task CreateWithoutTheLegacyIndex(
+        IMongoCollection<AcceptedInvitation> acceptedInvitations,
+        IEnumerable<CreateIndexModel<AcceptedInvitation>> indexes,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await acceptedInvitations.Indexes.DropOneAsync(LegacyUniqueSessionIndexName, cancellationToken);
+        }
+        catch (MongoCommandException ex) when (ex.Code is IndexNotFoundCode or NamespaceNotFoundCode)
+        {
+        }
+
+        await acceptedInvitations.Indexes.CreateManyAsync(indexes, cancellationToken: cancellationToken);
     }
 }
 
