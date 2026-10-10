@@ -152,7 +152,7 @@ app.Use(LocalizedConstraintResponses.Invoke);
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.UseDefaultFiles();
+SpaFallback.UseShell(app);
 app.UseStaticFiles();
 
 // Branch before the legacy exchange middleware so the attested handlers (which depend on Chronicle)

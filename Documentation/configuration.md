@@ -19,6 +19,9 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 | `Ante:HostAppUrl` | string | empty | `https://{tenant}.example.com/` / `http://{tenant}.localhost:8090/` | Set a **real reachable host URL** before onboarding. `{tenant}` is substituted for organization-creation flows only; **join redirects use the literal configured URL**, so the base `{tenant}.example.com` template breaks join handoff. Use a concrete join destination or plan separate routing. The base value is not a usable production destination. |
 | `Ante:LogoUrl` | string | empty | empty / empty | Optional image URL; failed image loads fall back to wordmark. |
 | `Ante:CustomCssUrl` | string | empty | empty / empty | Optional CSS URL; same-origin HTTP(S) or cross-origin HTTPS only. See [Customization](./customization.md). |
+| `Ante:PageTitle` | string | `Ante` | `Ante` / `Ante` | Browser tab title, written into the page before any script runs. |
+| `Ante:SplashMessage` | string | `Loading` | `Loading` / `Loading` | Accessible name announced by the screen shown while the application loads. |
+| `Ante:SplashHtml` | string | empty | empty / empty | Trusted markup that replaces the default loading screen. Style it with `Ante:CustomCssUrl`. See [Customization](./customization.md#brand-the-loading-screen). |
 | `Ante:IdentityBackchannelUrl` | string | empty | empty / unset | Optional host base URL for join-invitation `/in-use` GET. |
 | `Ante:HostOutcomeUrl` | string | empty | unset / unset | Optional host base URL for the `/outcome` GET after invited creation, join and self-service registration. |
 | `Ante:Registration:Enabled` | bool | `true` | unset / unset | `false` closes `/register`: the page shows a notice and the server rejects registration commands. |

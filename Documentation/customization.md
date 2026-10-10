@@ -11,6 +11,21 @@ Ante has URL-based branding, two legal-document sources, and two bundled languag
 2. Load the lobby through your actual ingress and check the browser's asset responses and Content-Security-Policy. The CSS loader accepts same-origin HTTP(S) or cross-origin **HTTPS**; it rejects malformed URLs, other schemes and cross-origin plain HTTP. A failed CSS load removes the link; a failed logo load displays the wordmark.
 3. Check keyboard focus, contrast and layout after applying custom CSS. The URL check does **not** sanitize CSS; the operator controls trusted assets and any CSP `style-src` restrictions.
 
+## Brand the loading screen
+
+Before the application has loaded, a visitor sees a loading screen the server writes into the page: your logo (or the
+`Ante:PageTitle` wordmark when there is none) above a spinner, on the page's own tab title. It is shaped on the server
+because the application's own branding only arrives after its script has loaded.
+
+- `Ante:PageTitle` sets the tab title, `Ante:LogoUrl` the logo and `Ante:SplashMessage` the text assistive technology announces.
+- `Ante:CustomCssUrl` is linked in the page head, so it applies from the first paint. Set the custom properties
+  `--ante-splash-background`, `--ante-splash-foreground`, `--ante-splash-accent` and `--ante-splash-logo-height`, or style
+  `.ante-splash`, `.ante-splash__logo`, `.ante-splash__wordmark` and `.ante-splash__spinner` directly.
+- `Ante:SplashHtml` replaces the screen entirely with markup of your own. It is written into the page as it is, so it must
+  come from your deployment configuration, never from user input.
+
+The stylesheet and logo addresses must be a path on the same host (`/branding/lobby.css`) or an `https` URL.
+
 ## Describe the registration offer
 
 Set `Ante:Registration:Content:{locale}` to explain a self-service signup on `/register`, for example:
