@@ -72,6 +72,17 @@ public record InvitationSourceInboxEventRecorded(EventSequenceNumber InboxSequen
 /// <param name="legalReceiver">The optional legal-set receiver for configured inbox deliveries.</param>
 public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name, LegalDocumentSetReceiver? legalReceiver = null)
 {
+    static readonly Type[] _deliverableEventTypes =
+    [
+        typeof(UserInvitedToJoinTenant),
+        typeof(UserInvitedToCreateTenant),
+        typeof(InvitationRevoked),
+        typeof(InvitationReissueRequested),
+        typeof(OrganizationNameReserved),
+        typeof(OrganizationNameReleased),
+        typeof(LegalDocumentSetPublished),
+    ];
+
     static readonly EventType[] _decisionEventTypes =
     [
         typeof(InvitationInboxEventRecorded).GetEventType(),
@@ -148,24 +159,7 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
 
         // Delegate reactors do not select a generation or run typed-reactor middleware.
         // These contracts currently have one generation; fail delivery rather than acknowledge an unknown one.
-        var content = context.EventType switch
-        {
-            var type when type == typeof(UserInvitedToJoinTenant).GetEventType() =>
-                await serializer.Deserialize(typeof(UserInvitedToJoinTenant), delivery.Content),
-            var type when type == typeof(UserInvitedToCreateTenant).GetEventType() =>
-                await serializer.Deserialize(typeof(UserInvitedToCreateTenant), delivery.Content),
-            var type when type == typeof(InvitationRevoked).GetEventType() =>
-                await serializer.Deserialize(typeof(InvitationRevoked), delivery.Content),
-            var type when type == typeof(InvitationReissueRequested).GetEventType() =>
-                await serializer.Deserialize(typeof(InvitationReissueRequested), delivery.Content),
-            var type when type == typeof(OrganizationNameReserved).GetEventType() =>
-                await serializer.Deserialize(typeof(OrganizationNameReserved), delivery.Content),
-            var type when type == typeof(OrganizationNameReleased).GetEventType() =>
-                await serializer.Deserialize(typeof(OrganizationNameReleased), delivery.Content),
-            var type when type == typeof(LegalDocumentSetPublished).GetEventType() =>
-                await serializer.Deserialize(typeof(LegalDocumentSetPublished), delivery.Content),
-            _ => throw new InvalidOperationException($"Unexpected incoming invitation event type {context.EventType}."),
-        };
+        var content = await Deserialize(delivery, serializer);
 
         switch (content)
         {
@@ -192,19 +186,7 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
                 await Release(released, context);
                 break;
             case InvitationRevoked revoked:
-                if (On(revoked, context) is { } receipt)
-                {
-                    var result = await eventStore.EventLog.Append(
-                        context.EventSourceId,
-                        receipt,
-                        correlationId: context.CorrelationId,
-                        occurred: context.Occurred,
-                        subject: context.Subject);
-                    if (!result.IsSuccess)
-                    {
-                        throw new InvalidOperationException($"Failed to record invitation revocation from {sourceStore} for {context.EventSourceId}.");
-                    }
-                }
+                await AppendRevocation(revoked, context);
                 break;
         }
     }
@@ -217,6 +199,32 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             first.Email == second.Email && first.Roles.SequenceEqual(second.Roles),
         _ => false,
     };
+
+    async Task<object> Deserialize(ReactorEvent delivery, IEventSerializer serializer)
+    {
+        var clrType = _deliverableEventTypes.FirstOrDefault(type => delivery.Context.EventType == type.GetEventType())
+            ?? throw new InvalidOperationException($"Unexpected incoming invitation event type {delivery.Context.EventType}.");
+        return await serializer.Deserialize(clrType, delivery.Content);
+    }
+
+    async Task AppendRevocation(InvitationRevoked revoked, EventContext context)
+    {
+        if (On(revoked, context) is not { } receipt)
+        {
+            return;
+        }
+
+        var result = await eventStore.EventLog.Append(
+            context.EventSourceId,
+            receipt,
+            correlationId: context.CorrelationId,
+            occurred: context.Occurred,
+            subject: context.Subject);
+        if (!result.IsSuccess)
+        {
+            throw new InvalidOperationException($"Failed to record invitation revocation from {sourceStore} for {context.EventSourceId}.");
+        }
+    }
 
     async Task AppendReceipt(EventsWithConcurrencyScopes? receipt, EventContext context)
     {
@@ -331,27 +339,53 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         // Read exactly the types in the optimistic scope: if an acceptance arrives before the
         // receipt is appended, the append fails and Chronicle retries against the new history.
         var history = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(context.EventSourceId, _decisionEventTypes);
-        if (history.Any(entry => entry.Content switch
-        {
-            InvitationInboxEventRecorded recorded => sourceStore == InboxSourceStore.Name && recorded.InboxSequenceNumber == context.SequenceNumber,
-            InvitationSourceInboxEventRecorded recorded => recorded.SourceStore == sourceStore && recorded.InboxSequenceNumber == context.SequenceNumber,
-            _ => false,
-        }))
+        if (IsRedelivery(history, context))
         {
             return null;
         }
 
-        if (history.Any(entry => entry.Content switch
-        {
-            InvitationInboxEventRecorded => sourceStore != InboxSourceStore.Name,
-            InvitationSourceInboxEventRecorded marker => marker.SourceStore != sourceStore,
-            _ => false,
-        }))
+        if (IsReusedByAnotherSource(history))
         {
             await Reject(context, InvitationRejectionReason.InvitationIdReused);
             return null;
         }
 
+        if (HasLegacyReceiptFor(history, context))
+        {
+            return null;
+        }
+
+        if (history.Any(entry => entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted))
+        {
+            await Reject(context, InvitationRejectionReason.InvitationIdReused);
+            return null;
+        }
+
+        if (exchange.Value.Mode == InvitationExchangeMode.Attested && await RejectsAttestedRedelivery(history, context, receipt))
+        {
+            return null;
+        }
+
+        var tail = history.Count > 0 ? history[^1].Context.SequenceNumber : EventSequenceNumber.BeforeFirst;
+        return new(tail, context.EventSourceId, EventTypes: _decisionEventTypes);
+    }
+
+    bool IsRedelivery(IReadOnlyList<AppendedEvent> history, EventContext context) => history.Any(entry => entry.Content switch
+    {
+        InvitationInboxEventRecorded recorded => sourceStore == InboxSourceStore.Name && recorded.InboxSequenceNumber == context.SequenceNumber,
+        InvitationSourceInboxEventRecorded recorded => recorded.SourceStore == sourceStore && recorded.InboxSequenceNumber == context.SequenceNumber,
+        _ => false,
+    });
+
+    bool IsReusedByAnotherSource(IReadOnlyList<AppendedEvent> history) => history.Any(entry => entry.Content switch
+    {
+        InvitationInboxEventRecorded => sourceStore != InboxSourceStore.Name,
+        InvitationSourceInboxEventRecorded marker => marker.SourceStore != sourceStore,
+        _ => false,
+    });
+
+    bool HasLegacyReceiptFor(IReadOnlyList<AppendedEvent> history, EventContext context)
+    {
         // Before markers existed, the receipt's persisted reactor causation already named its
         // originating inbox sequence and number. Count-based matching can mistake a later inbox
         // delivery for a receipt, particularly when a historical delivery was recorded twice.
@@ -370,38 +404,28 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             _ => EventType.Unknown,
         };
         var inboxId = $"{EventSequenceId.InboxPrefix}{sourceStore}";
-        if (legacy.Any(entry => entry.Context.EventType == receiptType && entry.Context.Causation.Any(cause =>
+        return legacy.Any(entry => entry.Context.EventType == receiptType && entry.Context.Causation.Any(cause =>
             cause.Type == ReactorHandler.CausationType &&
             cause.Properties.TryGetValue(ReactorHandler.CausationEventSequenceIdProperty, out var sequenceId) && sequenceId == inboxId &&
             cause.Properties.TryGetValue(ReactorHandler.CausationEventSequenceNumberProperty, out var number) && number == context.SequenceNumber.ToString() &&
-            cause.Properties.TryGetValue(ReactorHandler.CausationEventTypeIdProperty, out var eventTypeId) && eventTypeId == context.EventType.Id.ToString())))
+            cause.Properties.TryGetValue(ReactorHandler.CausationEventTypeIdProperty, out var eventTypeId) && eventTypeId == context.EventType.Id.ToString()));
+    }
+
+    async Task<bool> RejectsAttestedRedelivery(IReadOnlyList<AppendedEvent> history, EventContext context, object receipt)
+    {
+        var receipts = history.Select(entry => entry.Content)
+            .Where(content => content is JoinTenantInvitationReceived or CreateTenantInvitationReceived).ToArray();
+        if (receipts.Length == 0)
         {
-            return null;
+            return false;
         }
 
-        if (history.Any(entry => entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted))
+        if (receipts.Length != 1 || !SameReceipt(receipts[0], receipt))
         {
             await Reject(context, InvitationRejectionReason.InvitationIdReused);
-            return null;
         }
 
-        if (exchange.Value.Mode == InvitationExchangeMode.Attested)
-        {
-            var receipts = history.Select(entry => entry.Content)
-                .Where(content => content is JoinTenantInvitationReceived or CreateTenantInvitationReceived).ToArray();
-            if (receipts.Length > 0)
-            {
-                if (receipts.Length != 1 || !SameReceipt(receipts[0], receipt))
-                {
-                    await Reject(context, InvitationRejectionReason.InvitationIdReused);
-                }
-
-                return null; // An identical pending redelivery cannot issue a second token.
-            }
-        }
-
-        var tail = history.Count > 0 ? history[^1].Context.SequenceNumber : EventSequenceNumber.BeforeFirst;
-        return new(tail, context.EventSourceId, EventTypes: _decisionEventTypes);
+        return true; // An identical pending redelivery cannot issue a second token.
     }
 
     async Task Reject(EventContext context, InvitationRejectionReason reason)
