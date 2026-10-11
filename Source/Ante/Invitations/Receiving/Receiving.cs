@@ -9,6 +9,7 @@ using Ante.Invitations.OrganizationSetup;
 using Ante.Legal.Receiving;
 using Ante.Organization.Names;
 using Ante.Outbox;
+using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Chronicle.Reactors;
 using Microsoft.Extensions.Options;
@@ -164,11 +165,7 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         switch (content)
         {
             case LegalDocumentSetPublished published:
-                if (legalReceiver is null)
-                {
-                    throw new InvalidOperationException("Legal inbox receiver is not registered.");
-                }
-                await legalReceiver.Receive(published, context, sourceStore);
+                await ReceiveLegal(published, context);
                 break;
             case UserInvitedToJoinTenant join:
                 await AppendReceipt(await On(join, context), context);
@@ -200,11 +197,69 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         _ => false,
     };
 
+    static bool IsPending(IReadOnlyList<AppendedEvent> history) =>
+        history.Any(entry => entry.Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived) && !HasConcluded(history);
+
+    static bool HasConcluded(IReadOnlyList<AppendedEvent> history) =>
+        history.Any(entry => entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted);
+
+    static bool IsOnlyUniqueNameViolation(AppendResult result) =>
+        result.HasConstraintViolations && !result.HasErrors && !result.HasConcurrencyViolations &&
+        result.ConstraintViolations.All(violation => violation.ConstraintName == OrganizationSetupConstraintNames.UniqueOrganizationName);
+
+    static AppendedEvent[] LegacyReceipts(IReadOnlyList<AppendedEvent> history)
+    {
+        // Before markers existed, the receipt's persisted reactor causation already named its
+        // originating inbox sequence and number. Count-based matching can mistake a later inbox
+        // delivery for a receipt, particularly when a historical delivery was recorded twice.
+        // The first marker follows its receipt in the same append, so that receipt is not legacy.
+        var legacy = history.TakeWhile(entry => entry.Content is not (InvitationInboxEventRecorded or InvitationSourceInboxEventRecorded)).ToArray();
+        var endsWithMarkedReceipt = legacy.Length < history.Count && legacy.Length > 0 &&
+            legacy[^1].Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived;
+        return endsWithMarkedReceipt ? legacy[..^1] : legacy;
+    }
+
+    static EventType ReceiptTypeFor(EventType deliveredType)
+    {
+        if (deliveredType == typeof(UserInvitedToJoinTenant).GetEventType())
+        {
+            return typeof(JoinTenantInvitationReceived).GetEventType();
+        }
+
+        return deliveredType == typeof(UserInvitedToCreateTenant).GetEventType()
+            ? typeof(CreateTenantInvitationReceived).GetEventType()
+            : EventType.Unknown;
+    }
+
+    static bool CausedByInboxDelivery(Causation cause, string inboxId, EventContext context)
+    {
+        if (cause.Type != ReactorHandler.CausationType)
+        {
+            return false;
+        }
+
+        return CausationProperty(cause, ReactorHandler.CausationEventSequenceIdProperty) == inboxId &&
+            CausationProperty(cause, ReactorHandler.CausationEventSequenceNumberProperty) == context.SequenceNumber.ToString() &&
+            CausationProperty(cause, ReactorHandler.CausationEventTypeIdProperty) == context.EventType.Id.ToString();
+    }
+
+    static string? CausationProperty(Causation cause, string name) => cause.Properties.TryGetValue(name, out var value) ? value : null;
+
     async Task<object> Deserialize(ReactorEvent delivery, IEventSerializer serializer)
     {
         var clrType = _deliverableEventTypes.FirstOrDefault(type => delivery.Context.EventType == type.GetEventType())
             ?? throw new InvalidOperationException($"Unexpected incoming invitation event type {delivery.Context.EventType}.");
         return await serializer.Deserialize(clrType, delivery.Content);
+    }
+
+    async Task ReceiveLegal(LegalDocumentSetPublished published, EventContext context)
+    {
+        if (legalReceiver is null)
+        {
+            throw new InvalidOperationException("Legal inbox receiver is not registered.");
+        }
+
+        await legalReceiver.Receive(published, context, sourceStore);
     }
 
     async Task AppendRevocation(InvitationRevoked revoked, EventContext context)
@@ -254,15 +309,12 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         var history = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(
             context.EventSourceId,
             [.. _decisionEventTypes, typeof(InvitationReissueReceived).GetEventType()]);
-        if (history.Any(entry => entry.Content is InvitationReissueReceived received &&
-            received.SourceStore == sourceStore && received.InboxSequenceNumber == context.SequenceNumber))
+        if (history.Any(entry => IsHonoredReissue(entry, context)))
         {
             return; // A redelivery of a request that was already honored.
         }
 
-        var isPending = history.Any(entry => entry.Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived) &&
-            !history.Any(entry => entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted);
-        if (!isPending)
+        if (!IsPending(history))
         {
             await Reject(context, InvitationRejectionReason.InvitationNotPending);
             return;
@@ -280,6 +332,9 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         }
     }
 
+    bool IsHonoredReissue(AppendedEvent entry, EventContext context) => entry.Content is InvitationReissueReceived received &&
+        received.SourceStore == sourceStore && received.InboxSequenceNumber == context.SequenceNumber;
+
     async Task Reserve(OrganizationNameReserved reserved, EventContext context)
     {
         if (string.IsNullOrWhiteSpace(reserved.TenantName?.Value))
@@ -294,8 +349,7 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
 
         // The name being held already - by an onboarding or an earlier reservation - is exactly what the
         // host is telling us, so the uniqueness rejection is the expected outcome, not a failure.
-        if (!result.IsSuccess && !(result.HasConstraintViolations && !result.HasErrors && !result.HasConcurrencyViolations &&
-            result.ConstraintViolations.All(violation => violation.ConstraintName == OrganizationSetupConstraintNames.UniqueOrganizationName)))
+        if (!result.IsSuccess && !IsOnlyUniqueNameViolation(result))
         {
             throw new InvalidOperationException($"Failed to record organization name reservation from {sourceStore}.");
         }
@@ -355,7 +409,7 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             return null;
         }
 
-        if (history.Any(entry => entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted))
+        if (HasConcluded(history))
         {
             await Reject(context, InvitationRejectionReason.InvitationIdReused);
             return null;
@@ -386,29 +440,10 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
 
     bool HasLegacyReceiptFor(IReadOnlyList<AppendedEvent> history, EventContext context)
     {
-        // Before markers existed, the receipt's persisted reactor causation already named its
-        // originating inbox sequence and number. Count-based matching can mistake a later inbox
-        // delivery for a receipt, particularly when a historical delivery was recorded twice.
-        // The first marker follows its receipt in the same append, so that receipt is not legacy.
-        var legacy = history.TakeWhile(entry => entry.Content is not (InvitationInboxEventRecorded or InvitationSourceInboxEventRecorded)).ToArray();
-        if (legacy.Length < history.Count && legacy.Length > 0 &&
-            legacy[^1].Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived)
-        {
-            legacy = legacy[..^1];
-        }
-
-        var receiptType = context.EventType switch
-        {
-            var type when type == typeof(UserInvitedToJoinTenant).GetEventType() => typeof(JoinTenantInvitationReceived).GetEventType(),
-            var type when type == typeof(UserInvitedToCreateTenant).GetEventType() => typeof(CreateTenantInvitationReceived).GetEventType(),
-            _ => EventType.Unknown,
-        };
+        var receiptType = ReceiptTypeFor(context.EventType);
         var inboxId = $"{EventSequenceId.InboxPrefix}{sourceStore}";
-        return legacy.Any(entry => entry.Context.EventType == receiptType && entry.Context.Causation.Any(cause =>
-            cause.Type == ReactorHandler.CausationType &&
-            cause.Properties.TryGetValue(ReactorHandler.CausationEventSequenceIdProperty, out var sequenceId) && sequenceId == inboxId &&
-            cause.Properties.TryGetValue(ReactorHandler.CausationEventSequenceNumberProperty, out var number) && number == context.SequenceNumber.ToString() &&
-            cause.Properties.TryGetValue(ReactorHandler.CausationEventTypeIdProperty, out var eventTypeId) && eventTypeId == context.EventType.Id.ToString()));
+        return LegacyReceipts(history).Any(entry => entry.Context.EventType == receiptType &&
+            entry.Context.Causation.Any(cause => CausedByInboxDelivery(cause, inboxId, context)));
     }
 
     async Task<bool> RejectsAttestedRedelivery(IReadOnlyList<AppendedEvent> history, EventContext context, object receipt)
