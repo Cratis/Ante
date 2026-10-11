@@ -245,11 +245,11 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
 
     static string? CausationProperty(Causation cause, string name) => cause.Properties.TryGetValue(name, out var value) ? value : null;
 
-    async Task<object> Deserialize(ReactorEvent delivery, IEventSerializer serializer)
+    static Task<object> Deserialize(ReactorEvent delivery, IEventSerializer serializer)
     {
         var clrType = _deliverableEventTypes.FirstOrDefault(type => delivery.Context.EventType == type.GetEventType())
             ?? throw new InvalidOperationException($"Unexpected incoming invitation event type {delivery.Context.EventType}.");
-        return await serializer.Deserialize(clrType, delivery.Content);
+        return serializer.Deserialize(clrType, delivery.Content);
     }
 
     async Task ReceiveLegal(LegalDocumentSetPublished published, EventContext context)
