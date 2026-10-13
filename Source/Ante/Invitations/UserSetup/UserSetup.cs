@@ -137,9 +137,12 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// <returns>
     /// A <see cref="Result{T0, T1}"/> containing either the resolved identity or a failed <see cref="ValidationResult"/>.
     /// </returns>
+    // Projected inputs are advisory. Handle rechecks ownership and returns the authoritative
+    // invitation/legal revision scopes; one-use and onboarding-attempt constraints arbitrate append.
+    // Arc documents parameter-level Unprotected for these intentional legacy reads.
     public async Task<Result<AcceptingUserIdentity, ValidationResult>> Provide(
         ISignedInIdentity signedInIdentity,
-        PendingInvitationToJoin? pendingInvitation,
+        [Cratis.Arc.Chronicle.ReadModels.Unprotected] PendingInvitationToJoin? pendingInvitation,
         IIdentityBackchannel identityBackchannel)
     {
         if (pendingInvitation is null)
@@ -186,8 +189,8 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// </remarks>
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
         AcceptingUserIdentity identity,
-        PendingInvitationToJoin? pendingInvitation,
-        OrganizationSetupProgress? existingSetup,
+        [Cratis.Arc.Chronicle.ReadModels.Unprotected] PendingInvitationToJoin? pendingInvitation,
+        [Cratis.Arc.Chronicle.ReadModels.Unprotected] OrganizationSetupProgress? existingSetup,
         ILegalDocumentSource legalDocumentSource,
         IInvitationAcceptanceFence acceptanceFence,
         ISignedInIdentity signedInIdentity,

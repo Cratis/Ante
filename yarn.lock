@@ -248,38 +248,38 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cratis/arc.react@npm:^22.44.2":
-  version: 22.44.2
-  resolution: "@cratis/arc.react@npm:22.44.2"
+"@cratis/arc.react@npm:22.46.0":
+  version: 22.46.0
+  resolution: "@cratis/arc.react@npm:22.46.0"
   dependencies:
-    "@cratis/arc": "npm:22.44.2"
+    "@cratis/arc": "npm:22.46.0"
     "@cratis/fundamentals": "npm:^7.19.8"
     tsyringe: "npm:^4.10.0"
   peerDependencies:
     react: ^18.0.0 || ^19.0.0
-  checksum: 10/80fa487fb12139e5b4b00da996725299b0f6085cbab10dcffbc78faa8cedf8bda1c1bbb566fe29e0757d6ca978439075c83f1e257790b2dbd121e11b0dcf8c76
+  checksum: 10/258639a4180f7e3fdec510b28c98e6651f773f8ce789526c5d3ad98343a6b1299fac944f3edf082899384948d25cae3e5340539a35e13cad8c1a41029f0a7c39
   languageName: node
   linkType: hard
 
-"@cratis/arc.vite@npm:^22.44.2":
-  version: 22.44.2
-  resolution: "@cratis/arc.vite@npm:22.44.2"
+"@cratis/arc.vite@npm:22.46.0":
+  version: 22.46.0
+  resolution: "@cratis/arc.vite@npm:22.46.0"
   dependencies:
-    "@cratis/arc": "npm:22.44.2"
+    "@cratis/arc": "npm:22.46.0"
     "@swc/core": "npm:^1.16.13"
   peerDependencies:
     react: ^18.0.0 || ^19.0.0
-  checksum: 10/b19ffd05923cd957f5ebd04ef6474faa212e98869fab95006759f596491e51f14b28de5607479277daa2cdb4f6952dbe808884f787210c2d9854d734c3547c35
+  checksum: 10/819ce7920fb7e680bc31e222bd9f7e84ae95a1cdd072502e48c30a355bce86e17faa88b0c679b12106c48105f2e2c814ed42813108804fbfbfdb09d869044aec
   languageName: node
   linkType: hard
 
-"@cratis/arc@npm:22.44.2, @cratis/arc@npm:^22.44.2":
-  version: 22.44.2
-  resolution: "@cratis/arc@npm:22.44.2"
+"@cratis/arc@npm:22.46.0":
+  version: 22.46.0
+  resolution: "@cratis/arc@npm:22.46.0"
   dependencies:
     "@cratis/fundamentals": "npm:^7.19.8"
     rxjs: "npm:^7.8.2"
-  checksum: 10/0cef13840abe09a700d0aabd852a2764895d1c957d1163024141615f47ddb69dc9e6633f1c8bf768cced54ffdd4957f7e22ac0d9f7f35e3238aba18c12c9212b
+  checksum: 10/d0e8c123ca5494627f178ea84c355adba26824c6b840aa75d4c6643362b8b3dcba63df1437f81bbd54334478bbb1bb0dbaf9de072e2a1b3e8069a3af4c2d8c04
   languageName: node
   linkType: hard
 
@@ -2647,9 +2647,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "ante@workspace:Source/Ante"
   dependencies:
-    "@cratis/arc": "npm:^22.44.2"
-    "@cratis/arc.react": "npm:^22.44.2"
-    "@cratis/arc.vite": "npm:^22.44.2"
+    "@cratis/arc": "npm:22.46.0"
+    "@cratis/arc.react": "npm:22.46.0"
+    "@cratis/arc.vite": "npm:22.46.0"
     "@cratis/components": "npm:^4.23.0"
     "@cratis/components.primereact": "npm:^4.23.0"
     "@cratis/fundamentals": "npm:^7.19.8"

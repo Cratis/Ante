@@ -22,6 +22,9 @@ data:
   Ante__Invitations__Token__Issuer: "https://<lobby.example.com>"
   Ante__Invitations__Token__Audience: "<host>-lobby"
 
+  # Enable only behind an authenticating proxy that strips and replaces client identity headers.
+  Cratis__Arc__TrustForwardedIdentityHeaders: "true"
+
   # Identity providers, mirroring the fronting proxy.
   IdentityProviders__Providers__0__Name: "GitHub"
   IdentityProviders__Providers__0__Issuer: "https://github.com"

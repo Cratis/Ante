@@ -159,12 +159,14 @@ public sealed class AnteApplication(
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // Integration runs the real Program with isolated host stores, kernel and MongoDB.
+        // The fixture owns the transport and supplies the trusted proxy's identity headers.
         using var signingKey = RSA.Create();
         signingKey.ImportFromPem(AttestationPrivateKeyPem);
         builder
             .UseEnvironment(environmentName)
             .UseSetting("Ante:Invitations:Token:PrivateKeyPem", SigningKeyConfigured ? AttestationPrivateKeyPem : string.Empty)
             .UseSetting("Ante:Invitations:Token:PublicKeyPem", SigningKeyConfigured ? signingKey.ExportSubjectPublicKeyInfoPem() : string.Empty)
+            .UseSetting("Cratis:Arc:TrustForwardedIdentityHeaders", "true")
             .UseSetting("Cratis:Chronicle:ConnectionString", chronicleConnectionString ?? infrastructure.ChronicleConnectionString)
             .UseSetting("Cratis:MongoDB:Server", infrastructure.MongoDBServer)
             .UseSetting("Cratis:MongoDB:Database", EventStore)
