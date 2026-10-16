@@ -116,10 +116,12 @@ internal sealed class InvitationTokenIssuance(
     /// <param name="trigger">The trigger's sequence number.</param>
     /// <returns>The deliveries.</returns>
     static EventSequenceNumber[] DeliveriesOf(IEnumerable<AppendedEvent> history, EventSequenceNumber trigger) =>
-        [.. history
-            .Where(entry => entry.Content is InvitationTokenIssuanceResumed resumed && resumed.TriggerSequenceNumber == trigger)
-            .Select(entry => entry.Context.SequenceNumber)
-            .Append(trigger)];
+        [
+            .. history
+                .Where(entry => entry.Content is InvitationTokenIssuanceResumed resumed && resumed.TriggerSequenceNumber == trigger)
+                .Select(entry => entry.Context.SequenceNumber)
+                .Append(trigger)
+        ];
 
     // A deferred trigger belongs to its resumption: handling it again - a redelivery, or a replay - must not publish
     // a second token, nor one for an invitation revoked, accepted or superseded while it waited.
