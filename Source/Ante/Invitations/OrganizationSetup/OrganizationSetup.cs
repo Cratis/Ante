@@ -191,7 +191,6 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// when the host has a legal document source configured, the <see cref="LegalTermsAccepted"/>
     /// record of what the onboarding user agreed to.
     /// </summary>
-    /// <param name="httpContextAccessor">Accessor for the current request, used to clear the stale identity cookie.</param>
     /// <param name="pendingInvitation">Read model for validating the command.</param>
     /// <param name="existingSetup">Durable evidence that this stream was already used before the shared claim event existed.</param>
     /// <param name="existingJoin">Durable join acceptance on a reused id predating the shared claim event.</param>
@@ -211,7 +210,6 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
-        IHttpContextAccessor httpContextAccessor,
         PendingInvitationToCreateOrganization? pendingInvitation,
         OrganizationSetupProgress? existingSetup,
         UserSetupProgress? existingJoin,
@@ -291,8 +289,6 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         {
             return ValidationResult.Error(Messages.Get("SetupNotPending"));
         }
-
-        httpContextAccessor.HttpContext?.Response.Cookies.Delete(Cratis.Arc.Identity.IdentityProvider.IdentityCookieName);
 
         return (complianceSubject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence, scope));
     }
