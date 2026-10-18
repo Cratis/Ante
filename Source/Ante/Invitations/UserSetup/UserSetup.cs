@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using Ante.Contracts.Legal;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.OrganizationSetup;
@@ -137,6 +138,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// <returns>
     /// A <see cref="Result{T0, T1}"/> containing either the resolved identity or a failed <see cref="ValidationResult"/>.
     /// </returns>
+    [SuppressMessage("Arc.Chronicle", "ARCCHR0011:Plain read model in event-producing command is unprotected", Justification = "Advisory read: it resolves the identity and asks the organization about it before Handle, which reads the invitation again and appends behind the acceptance fence.")]
     public async Task<Result<AcceptingUserIdentity, ValidationResult>> Provide(
         ISignedInIdentity signedInIdentity,
         PendingInvitationToJoin? pendingInvitation,
@@ -184,6 +186,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// forwarded to the outbox. <see cref="JoinTenantAcceptanceOutbox"/> marks it once the acceptance is
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
+    [SuppressMessage("Arc.Chronicle", "ARCCHR0011:Plain read model in event-producing command is unprotected", Justification = "Advisory reads: they only reject early. The acceptance fence guards the invitation stream's revision at append time, and the one-use invitation and onboarding attempt constraints reject a second acceptance.")]
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
         AcceptingUserIdentity identity,
         PendingInvitationToJoin? pendingInvitation,

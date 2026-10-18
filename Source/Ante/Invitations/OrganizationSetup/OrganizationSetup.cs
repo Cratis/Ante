@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
 using Ante.Invitations.Accepting;
@@ -73,6 +74,7 @@ public class SetupOrganizationValidator : CommandValidator<SetupOrganization>
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
     /// <param name="signedInIdentity">The identity the user is signed in with for this request.</param>
     /// <param name="options">The deployment's options, holding the reserved organization names.</param>
+    [SuppressMessage("Arc.Chronicle", "ARCCHR0026:Chronicle model read through a MongoDB collection", Justification = ClaimedOrganizationNames.SearchIsAdvisory)]
     public SetupOrganizationValidator(
         ILegalDocumentSource legalDocumentSource,
         IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
@@ -209,6 +211,8 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// forwarded to the outbox. <see cref="OrganizationSetupOutbox"/> marks it once the acceptance is
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
+    [SuppressMessage("Arc.Chronicle", "ARCCHR0011:Plain read model in event-producing command is unprotected", Justification = "Advisory reads: they only reject early. The acceptance fence guards the invitation stream's revision at append time, and the one-use invitation and onboarding attempt constraints reject a second acceptance.")]
+    [SuppressMessage("Arc.Chronicle", "ARCCHR0026:Chronicle model read through a MongoDB collection", Justification = ClaimedOrganizationNames.SearchIsAdvisory)]
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
         PendingInvitationToCreateOrganization? pendingInvitation,
         OrganizationSetupProgress? existingSetup,

@@ -63,6 +63,16 @@ public record OrganizationNameClaim(
 /// </remarks>
 public static class ClaimedOrganizationNames
 {
+    /// <summary>
+    /// Why a command may search the claims through their MongoDB collection without read protection.
+    /// </summary>
+    /// <remarks>
+    /// The search matches a name across every claim, so it is not a keyed read a read-model parameter could make.
+    /// It only attributes a friendly message to the organization name field; the uniqueness rule itself is the
+    /// append-time <c language="csharp">UniqueOrganizationNameConstraint</c>.
+    /// </remarks>
+    public const string SearchIsAdvisory = "A case-insensitive search across every claim, not a keyed read; it only attributes a friendly message to the field, and UniqueOrganizationNameConstraint enforces uniqueness at append time.";
+
     static readonly EventType[] _claimEventTypes =
     [
         typeof(InvitationToCreateTenantAccepted).GetEventType(),

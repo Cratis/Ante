@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
 using Ante.IdentityProviders;
@@ -34,6 +35,7 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
     /// <param name="identityProviderResolver">Resolver of the current sign-in provider.</param>
     /// <param name="eventStore">The current namespace's read models for checking prior use of the registration id.</param>
     /// <param name="options">The deployment's options, deciding whether registration is offered and which names are reserved.</param>
+    [SuppressMessage("Arc.Chronicle", "ARCCHR0026:Chronicle model read through a MongoDB collection", Justification = ClaimedOrganizationNames.SearchIsAdvisory)]
     public RegisterOrganizationValidator(
         ILegalDocumentSource legalDocumentSource,
         IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
@@ -136,6 +138,7 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
     /// forwarded to the outbox. <see cref="OrganizationRegistrationOutbox"/> marks it once registration is
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
+    [SuppressMessage("Arc.Chronicle", "ARCCHR0026:Chronicle model read through a MongoDB collection", Justification = ClaimedOrganizationNames.SearchIsAdvisory)]
     public async Task<Result<ValidationResult, EventsWithConcurrencyScopes>> Handle(
         IHttpContextAccessor httpContextAccessor,
         IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
