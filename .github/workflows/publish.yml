@@ -122,16 +122,17 @@ jobs:
     # Serializes version computation and tag/release creation across merges: two overlapping release
     # jobs would both bump from the same latest release. Job-level concurrency is evaluated when the
     # job is about to start (after verify-build), and not at all when the job is skipped, so waiting
-    # for Build never holds this group. Residual GitHub limitation: a group keeps one running and one
-    # pending job, and cancels an older pending one - so only if three or more release jobs are ready
-    # while another is still running (a window of about a minute) could one be dropped, as before.
+    # for Build never holds this group. `queue: max` keeps up to 100 pending release jobs in first-in
+    # first-out order instead of the default single pending slot, so no ready release job is dropped
+    # while another is still running; GitHub rejects it together with cancel-in-progress
+    # (Cratis/Workflows#162).
     # The image and NuGet jobs are not in the group: they only consume the version the release job
     # already fixed, and a queued-then-dropped publish job would lose that release's artifacts.
     # Known small race: two releases whose image builds overlap could finish out of order and leave
     # `latest` on the older one.
     concurrency:
       group: publish-release-${{ github.ref }}
-      cancel-in-progress: false
+      queue: max
     # verify-build is skipped for workflow_dispatch; anything other than success or skipped (failure,
     # cancelled) blocks the release.
     if: ${{ !cancelled() && (needs.verify-build.result == 'success' || needs.verify-build.result == 'skipped') }}
