@@ -71,6 +71,25 @@ public class when_requesting_an_invitation_link : Specification
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("OPTIONS", "/.cratis/me")]
+    [InlineData("POST", "/register")]
+    [InlineData("PUT", "/register")]
+    [InlineData("DELETE", "/register")]
+    [InlineData("POST", "/invite/eyJhbGciOiJSUzI1NiJ9.eyJqdGkiOiJhYmMifQ.c2lnbmF0dXJl")]
+    async Task should_not_serve_the_shell_for_a_method_other_than_get_or_head(string method, string path)
+    {
+        var response = await _client.SendAsync(new HttpRequestMessage(new HttpMethod(method), new Uri(path, UriKind.Relative)));
+        Assert.Contains(response.StatusCode, new[] { HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed });
+    }
+
+    [Fact]
+    async Task should_serve_the_shell_for_head()
+    {
+        var response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Head, new Uri("/register", UriKind.Relative)));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     async Task Destroy()
     {
         await _app.DisposeAsync();
