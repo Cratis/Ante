@@ -15,7 +15,7 @@ public class and_the_legacy_single_session_index_exists : Specification
     void Establish()
     {
         _indexes = Substitute.For<IMongoIndexManager<AcceptedInvitation>>();
-        _indexes.CreateManyAsync(Arg.Do<IEnumerable<CreateIndexModel<AcceptedInvitation>>>(models => _created = models.ToArray()), Arg.Any<CancellationToken>())
+        _indexes.CreateManyAsync(Arg.Do<IEnumerable<CreateIndexModel<AcceptedInvitation>>>(models => _created = [.. models]), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IEnumerable<string>>([]));
     }
 
