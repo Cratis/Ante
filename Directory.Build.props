@@ -15,6 +15,11 @@
 
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
         <NoWarn>NU1507;CS1591</NoWarn>
+
+        <!-- Ante has no committed Screenplay model (no .play file under a model root), so there are no
+             documents to embed. Left on, Cratis.Arc.Screenplay.Embedded derives a model from the specification
+             namespaces instead and reports hundreds of SP warnings, which fail the Release build. -->
+        <CratisEmbeddedScreenplayEnabled>false</CratisEmbeddedScreenplayEnabled>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)'==''">
