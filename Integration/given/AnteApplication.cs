@@ -274,7 +274,6 @@ public sealed class AnteApplication(
         }
     }
 
-    // The Microsoft identity platform header contract the authentication proxy forwards.
     static bool IsReadProtectionQueueShutdownFailure(Exception exception) => exception switch
     {
         ObjectDisposedException disposed => disposed.StackTrace?.Contains("ReadProtectionMeasureQueue", StringComparison.Ordinal) == true,
@@ -282,6 +281,7 @@ public sealed class AnteApplication(
         _ => false,
     };
 
+    // The Microsoft identity platform header contract the authentication proxy forwards.
     static void AddForwardedIdentity(HttpRequestMessage request, string subject, string name, bool attested = false)
     {
         var principal = new
