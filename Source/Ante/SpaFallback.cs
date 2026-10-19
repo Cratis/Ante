@@ -23,8 +23,6 @@ namespace Ante;
 /// </remarks>
 public static class SpaFallback
 {
-    static readonly HttpMethodMetadata ReadMethods = new([HttpMethods.Get, HttpMethods.Head]);
-
     /// <summary>
     /// The file every SPA route is served from.
     /// </summary>
@@ -38,6 +36,8 @@ public static class SpaFallback
     /// </summary>
     public const string InvitationLinkPattern = @"invite/{token:regex(^eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$)}";
 
+    static readonly HttpMethodMetadata _readMethods = new([HttpMethods.Get, HttpMethods.Head]);
+
     /// <summary>
     /// Maps the invitation link route and the general SPA fallback to <see cref="ShellFile"/>. Both answer only GET and HEAD,
     /// so any other method on an unmapped path is not served the shell.
@@ -45,8 +45,8 @@ public static class SpaFallback
     /// <param name="endpoints">The endpoint route builder to map on.</param>
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapFallback(InvitationLinkPattern, Serve).WithMetadata(ReadMethods);
-        endpoints.MapFallback(Serve).WithMetadata(ReadMethods);
+        endpoints.MapFallback(InvitationLinkPattern, Serve).WithMetadata(_readMethods);
+        endpoints.MapFallback(Serve).WithMetadata(_readMethods);
     }
 
     /// <summary>
