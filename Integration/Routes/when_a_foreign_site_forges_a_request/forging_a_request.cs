@@ -10,7 +10,7 @@ namespace Ante.Integration.Routes.when_a_foreign_site_forges_a_request;
 /// What stands between a foreign site and a signed-in visitor's session, as it exists in Ante and Arc today. Ante has
 /// no antiforgery token and no CORS policy, and it does not read the browser's cookies to know who is calling: identity
 /// is the header the authentication proxy adds. A cross-site page can therefore neither read a response, nor send the
-/// identity headers (a custom header needs a preflight, which is refused), nor replay a cookie or bearer as identity, and
+/// identity headers (a custom header needs a preflight, which is refused), nor replay a made-up identity cookie or bearer as identity, and
 /// a forged form post is not a command: only a JSON body reaches a command route. Shared by every cell of the route matrix.
 /// </summary>
 public abstract class forging_a_request : a_routed_ante
@@ -41,7 +41,7 @@ public abstract class forging_a_request : a_routed_ante
         var json = System.Text.Json.JsonSerializer.Serialize(command);
 
         _started = await Send(HttpMethod.Post, Start, visitor, body: new { registrationId = _registration });
-        var identityCookie = (await Send(HttpMethod.Get, "/.cratis/me", visitor)).Cookie(".cratis-identity")!;
+        const string IdentityCookie = ".cratis-identity=eyJpc0F1dGhlbnRpY2F0ZWQiOnRydWV9"; // Arc no longer issues it; a page can still replay a made-up one.
 
         // A form a foreign page can post while the visitor is signed in: it carries the proxy's identity but not JSON.
         foreach (var (name, contentType) in _simpleContentTypes)
@@ -73,7 +73,7 @@ public abstract class forging_a_request : a_routed_ante
         var withoutIdentity = new (string What, Func<Task<Reply>> Send)[]
         {
             ("a bearer", () => Send(HttpMethod.Get, "/.cratis/me", bearer: "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ2aXNpdG9yIn0.c2ln")),
-            ("the identity cookie for a command", () => Send(HttpMethod.Post, Start, body: new { registrationId = Guid.NewGuid() }, cookie: $"{identityCookie.Name}={identityCookie.Value}")),
+            ("the identity cookie for a command", () => Send(HttpMethod.Post, Start, body: new { registrationId = Guid.NewGuid() }, cookie: IdentityCookie)),
             ("a bearer for a command", () => Send(HttpMethod.Post, Start, body: new { registrationId = Guid.NewGuid() }, bearer: "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ2aXNpdG9yIn0.c2ln")),
         };
         foreach (var (what, request) in withoutIdentity)

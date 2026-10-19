@@ -12,13 +12,6 @@
 
         <NoWarn>$(NoWarn);CS7022</NoWarn>
         <UserSecretsId>b3c5d8f1-6a2e-4f9d-9c1a-7e4d2b8f0a3c</UserSecretsId>
-
-        <!-- Ante has no committed Screenplay model (no .play file under a model root), so there are no
-             documents to embed. Disabled rather than left on by default because Cratis.Arc.Screenplay.Embedded's
-             GenerateCratisEmbeddedScreenplayDocuments target creates a genuine MSBuild circular dependency
-             against Microsoft.CodeAnalysis.Analyzers' resx-as-additional-files handling in a Debug/test-project
-             build, reported upstream as https://github.com/Cratis/Arc/issues/3441. -->
-        <CratisEmbeddedScreenplayEnabled>false</CratisEmbeddedScreenplayEnabled>
     </PropertyGroup>
 
     <ItemGroup>

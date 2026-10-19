@@ -156,6 +156,24 @@ public sealed class AnteApplication(
         return await CreateClient().SendAsync(request);
     }
 
+    /// <summary>
+    /// Disposes the application, tolerating only the shutdown failure Arc 22.128.1 is known for: its read protection
+    /// measure queue throws <see cref="ObjectDisposedException"/> when the host stops after the queue was disposed
+    /// (Cratis/Arc#3442). Any other failure still surfaces. Remove once Ante takes an Arc release with the fix.
+    /// </summary>
+    /// <returns>A task that completes when the application is disposed.</returns>
+    public override async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await base.DisposeAsync();
+        }
+        catch (Exception exception) when (IsReadProtectionQueueShutdownFailure(exception))
+        {
+            // Known upstream shutdown failure (Cratis/Arc#3442), raised while the host is already shutting down.
+        }
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // Integration runs the real Program with isolated host stores, kernel and MongoDB.
@@ -255,6 +273,13 @@ public sealed class AnteApplication(
             builder.ConfigureTestServices(configureServices);
         }
     }
+
+    static bool IsReadProtectionQueueShutdownFailure(Exception exception) => exception switch
+    {
+        ObjectDisposedException disposed => disposed.StackTrace?.Contains("ReadProtectionMeasureQueue", StringComparison.Ordinal) == true,
+        AggregateException aggregate => aggregate.InnerExceptions.All(IsReadProtectionQueueShutdownFailure),
+        _ => false,
+    };
 
     // The Microsoft identity platform header contract the authentication proxy forwards.
     static void AddForwardedIdentity(HttpRequestMessage request, string subject, string name, bool attested = false)

@@ -7,20 +7,20 @@ using Ante.Integration.Routes.given;
 namespace Ante.Integration.Routes.when_setting_cookies;
 
 /// <summary>
-/// The only cookie Ante sets is Arc's <c>.cratis-identity</c>, written for a signed-in caller of <c>/.cratis/me</c> for the
-/// frontend to read and removed when a registration completes. It is script-readable by design, host-only, <c>Lax</c>,
-/// and <c>Secure</c> exactly when the request Ante sees is HTTPS. Ante does not honour the proxy's
-/// <c>X-Forwarded-Proto</c> unless the deployment enables forwarded headers, so behind a proxy that terminates TLS
-/// the cookie is not marked <c>Secure</c>; the cookie is a display input and grants nothing. Shared by every cell of the
-/// route matrix: served directly means Ante terminates TLS, behind a proxy means the proxy does.
+/// Ante sets no cookie at all. Arc no longer writes its <c>.cratis-identity</c> cookie: a signed-in caller learns who they
+/// are from the body of <c>/.cratis/me</c>, and the only cookie Arc touches is a leftover <c>.cratis-identity</c> sent back
+/// by a browser that still holds one, which it expires. Completing a registration neither sets nor removes a cookie.
+/// Shared by every cell of the route matrix: served directly means Ante terminates TLS, behind a proxy means the proxy does.
 /// </summary>
 public abstract class setting_cookies : a_routed_ante
 {
     const string IdentityCookie = ".cratis-identity";
 
     readonly Guid _registration = Guid.NewGuid();
+    string _visitor;
     Reply _anonymousMe;
     Reply _signedInMe;
+    Reply _legacyCookieReplayed;
     Reply _registered;
     readonly List<Reply> _others = [];
 
@@ -28,9 +28,10 @@ public abstract class setting_cookies : a_routed_ante
 
     async Task Because()
     {
-        var visitor = $"visitor-{Suffix}";
+        var visitor = _visitor = $"visitor-{Suffix}";
         _anonymousMe = await Send(HttpMethod.Get, "/.cratis/me");
         _signedInMe = await Send(HttpMethod.Get, "/.cratis/me", visitor);
+        _legacyCookieReplayed = await Send(HttpMethod.Get, "/.cratis/me", visitor, cookie: $"{IdentityCookie}=left-over-from-an-older-arc");
         _others.Add(await Send(HttpMethod.Get, "/healthz/ready", visitor));
         _others.Add(await Send(HttpMethod.Get, "/", visitor));
         _others.Add(await Send(HttpMethod.Get, "/api/configuration/get-configuration", visitor));
@@ -42,29 +43,10 @@ public abstract class setting_cookies : a_routed_ante
     }
 
     [Fact] public void should_not_set_the_identity_cookie_for_an_anonymous_caller() => (_anonymousMe.Status == HttpStatusCode.Unauthorized && _anonymousMe.SetCookies.Count == 0).ShouldBeTrue();
-    [Fact] public void should_set_only_the_identity_cookie_for_a_signed_in_caller() => _signedInMe.SetCookies.Select(header => SetCookie.Parse(header).Name).ShouldContainOnly([IdentityCookie]);
-    [Fact] public void should_scope_the_identity_cookie_to_the_whole_host() => (_signedInMe.Cookie(IdentityCookie)!.Path == "/" && !_signedInMe.Cookie(IdentityCookie)!.HasDomain).ShouldBeTrue();
-    [Fact] public void should_restrict_the_identity_cookie_to_same_site_navigations_that_are_safe() => _signedInMe.Cookie(IdentityCookie)!.SameSite.ShouldEqual("lax");
-    [Fact] public void should_leave_the_identity_cookie_readable_by_the_frontend() => _signedInMe.Cookie(IdentityCookie)!.IsHttpOnly.ShouldBeFalse();
-    [Fact] public void should_mark_the_identity_cookie_secure_when_ante_sees_https()
-    {
-        if (!Proxied)
-        {
-            _signedInMe.Cookie(IdentityCookie)!.IsSecure.ShouldBeTrue();
-        }
-    }
-
-    // An observation, not a requirement: behind a TLS-terminating proxy Ante sees plain HTTP unless forwarded headers
-    // are enabled, so the display-only identity cookie is not marked Secure. If forwarded-header handling becomes the
-    // default, this is expected to change - update the observation then.
-    [Fact] public void should_currently_leave_the_identity_cookie_not_secure_behind_a_proxy_without_forwarded_headers_as_observed()
-    {
-        if (Proxied)
-        {
-            _signedInMe.Cookie(IdentityCookie)!.IsSecure.ShouldBeFalse();
-        }
-    }
-    [Fact] public void should_remove_the_identity_cookie_when_the_registration_completes() => (_registered.IsSuccess && _registered.Cookie(IdentityCookie)!.Value.Length == 0 && _registered.Cookie(IdentityCookie)!.IsExpired && _registered.Cookie(IdentityCookie)!.Path == "/").ShouldBeTrue();
-    [Fact] public void should_set_no_other_cookie_anywhere() => _others.Append(_registered).Append(_signedInMe).SelectMany(reply => reply.SetCookies).Select(header => SetCookie.Parse(header).Name).Where(name => name != IdentityCookie).ShouldBeEmpty();
+    [Fact] public void should_set_no_cookie_for_a_signed_in_caller() => _signedInMe.SetCookies.ShouldBeEmpty();
+    [Fact] public void should_report_the_identity_of_a_signed_in_caller_in_the_body() => (_signedInMe.IsOk && _signedInMe.Body.Contains(_visitor, StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] public void should_expire_a_left_over_identity_cookie_instead_of_setting_one() => (_legacyCookieReplayed.Cookie(IdentityCookie)?.Value.Length == 0 && _legacyCookieReplayed.SetCookies.Count == 1).ShouldBeTrue();
+    [Fact] public void should_neither_set_nor_remove_a_cookie_when_the_registration_completes() => (_registered.IsSuccess && _registered.SetCookies.Count == 0).ShouldBeTrue();
+    [Fact] public void should_set_no_other_cookie_anywhere() => _others.Append(_registered).Append(_signedInMe).Append(_anonymousMe).SelectMany(reply => reply.SetCookies).ShouldBeEmpty();
     [Fact] public void should_set_no_cookie_on_the_other_routes() => _others.Where(reply => reply.SetCookies.Count > 0).Select(reply => (int)reply.Status).ShouldBeEmpty();
 }

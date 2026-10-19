@@ -36,14 +36,17 @@ public static class SpaFallback
     /// </summary>
     public const string InvitationLinkPattern = @"invite/{token:regex(^eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$)}";
 
+    static readonly HttpMethodMetadata _readMethods = new([HttpMethods.Get, HttpMethods.Head]);
+
     /// <summary>
-    /// Maps the invitation link route and the general SPA fallback to <see cref="ShellFile"/>.
+    /// Maps the invitation link route and the general SPA fallback to <see cref="ShellFile"/>. Both answer only GET and HEAD,
+    /// so any other method on an unmapped path is not served the shell.
     /// </summary>
     /// <param name="endpoints">The endpoint route builder to map on.</param>
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapFallback(InvitationLinkPattern, Serve);
-        endpoints.MapFallback(Serve);
+        endpoints.MapFallback(InvitationLinkPattern, Serve).WithMetadata(_readMethods);
+        endpoints.MapFallback(Serve).WithMetadata(_readMethods);
     }
 
     /// <summary>
