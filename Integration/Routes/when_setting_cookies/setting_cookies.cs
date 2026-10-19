@@ -8,7 +8,7 @@ namespace Ante.Integration.Routes.when_setting_cookies;
 
 /// <summary>
 /// The only cookie Ante sets is Arc's <c>.cratis-identity</c>, written for a signed-in caller of <c>/.cratis/me</c> for the
-/// frontend to read and removed when a registration completes. It is script-readable by design, host-only, <c>Lax</c>,
+/// frontend to read; completing a registration neither sets nor removes it. It is script-readable by design, host-only, <c>Lax</c>,
 /// and <c>Secure</c> exactly when the request Ante sees is HTTPS. Ante does not honour the proxy's
 /// <c>X-Forwarded-Proto</c> unless the deployment enables forwarded headers, so behind a proxy that terminates TLS
 /// the cookie is not marked <c>Secure</c>; the cookie is a display input and grants nothing. Shared by every cell of the
@@ -64,7 +64,7 @@ public abstract class setting_cookies : a_routed_ante
             _signedInMe.Cookie(IdentityCookie)!.IsSecure.ShouldBeFalse();
         }
     }
-    [Fact] public void should_remove_the_identity_cookie_when_the_registration_completes() => (_registered.IsSuccess && _registered.Cookie(IdentityCookie)!.Value.Length == 0 && _registered.Cookie(IdentityCookie)!.IsExpired && _registered.Cookie(IdentityCookie)!.Path == "/").ShouldBeTrue();
+    [Fact] public void should_neither_set_nor_remove_the_identity_cookie_when_the_registration_completes() => (_registered.IsSuccess && _registered.Cookie(IdentityCookie) is null).ShouldBeTrue();
     [Fact] public void should_set_no_other_cookie_anywhere() => _others.Append(_registered).Append(_signedInMe).SelectMany(reply => reply.SetCookies).Select(header => SetCookie.Parse(header).Name).Where(name => name != IdentityCookie).ShouldBeEmpty();
     [Fact] public void should_set_no_cookie_on_the_other_routes() => _others.Where(reply => reply.SetCookies.Count > 0).Select(reply => (int)reply.Status).ShouldBeEmpty();
 }
