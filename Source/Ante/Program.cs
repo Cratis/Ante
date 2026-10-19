@@ -49,6 +49,11 @@ builder.AddCratis(
         options.GeneratedApis.RoutePrefix = "api";
         options.GeneratedApis.IncludeCommandNameInRoute = false;
         options.GeneratedApis.SegmentsToSkipForRoute = 1;
+
+        // Ante only runs behind AuthProxy, which strips client-supplied x-ms-client-principal/-id/-name headers before
+        // setting its own (see IdentityProviders/ForwardedIdentityProvider.cs). Trusting them restores the behavior Ante
+        // shipped with before Arc made trusting forwarded identity headers opt-in.
+        options.TrustForwardedIdentityHeaders = true;
     },
     configureArcBuilder: arcBuilder =>
         arcBuilder.WithMongoDB(configureMongoDB: mongoDBBuilder => mongoDBBuilder.WithCamelCaseNamingPolicy(pluralizeReadModels: true)),
