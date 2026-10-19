@@ -12,6 +12,15 @@
 
         <NoWarn>$(NoWarn);CS7022</NoWarn>
         <UserSecretsId>b3c5d8f1-6a2e-4f9d-9c1a-7e4d2b8f0a3c</UserSecretsId>
+
+        <!-- Cratis.Arc.Screenplay.Embedded's GenerateCratisEmbeddedScreenplayDocuments target creates a
+             circular MSBuild target dependency (PrepareResourceNames <-> AssignTargetPaths <->
+             GenerateMSBuildEditorConfigFile <-> AddAllResxFilesAsAdditionalFiles) whenever
+             Microsoft.CodeAnalysis.Analyzers is also present, failing every Debug build. Ante has no .play
+             model yet, so disabling the feature is a no-op here. Tracked upstream: see
+             https://github.com/Cratis/Arc/issues/3440 — remove this once that is fixed and the referenced
+             Cratis package versions are no longer affected. -->
+        <CratisEmbeddedScreenplayEnabled>false</CratisEmbeddedScreenplayEnabled>
     </PropertyGroup>
 
     <ItemGroup>
