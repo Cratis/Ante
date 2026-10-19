@@ -12,6 +12,8 @@ namespace Ante.Integration.Routes.when_setting_cookies;
 /// by a browser that still holds one, which it expires. Completing a registration neither sets nor removes a cookie.
 /// Shared by every cell of the route matrix: served directly means Ante terminates TLS, behind a proxy means the proxy does.
 /// </summary>
+public abstract class setting_cookies : a_routed_ante
+{
     const string IdentityCookie = ".cratis-identity";
 
     readonly Guid _registration = Guid.NewGuid();

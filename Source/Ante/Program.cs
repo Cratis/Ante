@@ -50,9 +50,9 @@ builder.AddCratis(
         options.GeneratedApis.IncludeCommandNameInRoute = false;
         options.GeneratedApis.SegmentsToSkipForRoute = 1;
 
-        // Ante only runs behind AuthProxy, which strips client-supplied x-ms-client-principal/-id/-name headers before
-        // setting its own (see IdentityProviders/ForwardedIdentityProvider.cs). Trusting them restores the behavior Ante
-        // shipped with before Arc made trusting forwarded identity headers opt-in.
+        // Ante must only be reachable through AuthProxy, which strips client-supplied x-ms-client-principal/-id/-name
+        // headers before setting its own (see IdentityProviders/ForwardedIdentityProvider.cs and Deployment/README.md).
+        // Trusting them restores the behavior Ante shipped with before Arc made trusting forwarded identity headers opt-in.
         options.TrustForwardedIdentityHeaders = true;
     },
     configureArcBuilder: arcBuilder =>
