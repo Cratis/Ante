@@ -16,7 +16,7 @@
              project that overrides it back to true. -->
         <IsPackable>true</IsPackable>
         <PackageId>Cratis.Ante.Contracts</PackageId>
-        <Authors>all contributors</Authors>
+        <Authors>Cratis</Authors>
         <Copyright>Copyright Cratis</Copyright>
         <Description>The invitation and lobby event contracts for Ante — Cratis's signed-invitation system and tenant lobby.</Description>
         <PackageTags>cratis;ante;invitations;event-sourcing;chronicle</PackageTags>
@@ -24,7 +24,8 @@
         <RepositoryType>git</RepositoryType>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <RepositoryUrl>https://github.com/Cratis/Ante</RepositoryUrl>
-        <PackageProjectUrl>https://github.com/Cratis/Ante</PackageProjectUrl>
+        <PackageProjectUrl>https://www.cratis.io/</PackageProjectUrl>
+        <PackageIcon>logo.png</PackageIcon>
         <PackageReadmeFile>README.md</PackageReadmeFile>
 
         <GenerateAssemblyTitleAttribute>true</GenerateAssemblyTitleAttribute>
@@ -43,5 +44,6 @@
 
     <ItemGroup>
         <None Include="$(MSBuildThisFileDirectory)../../README.md" Pack="true" PackagePath="/" />
+        <None Include="$(MSBuildThisFileDirectory)../../logo.png" Pack="true" PackagePath="/" />
     </ItemGroup>
 </Project>
