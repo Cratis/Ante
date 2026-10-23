@@ -17,22 +17,18 @@ change did not touch is a note, never a blocker.
 
 ## Verified product sources
 
-| Package | Version | Purpose |
-| --- | --- | --- |
-| `Cratis.Arc.Core` | `22.75.0` | Command, query, validation and analyzer surface (`ARC0001`–`ARC0026`, including operations, authorization, generated values and explicit query selection) |
-| `Cratis.Chronicle` | `18.3.0` | Event, projection, read-model and constraint surface |
-| `Cratis.Fundamentals` | `7.23.0` | `ConceptAs<T>`, `IInstancesOf<T>`, the DI conventions |
+| Package | Purpose |
+| --- | --- |
+| `Cratis.Arc.Core` | Command, query, validation and analyzer surface (`ARC0001`–`ARC0026`, including operations, authorization, generated values and explicit query selection) |
+| `Cratis.Chronicle` | Event, projection, read-model and constraint surface |
+| `Cratis.Fundamentals` | `ConceptAs<T>`, `IInstancesOf<T>`, the DI conventions |
 
-> Arc analyzer/decision/query surface rechecked at v22.75.0. Arc depends on
-> Chronicle 19.39.1 / Fundamentals 7.23.0; separate product verification stays
-> version-qualified.
-
-Fundamentals rechecked at v7.23.0:
-[`ConceptAs<T>`](https://github.com/Cratis/Fundamentals/blob/v7.23.0/Source/DotNET/Fundamentals/Concepts/ConceptAs.cs)
+Fundamentals:
+[`ConceptAs<T>`](https://github.com/Cratis/Fundamentals/blob/main/Source/DotNET/Fundamentals/Concepts/ConceptAs.cs)
 is the typed-value record;
-[`InstancesOf<T>`](https://github.com/Cratis/Fundamentals/blob/v7.23.0/Source/DotNET/Fundamentals/Types/InstancesOf.cs)
+[`InstancesOf<T>`](https://github.com/Cratis/Fundamentals/blob/main/Source/DotNET/Fundamentals/Types/InstancesOf.cs)
 discovers implementations and resolves them when enumerated;
-[DI conventions](https://github.com/Cratis/Fundamentals/blob/v7.23.0/Source/DotNET/Fundamentals/DependencyInjection/ServiceCollectionExtensions.cs)
+[DI conventions](https://github.com/Cratis/Fundamentals/blob/main/Source/DotNET/Fundamentals/DependencyInjection/ServiceCollectionExtensions.cs)
 honor `[Singleton]` and `[Scoped]`, defaulting to transient.
 
 Reverify against the owning product repository before asserting a framework
@@ -86,17 +82,20 @@ there is nothing to review under a red build.
 - Logging lives in a `*Logging.cs` partial with `[LoggerMessage]`, not inline in
   domain code.
 - No shared mutable state between commands.
-- Plain injected models are advisory, not a concurrency guard. Review guarded
-  stream/projection reads and actual conflict specs (`UseDecisionReads()`).
+- Read protection is `Off` by default; new code sets `<CratisReadProtection>On</CratisReadProtection>`.
+  Under `Off` an injected model or validator read is advisory, not a concurrency guard.
+  Under `On`, review that state rules sit in validators or handlers with the model as
+  a parameter, `[Unprotected("why")]` carries a real reason, and a conflict spec
+  (`AppendConcurrently` plus `ConcurrencyViolation`) exists.
 - Use `Cratis.Arc.Core.CodeAnalysis` and `Cratis.Arc.Chronicle.CodeAnalysis`.
-  At Arc v22.75.0, ARCCHR0011/0012 (Info) flag unprotected reads/immediate
+  ARCCHR0011 (Info, `Off` only) and 0012 flag unprotected reads/immediate
   bypasses; 0013 (Info) recommends definitions; 0014 checks declared observer
   streams; 0015 warns on nullable events; 0016 flags ignored concurrency flags;
   0017/0018 check stream-id templates; 0019 warns on folds exposed as queries.
   ARC0015 checks concept query inputs, ARC0016–18 operations, ARC0019–21
   authorization, ARC0022–25 generated values and ARC0026 explicit/ambiguous queries.
   A clean build cannot prove the Info-level decision advisories were addressed.
-  Sources: Arc v22.75.0 `Source/DotNET/Arc.Core.CodeAnalysis/DiagnosticDescriptors.cs`
+  Sources: Arc `Source/DotNET/Arc.Core.CodeAnalysis/DiagnosticDescriptors.cs`
   and `Source/DotNET/Chronicle.CodeAnalysis/DiagnosticDescriptors.cs`.
 
 ## Step 3 — C# style
@@ -138,11 +137,12 @@ degradations a reviewer can see without measuring:
 
 - A projection joining on a read model; a reactor re-querying the event log
   inside a handler instead of using the event data.
-- A new projection that could not replay all historical events; events carrying
+- A new projection that could not replay all earlier events; events carrying
   large blobs.
 - A query that does not filter on an indexed field; a growable list that does
-  not return `IQueryable<T>` for server-side paging; hydrating a collection only
-  to count it.
+  not return a shape Arc pages (`IQueryable<T>`, or MongoDB `Observe`); a query
+  that pages or sorts itself or uses MongoDB `AsQueryable()`; hydrating a
+  collection only to count it.
 - An N+1 pattern; a response payload with fields no client reads.
 - React: a growable list rendering every row; an inline object or array literal
   passed as a prop, changing identity every render; wrong `useEffect`
@@ -170,28 +170,13 @@ degradations a reviewer can see without measuring:
 
 ## Step 7 — Report
 
-Open with one line:
+Read and use `.cratis/ai/rules/review-reports.md` when writing the report.
 
-> **Review result: Approved / Approved with comments / Changes requested**
-
-Then, per file:
-
-```
-### <file path>
-
-**[BLOCKING]** Line N: `problematic code`
-Because: <the consequence, not the rule number>
-Fix:
-<corrected code>
-```
-
-Close with what passed and what must change. Two rules make the report usable:
-
-- **A blocking finding names a consequence.** "Violates the style guide" is not
-  a reason. "Throws on a recoverable path, so the caller sees a 500 instead of a
-  validation error" is.
-- **Say what you did not review.** A report listing only findings reads as if
-  everything was checked. Name the files, the paths, and the axes you skipped.
+Correctness regressions, broken contracts, and missing specification coverage
+that leaves changed behavior unverified belong in Blockers when they require
+correction before merge. Style preferences and maintainability improvements
+without such a consequence belong in Suggestions. Apply the shared verdict
+vocabulary to those findings.
 
 ## What breaks
 

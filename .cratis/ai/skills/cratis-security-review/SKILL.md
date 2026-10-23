@@ -15,16 +15,14 @@ first.
 
 ## Verified product sources
 
-| Package | Version | Purpose |
-| --- | --- | --- |
-| `Cratis.Arc.Chronicle` | `22.75.0` | `[NotAudited]` in `Cratis.Arc.Chronicle.Commands`; the `ARCCHR0009` analyzer |
-| `Cratis.Chronicle` | `18.3.0` | `[PII]`, `[Subject]`, redaction, namespace isolation |
-| `Cratis.Chronicle` | `19.32.0` | `[Encrypted]` in `Cratis.Chronicle.ProtectedValues`; analyzers `CHR0052`, `CHR0053` |
-| `Cratis.Arc.Core` | `22.75.0` | Authorization filters, `CommandResult.Unauthorized` |
+| Package | Purpose |
+| --- | --- |
+| `Cratis.Arc.Chronicle` | `[NotAudited]` in `Cratis.Arc.Chronicle.Commands`; the `ARCCHR0009` analyzer |
+| `Cratis.Chronicle` | `[PII]`, `[Subject]`, redaction, namespace isolation |
+| `Cratis.Chronicle` | `[Encrypted]` in `Cratis.Chronicle.ProtectedValues`; analyzers `CHR0052`, `CHR0053` |
+| `Cratis.Arc.Core` | Authorization filters, `CommandResult.Unauthorized` |
 
-> Arc security boundaries rechecked at v22.75.0; every added check is cited in
-> references/arc-boundaries.md. Arc depends on Chronicle 19.39.1; separately
-> version-qualified Chronicle security claims retain their original verification.
+Every Arc check is cited in references/arc-boundaries.md.
 
 Reverify against the owning product repository before asserting a framework
 guarantee this file does not already state.
@@ -102,7 +100,7 @@ command's properties as well as grepping them.
   reviewer reading logs for 401s will miss authorization failures.
 - Review [Arc-specific security boundaries](references/arc-boundaries.md) when
   the diff touches hosting, identity, policies, discovery, streams or system actors.
-  It pins the checks to Arc v22.75.0; do not assume a clean analyzer run proves
+  It ties the checks to Arc source; do not assume a clean analyzer run proves
   those deployment boundaries.
 
 ## Step 4 — Data exposure
@@ -132,21 +130,18 @@ command's properties as well as grepping them.
 
 ## Step 7 — Report
 
-Open with one line:
+Read and use `.cratis/ai/rules/review-reports.md` when writing the report.
+Keep the security risk label on each finding:
 
-> **Security review: No issues / Low-risk findings / Blocking issues found**
-
-Group findings by the section that produced them, and classify each:
-
-| Risk | Meaning |
+| Risk | Shared classification |
 | --- | --- |
-| **Critical** | Must be fixed before merge |
-| **Medium** | Should be fixed soon; state what makes it not-critical |
-| **Low** | Fix when convenient |
+| **Critical** | Blockers: exploitable exposure requiring correction before merge |
+| **Medium** | Suggestions: conditional exposure; state what makes it non-critical |
+| **Low** | Suggestions: defense-in-depth improvement |
 
-Close with a per-section summary table, and **name what you did not review** —
-the paths, the surfaces, and the axes out of scope. A security report listing
-only findings reads as a clean bill of health for everything it never opened.
+Use the shared verdict vocabulary, not a separate security verdict. If a
+conditional exposure must be corrected before merge, classify it as Critical
+and explain the exploit conditions rather than leaving a blocker under Medium.
 
 ## What breaks
 
