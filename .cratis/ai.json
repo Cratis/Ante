@@ -12,7 +12,8 @@
     "cratis/application/csharp",
     "cratis/application/react",
     "cratis/documentation",
-    "cratis/review"
+    "cratis/review",
+    "cratis/engineering/core"
   ],
   "languages": [
     "csharp",
