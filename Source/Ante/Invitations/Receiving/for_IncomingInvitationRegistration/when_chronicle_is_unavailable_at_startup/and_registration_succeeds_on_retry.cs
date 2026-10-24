@@ -61,7 +61,7 @@ public class and_registration_succeeds_on_retry : Specification
         });
         var options = Options.Create(_options);
         var routing = new IncomingInvitationSubscriptions(_client, Substitute.For<IServiceScopeFactory>(), Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance, Options.Create(new InvitationExchangeConfig()));
-        _health = new(routing, options);
+        _health = new(routing, options, new HostInboxRecovery(TimeProvider.System, Options.Create(new HostInboxHealthOptions())));
         _registration = new(routing, options, Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationRegistration>.Instance);
     }
 

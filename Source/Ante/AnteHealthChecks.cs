@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
@@ -31,24 +32,35 @@ public interface IMongoConnectivityProbe
 /// readiness - see Documentation/deployment.md.
 /// </summary>
 /// <remarks>
-/// <c language="csharp">/healthz</c> is preserved deliberately: it keeps answering unconditionally, exactly as it always
-/// has, so nothing that already probes it for "is the process alive" ever regresses because a dependency
-/// went away. <c language="csharp">/healthz/ready</c> is the new, separate signal for "can this instance actually serve
-/// traffic right now" - it runs the tagged dependency checks, each individually bounded by
+/// <c language="csharp">/healthz</c> fails only after sustained host-inbox unavailability exceeds the recovery grace
+/// period. <c language="csharp">/healthz/ready</c> checks whether this instance can serve traffic right now.
+/// It runs the tagged dependency checks, each individually bounded by
 /// <see cref="DependencyTimeout"/>, so one stuck dependency can never hang the whole probe or accumulate
 /// blocked work behind it.
 /// </remarks>
 public static class AnteHealthChecks
 {
     /// <summary>
-    /// The tag applied to every health check that should count towards readiness, but never liveness.
+    /// The tag applied to every health check that should count towards readiness.
     /// </summary>
     public const string ReadyTag = "ready";
+
+    /// <summary>
+    /// The tag applied to checks that can request a process restart.
+    /// </summary>
+    public const string LiveTag = "live";
 
     /// <summary>
     /// The bound every individual readiness dependency check is held to.
     /// </summary>
     public static readonly TimeSpan DependencyTimeout = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// The registration bound for the host-routing check. It outlasts <see cref="DependencyTimeout"/>, which the
+    /// check applies to its own probe, so a blocked handler-state call is reported with its host store and reactor
+    /// instead of being cancelled by the framework with no description.
+    /// </summary>
+    public static readonly TimeSpan HostRoutingTimeout = DependencyTimeout + TimeSpan.FromSeconds(2);
 
     /// <summary>
     /// Registers Ante's health checks.
@@ -58,7 +70,17 @@ public static class AnteHealthChecks
     public static IHealthChecksBuilder AddAnteHealthChecks(this IServiceCollection services)
     {
         services.AddScoped<IMongoConnectivityProbe, MongoConnectivityProbe>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddOptions<HostInboxHealthOptions>()
+            .BindConfiguration("Ante:Health")
+            .Validate(
+                options => options.HostInboxRecoveryGracePeriod > TimeSpan.Zero && options.HostInboxRecoveryGracePeriod <= TimeSpan.FromDays(1),
+                "Ante:Health:HostInboxRecoveryGracePeriod must be positive and no greater than one day.")
+            .ValidateOnStart();
+        services.AddSingleton<HostInboxRecovery>();
+        services.AddTransient<IncomingRoutingHealthCheck>();
         return services.AddHealthChecks()
+            .AddCheck<HostInboxLivenessHealthCheck>("host-inbox-recovery", tags: [LiveTag])
             .AddCheck<MongoDbHealthCheck>("mongodb", tags: [ReadyTag], timeout: DependencyTimeout)
             .AddCheck<InvitationSigningHealthCheck>("invitation-signing", tags: [ReadyTag]);
     }
@@ -69,9 +91,10 @@ public static class AnteHealthChecks
     /// <param name="endpoints">The endpoint route builder to map the endpoints on.</param>
     public static void MapAnteHealthChecks(this IEndpointRouteBuilder endpoints)
     {
-        // Zero checks run here - Predicate excludes everything - so this can never be dragged down by a
-        // dependency, matching the unconditional 200 this endpoint has always returned.
-        endpoints.MapHealthChecks("/healthz", new HealthCheckOptions { Predicate = _ => false });
+        endpoints.MapHealthChecks("/healthz", new HealthCheckOptions
+        {
+            Predicate = registration => registration.Tags.Contains(LiveTag),
+        });
 
         endpoints.MapHealthChecks("/healthz/ready", new HealthCheckOptions
         {
@@ -83,19 +106,30 @@ public static class AnteHealthChecks
 /// <summary>Reports whether every configured host inbox reactor is currently subscribed and active.</summary>
 /// <param name="routing">The initialized runtime routing service.</param>
 /// <param name="options">The frozen startup routing options.</param>
-public class IncomingRoutingHealthCheck(IncomingInvitationSubscriptions routing, IOptions<AnteOptions> options) : IHealthCheck
+/// <param name="recovery">Tracks continuous host-inbox unavailability across probes.</param>
+public class IncomingRoutingHealthCheck(IncomingInvitationSubscriptions routing, IOptions<AnteOptions> options, HostInboxRecovery recovery) : IHealthCheck
 {
     /// <inheritdoc/>
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
+        HealthCheckResult result;
         try
         {
-            return await routing.IsReady(options.Value).WaitAsync(cancellationToken) ? HealthCheckResult.Healthy() : HealthCheckResult.Unhealthy();
+            var failure = await routing.GetReadinessFailure(options.Value).WaitAsync(AnteHealthChecks.DependencyTimeout, cancellationToken);
+            result = failure is null ? HealthCheckResult.Healthy() : HealthCheckResult.Unhealthy(failure);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return HealthCheckResult.Unhealthy();
+            result = HealthCheckResult.Unhealthy(IncomingInvitationSubscriptions.UnavailableInboxes(options.Value, "handler state unavailable"));
         }
+        catch (OperationCanceledException)
+        {
+            recovery.Observe(false);
+            throw;
+        }
+
+        recovery.Observe(result.Status == HealthStatus.Healthy);
+        return result;
     }
 }
 

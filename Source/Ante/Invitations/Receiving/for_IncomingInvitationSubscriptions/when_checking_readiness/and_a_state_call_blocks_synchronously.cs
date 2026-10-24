@@ -16,8 +16,8 @@ public class and_a_state_call_blocks_synchronously : Specification
     readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly ManualResetEventSlim _release = new();
     IncomingInvitationSubscriptions _routing = null!;
-    Task<bool>? _first;
-    Task<bool>? _second;
+    Task<string?>? _first;
+    Task<string?>? _second;
     Exception? _timeout;
     IReactorHandler _handler = null!;
 
@@ -61,14 +61,15 @@ public class and_a_state_call_blocks_synchronously : Specification
         });
         try
         {
-            var firstCall = Task.Run<object>(() => _routing.IsReady(_options));
+            var firstCall = Task.Run<object>(() => _routing.GetReadinessFailure(_options));
             await _entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
-            var secondCall = Task.Run<object>(() => _routing.IsReady(_options));
-            _first = (Task<bool>)await firstCall.WaitAsync(TimeSpan.FromSeconds(2));
-            _second = (Task<bool>)await secondCall.WaitAsync(TimeSpan.FromSeconds(2));
+            var secondCall = Task.Run<object>(() => _routing.GetReadinessFailure(_options));
+            _first = (Task<string?>)await firstCall.WaitAsync(TimeSpan.FromSeconds(2));
+            _second = (Task<string?>)await secondCall.WaitAsync(TimeSpan.FromSeconds(2));
 
             using var timeout = new CancellationTokenSource();
-            var health = new IncomingRoutingHealthCheck(_routing, Options.Create(_options));
+            var recovery = new HostInboxRecovery(TimeProvider.System, Options.Create(new HostInboxHealthOptions()));
+            var health = new IncomingRoutingHealthCheck(_routing, Options.Create(_options), recovery);
             var check = Task.Run(() => Record.ExceptionAsync(() => health.CheckHealthAsync(new(), timeout.Token)).AsTask());
             await timeout.CancelAsync();
             _timeout = await check.WaitAsync(TimeSpan.FromSeconds(2));

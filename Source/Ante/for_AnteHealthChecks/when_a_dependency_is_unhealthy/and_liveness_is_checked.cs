@@ -8,7 +8,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 namespace Ante.for_AnteHealthChecks.when_a_dependency_is_unhealthy;
 
 /// <summary>
-/// Liveness (<c language="csharp">/healthz</c>'s predicate, <c language="csharp">_ =&gt; false</c>) must stay unaffected by a dependency
+/// Liveness (<c language="csharp">/healthz</c>, which runs only live-tagged checks) must stay unaffected by a dependency
 /// outage - only readiness (<see cref="and_readiness_is_checked"/>) is allowed to react to it. This is
 /// what "preserve /healthz compatibility" means in practice: dependency failure changes readiness, never
 /// liveness.
@@ -29,9 +29,9 @@ public class and_liveness_is_checked : Specification
         await using var provider = services.BuildServiceProvider();
         var healthCheckService = provider.GetRequiredService<HealthCheckService>();
 
-        // The same predicate AnteHealthChecks.MapAnteHealthChecks uses for "/healthz" - it excludes
-        // every check, ready-tagged or not.
-        _report = await healthCheckService.CheckHealthAsync(_ => false);
+        // The same predicate AnteHealthChecks.MapAnteHealthChecks uses for "/healthz" - it runs only
+        // live-tagged checks, so ready-tagged dependencies never affect it.
+        _report = await healthCheckService.CheckHealthAsync(registration => registration.Tags.Contains(AnteHealthChecks.LiveTag));
     }
 
     [Fact] void should_report_healthy() => Assert.Equal(HealthStatus.Healthy, _report.Status);
