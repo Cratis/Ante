@@ -44,7 +44,7 @@ jobs:
         with:
           node-version: 22.x
 
-      # Debug regenerates the TypeScript proxies and builds the dedicated spec executables. Release is a
+      # Debug regenerates the TypeScript proxies and builds Ante with inline specs and the Contracts runner. Release is a
       # build-only check; CratisProxiesOutputPath is cleared so the proxy generator's MSBuild target
       # no-ops instead of re-running against a second compilation of already-correct generated files.
       - name: Build (Debug)
@@ -58,7 +58,8 @@ jobs:
       - name: Test
         if: matrix.configuration == 'Debug'
         run: |
-          ./Source/Ante.Specs/bin/Debug/net10.0/Ante.Specs
+          ./Source/Ante/bin/Debug/net10.0/Ante --specifications -result-xml Ante.xml
+          node -e 'const fs = require("node:fs"); const xml = fs.readFileSync("Ante.xml", "utf8"); const total = [...xml.matchAll(/<assembly\b[^>]*\btotal="(\d+)"/g)].reduce((sum, match) => sum + Number(match[1]), 0); if (total === 0) throw new Error("Ante specifications reported no tests");'
           ./Source/Ante.Contracts.Specs/bin/Debug/net10.0/Ante.Contracts.Specs
 
   frontend:

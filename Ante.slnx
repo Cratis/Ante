@@ -3,6 +3,5 @@
     <Project Path="Source/Ante.Contracts/Ante.Contracts.csproj" />
     <Project Path="Source/Ante/Ante.csproj" />
     <Project Path="Source/Ante.Contracts.Specs/Ante.Contracts.Specs.csproj" />
-    <Project Path="Source/Ante.Specs/Ante.Specs.csproj" />
   </Folder>
 </Solution>

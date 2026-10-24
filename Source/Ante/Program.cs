@@ -22,6 +22,14 @@ using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
+#if DEBUG
+if (args.Length > 0 && args[0] == "--specifications")
+{
+    Environment.ExitCode = await Xunit.Runner.InProc.SystemConsole.ConsoleRunner.Run(args[1..]);
+    return;
+}
+#endif
+
 InvitationMongoSerialization.EnsureConfigured();
 
 var builder = WebApplication.CreateBuilder(args);
