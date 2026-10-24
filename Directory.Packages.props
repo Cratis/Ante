@@ -11,7 +11,7 @@
     <PackageVersion Include="Cratis.Arc.Chronicle.Testing" Version="22.136.7" />
     <PackageVersion Include="Cratis.Arc.MongoDB" Version="22.136.7" />
     <PackageVersion Include="Cratis.Arc.Core" Version="22.30.1" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.26.0" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.26.1" />
     <!-- Keep Chronicle clients and testing support on the same release. -->
     <PackageVersion Include="Cratis.Chronicle" Version="19.108.1" />
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.108.1" />
