@@ -37,6 +37,11 @@ public class from_ante_log_to_host_receipt : a_running_ante
 
     LegalTermsAccepted ExpectedLegal => new(_organization, AnteApplication.IdentityProvider, _subject, CurrentLegalDocuments.Version);
 
+    OrganizationRegistrationRecorded ExpectedRecordedRegistration =>
+        new(_organization, _subject, AnteApplication.IdentityProvider, "Grace", "Brewster", "Hopper", _email, [new("offer", "trial"), new("utm_source", "site")]);
+
+    LegalTermsAcceptanceRecorded ExpectedRecordedLegal => new(_organization, AnteApplication.IdentityProvider, _subject, CurrentLegalDocuments.Version);
+
     async Task Because()
     {
         var started = await Ante.Execute("/api/organization/registration/start", new { registrationId = _registrationId }, _subject, _email, _startCorrelation);
@@ -86,15 +91,15 @@ public class from_ante_log_to_host_receipt : a_running_ante
     [Fact] void should_count_the_quota_under_a_different_event_source() =>
         OnboardingTrace.TheOne<RegistrationQuotaConsumed>(_trace.AnteLog).Context.EventSourceId.Value.ShouldNotEqual(Id);
 
-    // Payloads: every property, identical at the log, the outbox and the host.
+    // Payloads: private facts are recorded locally; their public contracts travel through the outbox to the host.
     [Fact] void should_record_the_complete_registration_in_the_ante_log() =>
-        OnboardingTrace.Flatten(OnboardingTrace.TheOne<OrganizationRegistrationRecorded>(_trace.AnteLog).Content).ShouldEqual(OnboardingTrace.Flatten(ExpectedRegistration));
+        OnboardingTrace.Flatten(OnboardingTrace.TheOne<OrganizationRegistrationRecorded>(_trace.AnteLog).Content).ShouldEqual(OnboardingTrace.Flatten(ExpectedRecordedRegistration));
     [Fact] void should_publish_the_complete_registration_from_ante() =>
         OnboardingTrace.Flatten(OnboardingTrace.TheOne<OrganizationRegistrationCompleted>(_trace.AnteOutbox).Content).ShouldEqual(OnboardingTrace.Flatten(ExpectedRegistration));
     [Fact] void should_deliver_the_complete_registration_to_the_host() =>
         OnboardingTrace.Flatten(OnboardingTrace.TheOne<OrganizationRegistrationCompleted>(_trace.HostReceipt).Content).ShouldEqual(OnboardingTrace.Flatten(ExpectedRegistration));
     [Fact] void should_record_the_complete_legal_acceptance_in_the_ante_log() =>
-        OnboardingTrace.Flatten(OnboardingTrace.TheOne<LegalTermsAcceptanceRecorded>(_trace.AnteLog).Content).ShouldEqual(OnboardingTrace.Flatten(ExpectedLegal));
+        OnboardingTrace.Flatten(OnboardingTrace.TheOne<LegalTermsAcceptanceRecorded>(_trace.AnteLog).Content).ShouldEqual(OnboardingTrace.Flatten(ExpectedRecordedLegal));
     [Fact] void should_publish_the_complete_legal_acceptance_from_ante() =>
         OnboardingTrace.Flatten(OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.AnteOutbox).Content).ShouldEqual(OnboardingTrace.Flatten(ExpectedLegal));
     [Fact] void should_deliver_the_complete_legal_acceptance_to_the_host() =>
