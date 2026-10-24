@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Ante.for_ApiRouteGuard;
 
@@ -15,9 +16,9 @@ namespace Ante.for_ApiRouteGuard;
 /// <see cref="ConditionalOpenApi"/> and <see cref="AnteHealthChecks"/> - against an in-memory
 /// <see cref="TestServer"/>, with a stand-in registered route and SPA fallback in place of Ante's own
 /// Arc/Chronicle-backed endpoints and <c language="csharp">index.html</c>. No MongoDB or Chronicle is involved: the MongoDB
-/// dependency check is substituted with a fake probe.
+/// dependency check is substituted with a fake probe and the inbox route uses a registered fake handler.
 /// </summary>
-public class and_configured_end_to_end : Specification
+public class and_configured_end_to_end : Invitations.Receiving.for_IncomingInvitationSubscriptions.when_checking_readiness.given.a_registered_inbox
 {
     const string SpaShellBody = "spa-shell";
 
@@ -32,6 +33,8 @@ public class and_configured_end_to_end : Specification
 
         builder.Services.AddOpenApi();
         builder.Services.AddAnteHealthChecks();
+        builder.Services.AddSingleton(_routing);
+        builder.Services.AddSingleton<IOptions<AnteOptions>>(Options.Create(_options));
 
         // Overrides AddAnteHealthChecks' own MongoConnectivityProbe registration - the last registration
         // for a service type wins - so nothing here ever needs a real MongoDB.
@@ -81,7 +84,7 @@ public class and_configured_end_to_end : Specification
     }
 
     [Fact]
-    async Task should_answer_liveness_unconditionally()
+    async Task should_answer_liveness_when_the_host_inbox_is_ready()
     {
         var response = await _client.GetAsync(new Uri("/healthz", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

@@ -132,10 +132,10 @@ else
 builder.Services.AddAuthorization();
 builder.Services.AddRegistrationRateLimiting(anteOptions);
 
-// Bounded, dependency-aware readiness, separate from the unconditional /healthz liveness endpoint
-// mapped below - see AnteHealthChecks and Documentation/deployment.md.
+// Bounded dependency readiness and grace-period host-inbox liveness - see AnteHealthChecks
+// and Documentation/deployment.md.
 builder.Services.AddAnteHealthChecks()
-    .AddCheck<IncomingRoutingHealthCheck>("host-routing", tags: [AnteHealthChecks.ReadyTag], timeout: AnteHealthChecks.DependencyTimeout)
+    .AddCheck<IncomingRoutingHealthCheck>("host-routing", tags: [AnteHealthChecks.ReadyTag], timeout: AnteHealthChecks.HostRoutingTimeout)
     .AddCheck<ExchangeIndexesHealthCheck>("exchange-indexes", tags: [AnteHealthChecks.ReadyTag]);
 
 var app = builder.Build();
