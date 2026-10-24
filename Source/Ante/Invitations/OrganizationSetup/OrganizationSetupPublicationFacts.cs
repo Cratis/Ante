@@ -3,6 +3,8 @@
 
 using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
+using Ante.Legal;
+using Ante.Organization.Registration;
 using Ante.Outbox;
 using MongoDB.Driver;
 
@@ -63,10 +65,12 @@ public class OrganizationSetupPublicationFacts(
             typeof(InvitationToCreateTenantAccepted).GetEventType(),
             typeof(OrganizationRegistrationCompleted).GetEventType(),
             typeof(LegalTermsAccepted).GetEventType(),
+            typeof(OrganizationSetupCompleted).GetEventType(),
+            typeof(OrganizationRegistrationRecorded).GetEventType(),
+            typeof(LegalTermsAcceptanceRecorded).GetEventType(),
         ];
         var local = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(eventSourceId, relevantTypes);
-        var accepted = local.Where(entry => entry.Context.EventType.Id == relevantTypes[0].Id ||
-            entry.Context.EventType.Id == relevantTypes[1].Id).ToArray();
+        var accepted = local.Where(entry => IsInvitedSetup(entry.Content) || IsRegistration(entry.Content)).ToArray();
         if (accepted.Length > 1)
         {
             // Ambiguous acceptance from two flows sharing one event source: never Published, so nothing
@@ -80,23 +84,34 @@ public class OrganizationSetupPublicationFacts(
             return RecordedOrNone(recorded);
         }
 
-        var organizationName = accepted[0].Content switch
-        {
-            InvitationToCreateTenantAccepted invited => invited.TenantName,
-            OrganizationRegistrationCompleted registered => registered.TenantName,
-            _ => null,
-        };
+        var organizationName = OrganizationName(accepted[0].Content);
         if (organizationName is null)
         {
             return RecordedOrNone(recorded);
         }
 
         var outbox = await eventStore.GetEventSequence(EventSequenceId.Outbox).GetForEventSourceIdAndEventTypes(eventSourceId, relevantTypes);
-        var isPublished = outbox.Any(entry => entry.Context.EventType.Id == accepted[0].Context.EventType.Id) &&
-            (!local.Any(entry => entry.Context.EventType.Id == relevantTypes[2].Id) ||
+        var contractType = IsInvitedSetup(accepted[0].Content)
+            ? relevantTypes[0]
+            : relevantTypes[1];
+        var isPublished = outbox.Any(entry => entry.Context.EventType.Id == contractType.Id) &&
+            (!local.Any(entry => entry.Content is LegalTermsAccepted or LegalTermsAcceptanceRecorded) ||
              outbox.Any(entry => entry.Context.EventType.Id == relevantTypes[2].Id));
         return new(isPublished ? PublicationProgress.Published : PublicationProgress.Recorded, organizationName);
     }
+
+    static TenantName? OrganizationName(object content) => content switch
+    {
+        OrganizationSetupCompleted invited => invited.TenantName,
+        OrganizationRegistrationRecorded registered => registered.TenantName,
+        InvitationToCreateTenantAccepted invited => invited.TenantName,
+        OrganizationRegistrationCompleted registered => registered.TenantName,
+        _ => null,
+    };
+
+    static bool IsInvitedSetup(object content) => content is InvitationToCreateTenantAccepted or OrganizationSetupCompleted;
+
+    static bool IsRegistration(object content) => content is OrganizationRegistrationCompleted or OrganizationRegistrationRecorded;
 
     static OrganizationSetupFacts RecordedOrNone(OrganizationSetupProgress? recorded) =>
         recorded is not null ? new(PublicationProgress.Recorded, recorded.OrganizationName) : _none;

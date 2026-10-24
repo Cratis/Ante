@@ -49,7 +49,7 @@ public class and_values_are_valid : Specification
 
     [Fact]
     async Task should_have_appended_the_create_tenant_accepted_event() =>
-        await _scenario.ShouldHaveAppendedEvent<SetupOrganization, InvitationToCreateTenantAccepted>(
+        await _scenario.ShouldHaveAppendedEvent<SetupOrganization, OrganizationSetupCompleted>(
             _invitationId,
             e => e.TenantName == "Acme" && e.FirstName == "Jane" && e.LastName == "Doe");
 
@@ -59,6 +59,6 @@ public class and_values_are_valid : Specification
 
     [Fact]
     void should_not_have_appended_a_legal_terms_accepted_event() =>
-        Assert.DoesNotContain(_scenario.AppendedEvents, e => e.Event.Content is LegalTermsAccepted);
+        Assert.DoesNotContain(_scenario.AppendedEvents, e => e.Event.Content is LegalTermsAccepted or LegalTermsAcceptanceRecorded);
 }
 #endif

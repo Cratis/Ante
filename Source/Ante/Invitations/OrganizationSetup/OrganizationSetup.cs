@@ -147,6 +147,8 @@ public class UniqueOrganizationNameConstraint : IConstraint
             .WithName(OrganizationSetupConstraintNames.UniqueOrganizationName)
             .On<InvitationToCreateTenantAccepted>(@event => @event.TenantName)
             .On<OrganizationRegistrationCompleted>(@event => @event.TenantName)
+            .On<OrganizationSetupCompleted>(@event => @event.TenantName)
+            .On<OrganizationRegistrationRecorded>(@event => @event.TenantName)
             .On<OrganizationNameReservationReceived>(@event => @event.TenantName)
             .RemovedWith<OrganizationNameReleaseReceived>()
             .IgnoreCasing()
@@ -172,7 +174,10 @@ public class OneUseCreateTenantInvitationConstraint : IConstraint
         .ForEventLog()
         .Unique<InvitationToCreateTenantAccepted>(
             "This invitation has already been accepted.",
-            OrganizationSetupConstraintNames.OneUseInvitation);
+            OrganizationSetupConstraintNames.OneUseInvitation)
+        .Unique<OrganizationSetupCompleted>(
+            "This invitation has already been accepted.",
+            OrganizationSetupConstraintNames.OneUseInvitation + "Completed");
 }
 
 /// <summary>
@@ -271,7 +276,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
-            new InvitationToCreateTenantAccepted(
+            new OrganizationSetupCompleted(
                 OrganizationName,
                 identityProviderValue,
                 complianceSubject.ToString(),
@@ -405,6 +410,9 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
 [Reactor(eventSequence: EventSequenceId.LogId)]
 public class OrganizationSetupOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<OrganizationSetupOutbox> logger) : IReactor
 {
+    public Task On(OrganizationSetupCompleted @event, EventContext context, ReactorDelivery delivery) =>
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, announceRecorded: true);
+
     /// <summary>
     /// Forwards the create-tenant accepted event to the outbox.
     /// </summary>

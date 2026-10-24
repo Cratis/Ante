@@ -6,6 +6,7 @@ using Ante.Contracts.Organization;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.Issuing;
 using Ante.Invitations.OrganizationSetup;
+using Ante.Invitations.UserSetup;
 using Ante.Legal.Receiving;
 using Ante.Organization.Names;
 using Ante.Outbox;
@@ -91,6 +92,8 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         typeof(JoinTenantInvitationReceived).GetEventType(),
         typeof(CreateTenantInvitationReceived).GetEventType(),
         typeof(InvitationRevocationReceived).GetEventType(),
+        typeof(UserSetupCompleted).GetEventType(),
+        typeof(OrganizationSetupCompleted).GetEventType(),
         typeof(InvitationToJoinTenantAccepted).GetEventType(),
         typeof(InvitationToCreateTenantAccepted).GetEventType(),
     ];
@@ -201,7 +204,8 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         history.Any(entry => entry.Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived) && !HasConcluded(history);
 
     static bool HasConcluded(IReadOnlyList<AppendedEvent> history) =>
-        history.Any(entry => entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted);
+        history.Any(entry => entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted or
+            UserSetupCompleted or OrganizationSetupCompleted);
 
     static bool IsOnlyUniqueNameViolation(AppendResult result) =>
         result.HasConstraintViolations && !result.HasErrors && !result.HasConcurrencyViolations &&
@@ -491,6 +495,7 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
 [FromEvent<CreateTenantInvitationReceived>]
 [RemovedWith<InvitationRevocationReceived>]
 [RemovedWith<InvitationToCreateTenantAccepted>]
+[RemovedWith<OrganizationSetupCompleted>]
 public record PendingInvitationToCreateOrganization(InvitationId Id, [SetFromContext<CreateTenantInvitationReceived>("Subject")] Guid Subject, Email Email, IReadOnlyList<RoleName> Roles)
 {
     /// <summary>
@@ -525,6 +530,7 @@ public record PendingInvitationToCreateOrganization(InvitationId Id, [SetFromCon
 [FromEvent<JoinTenantInvitationReceived>]
 [RemovedWith<InvitationRevocationReceived>]
 [RemovedWith<InvitationToJoinTenantAccepted>]
+[RemovedWith<UserSetupCompleted>]
 public record PendingInvitationToJoin(InvitationId Id, [SetFromContext<JoinTenantInvitationReceived>("Subject")] Guid Subject, Email Email, TenantName TenantName, IReadOnlyList<RoleName> Roles)
 {
     /// <summary>
