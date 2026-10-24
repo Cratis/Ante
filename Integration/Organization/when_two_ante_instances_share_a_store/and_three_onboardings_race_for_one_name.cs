@@ -4,7 +4,9 @@
 using System.Text.Json;
 using Ante.Contracts.Organization;
 using Ante.Integration.given;
+using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.Receiving;
+using Ante.Organization.Registration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Ante.Integration.Organization.when_two_ante_instances_share_a_store;
@@ -72,9 +74,10 @@ public class and_three_onboardings_race_for_one_name : two_running_antes
         }
 
         Type[] claims = [typeof(OrganizationRegistrationCompleted), typeof(InvitationToCreateTenantAccepted)];
+        Type[] recordedClaims = [typeof(OrganizationRegistrationRecorded), typeof(OrganizationSetupCompleted)];
         foreach (var source in new[] { _firstRegistration, _secondRegistration, _invitationId }.Select(id => id.ToString("D")))
         {
-            _recordedClaims += (await EventsFor(Ante, source, EventSequenceId.Log, claims)).Count;
+            _recordedClaims += (await EventsFor(Ante, source, EventSequenceId.Log, recordedClaims)).Count;
             _publishedClaims += (await EventsFor(Ante, source, EventSequenceId.Outbox, claims)).Count;
             _receivedByHost += (await Host.ReceivedFromAnte(source)).Count(entry => entry.Content is OrganizationRegistrationCompleted or InvitationToCreateTenantAccepted);
         }

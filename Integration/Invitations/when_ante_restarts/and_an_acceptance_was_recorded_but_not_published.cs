@@ -37,7 +37,7 @@ public class and_an_acceptance_was_recorded_but_not_published : a_running_ante
 
         var result = await ExecuteOnceProjected("/api/invitations/user-setup", new { invitationId = _invitationId, firstName = "Jane", lastName = "Doe", acceptedLegalTerms = false, acceptedLegalVersion = "" }, _owner);
         IsSuccess(result).ShouldBeTrue();
-        _recordedBeforePublication = await AcceptanceRecordedButNotPublished<InvitationToJoinTenantAccepted>(_invitationId);
+        _recordedBeforePublication = await AcceptanceRecordedButNotPublished<UserSetupCompleted, InvitationToJoinTenantAccepted>(_invitationId);
     }
 
     async Task Because()

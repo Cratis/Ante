@@ -51,7 +51,7 @@ public class and_values_are_valid : Specification
 
     [Fact]
     async Task should_have_appended_the_registration_completed_event() =>
-        await _scenario.ShouldHaveAppendedEvent<RegisterOrganization, OrganizationRegistrationCompleted>(
+        await _scenario.ShouldHaveAppendedEvent<RegisterOrganization, OrganizationRegistrationRecorded>(
             _registrationId,
             e => e.TenantName == "Acme" && e.FirstName == "Jane" && e.LastName == "Doe");
 
@@ -66,6 +66,6 @@ public class and_values_are_valid : Specification
 
     [Fact]
     void should_not_have_appended_a_legal_terms_accepted_event() =>
-        Assert.DoesNotContain(_scenario.AppendedEvents, e => e.Event.Content is LegalTermsAccepted);
+        Assert.DoesNotContain(_scenario.AppendedEvents, e => e.Event.Content is LegalTermsAccepted or LegalTermsAcceptanceRecorded);
 }
 #endif

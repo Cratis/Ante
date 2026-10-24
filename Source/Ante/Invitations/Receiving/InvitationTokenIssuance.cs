@@ -3,6 +3,8 @@
 
 using Ante.Invitations.Accepting;
 using Ante.Invitations.Issuing;
+using Ante.Invitations.OrganizationSetup;
+using Ante.Invitations.UserSetup;
 using Microsoft.Extensions.Options;
 
 namespace Ante.Invitations.Receiving;
@@ -36,6 +38,8 @@ internal sealed class InvitationTokenIssuance(
         typeof(InvitationReissueReceived).GetEventType(),
         typeof(InvitationTokenIssuanceResumed).GetEventType(),
         typeof(InvitationRevocationReceived).GetEventType(),
+        typeof(UserSetupCompleted).GetEventType(),
+        typeof(OrganizationSetupCompleted).GetEventType(),
         typeof(InvitationToJoinTenantAccepted).GetEventType(),
         typeof(InvitationToCreateTenantAccepted).GetEventType(),
     ];
@@ -98,6 +102,7 @@ internal sealed class InvitationTokenIssuance(
             entry.Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived or InvitationReissueReceived);
         if (trigger is null || history.Any(entry => entry.Context.SequenceNumber > trigger.Context.SequenceNumber &&
             (entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted
+                or UserSetupCompleted or OrganizationSetupCompleted
                 or JoinTenantInvitationReceived or CreateTenantInvitationReceived ||
                 (entry.Content is InvitationTokenIssuanceDeferred later && later.TriggerSequenceNumber > trigger.Context.SequenceNumber))))
         {

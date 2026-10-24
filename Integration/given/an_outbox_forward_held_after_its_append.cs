@@ -35,6 +35,8 @@ public class an_outbox_forward_held_after_its_append<TReactor, TFact> : two_runn
 {
     readonly ForwardHold _hold = new();
 
+    protected virtual Type RecordedFact => typeof(TFact);
+
     /// <summary>Gets how many facts were in the outbox while the forwarding instance was held.</summary>
     protected int PublishedWhileHeld { get; private set; }
 
@@ -83,7 +85,7 @@ public class an_outbox_forward_held_after_its_append<TReactor, TFact> : two_runn
 
         // The remaining instance is now the only target; once its reactor has handled the redelivered fact - or failed
         // it - any second forward has happened.
-        var recorded = (await EventsFor(remaining, eventSourceId, EventSequenceId.Log, typeof(TFact)))[0].Context.SequenceNumber;
+        var recorded = (await EventsFor(remaining, eventSourceId, EventSequenceId.Log, RecordedFact))[0].Context.SequenceNumber;
         await Eventually.Until(
             async () =>
             {

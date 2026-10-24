@@ -1,7 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.Receiving;
+using Ante.Invitations.UserSetup;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Microsoft.Extensions.Options;
 
@@ -33,6 +35,8 @@ public class InvitationAcceptanceFence(IEventStore store, IOptions<InvitationExc
         typeof(JoinTenantInvitationReceived).GetEventType(),
         typeof(CreateTenantInvitationReceived).GetEventType(),
         typeof(InvitationRevocationReceived).GetEventType(),
+        typeof(UserSetupCompleted).GetEventType(),
+        typeof(OrganizationSetupCompleted).GetEventType(),
         typeof(InvitationToJoinTenantAccepted).GetEventType(),
         typeof(InvitationToCreateTenantAccepted).GetEventType(),
     ];
@@ -52,7 +56,8 @@ public class InvitationAcceptanceFence(IEventStore store, IOptions<InvitationExc
         if (receipts.Length == 0 ||
             (exchangeConfig.Value.Mode == InvitationExchangeMode.Attested && receipts.Length != 1) ||
             receipts.Any(receipt => joinExpected != (receipt.Content is JoinTenantInvitationReceived)) ||
-            history.Any(entry => entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted))
+            history.Any(entry => entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted or
+                UserSetupCompleted or OrganizationSetupCompleted))
         {
             return null;
         }

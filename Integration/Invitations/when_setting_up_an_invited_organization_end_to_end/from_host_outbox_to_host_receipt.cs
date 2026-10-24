@@ -4,6 +4,7 @@
 using Ante.Contracts.Legal;
 using Ante.Integration.given;
 using Ante.Invitations;
+using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
 
@@ -54,8 +55,8 @@ public class from_host_outbox_to_host_receipt : a_running_ante
     [Fact] void should_record_the_receipt_and_the_acceptance_once_in_the_ante_log() =>
         OnboardingTrace.Types(_trace.AnteLog).ShouldEqual(string.Join(", ", new[]
         {
-            nameof(CreateTenantInvitationReceived), nameof(InvitationSourceInboxEventRecorded), nameof(InvitationToCreateTenantAccepted),
-            nameof(LegalTermsAccepted), nameof(OnboardingAttemptClaimed),
+            nameof(CreateTenantInvitationReceived), nameof(InvitationSourceInboxEventRecorded),
+            nameof(LegalTermsAcceptanceRecorded), nameof(OnboardingAttemptClaimed), nameof(OrganizationSetupCompleted),
         }));
     [Fact] void should_publish_the_token_the_acceptance_and_the_legal_acceptance_once_from_ante() =>
         OnboardingTrace.Types(_trace.AnteOutbox).ShouldEqual(string.Join(", ", nameof(InvitationToCreateTenantAccepted), nameof(InvitationTokenIssued), nameof(LegalTermsAccepted)));
@@ -88,13 +89,13 @@ public class from_host_outbox_to_host_receipt : a_running_ante
 
     // Payloads: the acceptance and the legal acceptance are identical at the log, the outbox and the host.
     [Fact] void should_record_the_complete_acceptance_in_the_ante_log() =>
-        OnboardingTrace.Flatten(OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.AnteLog).Content).ShouldEqual(OnboardingTrace.Flatten(ExpectedAcceptance));
+        OnboardingTrace.Flatten(OnboardingTrace.TheOne<OrganizationSetupCompleted>(_trace.AnteLog).Content).ShouldEqual(OnboardingTrace.Flatten(ExpectedAcceptance));
     [Fact] void should_publish_the_complete_acceptance_from_ante() =>
         OnboardingTrace.Flatten(OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.AnteOutbox).Content).ShouldEqual(OnboardingTrace.Flatten(ExpectedAcceptance));
     [Fact] void should_deliver_the_complete_acceptance_to_the_host() =>
         OnboardingTrace.Flatten(OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.HostReceipt).Content).ShouldEqual(OnboardingTrace.Flatten(ExpectedAcceptance));
     [Fact] void should_record_the_complete_legal_acceptance_in_the_ante_log() =>
-        OnboardingTrace.Flatten(OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.AnteLog).Content).ShouldEqual(OnboardingTrace.Flatten(ExpectedLegal));
+        OnboardingTrace.Flatten(OnboardingTrace.TheOne<LegalTermsAcceptanceRecorded>(_trace.AnteLog).Content).ShouldEqual(OnboardingTrace.Flatten(ExpectedLegal));
     [Fact] void should_publish_the_complete_legal_acceptance_from_ante() =>
         OnboardingTrace.Flatten(OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.AnteOutbox).Content).ShouldEqual(OnboardingTrace.Flatten(ExpectedLegal));
     [Fact] void should_deliver_the_complete_legal_acceptance_to_the_host() =>
@@ -107,10 +108,10 @@ public class from_host_outbox_to_host_receipt : a_running_ante
     [Fact] void should_deliver_the_token_under_the_host_correlation_id() => OnboardingTrace.TheOne<InvitationTokenIssued>(_trace.HostReceipt).Context.CorrelationId.Value.ShouldEqual(_invitationCorrelation);
 
     // Correlation ids: the acceptance keeps the one its command ran under from the log to the host.
-    [Fact] void should_record_the_acceptance_under_its_command_correlation_id() => OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.AnteLog).Context.CorrelationId.Value.ShouldEqual(_acceptanceCorrelation);
+    [Fact] void should_record_the_acceptance_under_its_command_correlation_id() => OnboardingTrace.TheOne<OrganizationSetupCompleted>(_trace.AnteLog).Context.CorrelationId.Value.ShouldEqual(_acceptanceCorrelation);
     [Fact] void should_publish_the_acceptance_under_the_same_correlation_id() => OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.AnteOutbox).Context.CorrelationId.Value.ShouldEqual(_acceptanceCorrelation);
     [Fact] void should_deliver_the_acceptance_under_the_same_correlation_id() => OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.HostReceipt).Context.CorrelationId.Value.ShouldEqual(_acceptanceCorrelation);
-    [Fact] void should_record_the_legal_acceptance_under_the_same_correlation_id() => OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.AnteLog).Context.CorrelationId.Value.ShouldEqual(_acceptanceCorrelation);
+    [Fact] void should_record_the_legal_acceptance_under_the_same_correlation_id() => OnboardingTrace.TheOne<LegalTermsAcceptanceRecorded>(_trace.AnteLog).Context.CorrelationId.Value.ShouldEqual(_acceptanceCorrelation);
     [Fact] void should_publish_the_legal_acceptance_under_the_same_correlation_id() => OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.AnteOutbox).Context.CorrelationId.Value.ShouldEqual(_acceptanceCorrelation);
     [Fact] void should_deliver_the_legal_acceptance_under_the_same_correlation_id() => OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.HostReceipt).Context.CorrelationId.Value.ShouldEqual(_acceptanceCorrelation);
 
@@ -119,21 +120,21 @@ public class from_host_outbox_to_host_receipt : a_running_ante
     [Fact] void should_record_the_receipt_under_the_host_subject() => OnboardingTrace.TheOne<CreateTenantInvitationReceived>(_trace.AnteLog).Context.Subject.ToString().ShouldEqual(_hostSubject.ToString());
     [Fact] void should_publish_the_token_under_the_host_subject() => OnboardingTrace.TheOne<InvitationTokenIssued>(_trace.AnteOutbox).Context.Subject.ToString().ShouldEqual(_hostSubject.ToString());
     [Fact] void should_deliver_the_token_under_the_host_subject() => OnboardingTrace.TheOne<InvitationTokenIssued>(_trace.HostReceipt).Context.Subject.ToString().ShouldEqual(_hostSubject.ToString());
-    [Fact] void should_record_the_acceptance_under_the_signed_in_subject() => OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.AnteLog).Context.Subject.ToString().ShouldEqual(_subject);
+    [Fact] void should_record_the_acceptance_under_the_signed_in_subject() => OnboardingTrace.TheOne<OrganizationSetupCompleted>(_trace.AnteLog).Context.Subject.ToString().ShouldEqual(_subject);
     [Fact] void should_publish_the_acceptance_under_the_signed_in_subject() => OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.AnteOutbox).Context.Subject.ToString().ShouldEqual(_subject);
     [Fact] void should_deliver_the_acceptance_under_the_signed_in_subject() => OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.HostReceipt).Context.Subject.ToString().ShouldEqual(_subject);
-    [Fact] void should_record_the_legal_acceptance_under_the_signed_in_subject() => OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.AnteLog).Context.Subject.ToString().ShouldEqual(_subject);
+    [Fact] void should_record_the_legal_acceptance_under_the_signed_in_subject() => OnboardingTrace.TheOne<LegalTermsAcceptanceRecorded>(_trace.AnteLog).Context.Subject.ToString().ShouldEqual(_subject);
     [Fact] void should_publish_the_legal_acceptance_under_the_signed_in_subject() => OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.AnteOutbox).Context.Subject.ToString().ShouldEqual(_subject);
     [Fact] void should_deliver_the_legal_acceptance_under_the_signed_in_subject() => OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.HostReceipt).Context.Subject.ToString().ShouldEqual(_subject);
 
     // Occurrence: Ante's outbox keeps the time each fact was recorded. Chronicle stamps the host's inbox copy when it
     // forwards it, so the host receives a time no earlier than Ante's, not the same one.
     [Fact] void should_publish_the_acceptance_with_the_time_it_was_recorded() =>
-        OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.AnteOutbox).Context.Occurred.ShouldEqual(OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.AnteLog).Context.Occurred);
+        OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.AnteOutbox).Context.Occurred.ShouldEqual(OnboardingTrace.TheOne<OrganizationSetupCompleted>(_trace.AnteLog).Context.Occurred);
     [Fact] void should_publish_the_legal_acceptance_with_the_time_it_was_recorded() =>
-        OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.AnteOutbox).Context.Occurred.ShouldEqual(OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.AnteLog).Context.Occurred);
+        OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.AnteOutbox).Context.Occurred.ShouldEqual(OnboardingTrace.TheOne<LegalTermsAcceptanceRecorded>(_trace.AnteLog).Context.Occurred);
     [Fact] void should_deliver_the_acceptance_no_earlier_than_it_was_recorded() =>
-        (OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.HostReceipt).Context.Occurred >= OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.AnteLog).Context.Occurred).ShouldBeTrue();
+        (OnboardingTrace.TheOne<InvitationToCreateTenantAccepted>(_trace.HostReceipt).Context.Occurred >= OnboardingTrace.TheOne<OrganizationSetupCompleted>(_trace.AnteLog).Context.Occurred).ShouldBeTrue();
     [Fact] void should_deliver_the_legal_acceptance_no_earlier_than_it_was_recorded() =>
-        (OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.HostReceipt).Context.Occurred >= OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.AnteLog).Context.Occurred).ShouldBeTrue();
+        (OnboardingTrace.TheOne<LegalTermsAccepted>(_trace.HostReceipt).Context.Occurred >= OnboardingTrace.TheOne<LegalTermsAcceptanceRecorded>(_trace.AnteLog).Context.Occurred).ShouldBeTrue();
 }

@@ -62,12 +62,12 @@ public class and_accepts_the_current_legal_terms : a_running_ante
             var store = scope.ServiceProvider.GetRequiredService<IEventStore>();
             var entries = await store.EventLog.GetForEventSourceIdAndEventTypes(
                 _registrationId.ToString("D"),
-                [typeof(OnboardingAttemptClaimed).GetEventType(), typeof(OrganizationRegistrationCompleted).GetEventType(),
-                    typeof(RegistrationOwnerRecorded).GetEventType(), typeof(LegalTermsAccepted).GetEventType()]);
+                [typeof(OnboardingAttemptClaimed).GetEventType(), typeof(OrganizationRegistrationRecorded).GetEventType(),
+                    typeof(RegistrationOwnerRecorded).GetEventType(), typeof(LegalTermsAcceptanceRecorded).GetEventType()]);
             _eventsHaveExpectedSubjects = entries.Count == 4 && entries.All(entry => entry.Content switch
             {
                 RegistrationOwnerRecorded => !entry.Context.SubjectIsEventSourceId && entry.Context.Subject.ToString() == _subject,
-                OnboardingAttemptClaimed or OrganizationRegistrationCompleted or LegalTermsAccepted =>
+                OnboardingAttemptClaimed or OrganizationRegistrationRecorded or LegalTermsAcceptanceRecorded =>
                     entry.Context.SubjectIsEventSourceId && entry.Context.Subject.ToString() == _registrationId.ToString("D"),
                 _ => false,
             });

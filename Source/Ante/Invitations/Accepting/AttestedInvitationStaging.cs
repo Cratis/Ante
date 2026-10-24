@@ -4,7 +4,9 @@
 using System.Security.Cryptography;
 using System.Text;
 using Ante.Invitations.Issuing;
+using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.Receiving;
+using Ante.Invitations.UserSetup;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.IdentityModel.JsonWebTokens;
 using MongoDB.Bson.Serialization.Attributes;
@@ -81,6 +83,8 @@ public class AttestedInvitationStaging(
         typeof(JoinTenantInvitationReceived).GetEventType(),
         typeof(CreateTenantInvitationReceived).GetEventType(),
         typeof(InvitationRevocationReceived).GetEventType(),
+        typeof(UserSetupCompleted).GetEventType(),
+        typeof(OrganizationSetupCompleted).GetEventType(),
         typeof(InvitationToJoinTenantAccepted).GetEventType(),
         typeof(InvitationToCreateTenantAccepted).GetEventType(),
     ];
@@ -118,7 +122,8 @@ public class AttestedInvitationStaging(
         var receipts = history.Select(entry => entry.Content)
             .Where(content => content is JoinTenantInvitationReceived or CreateTenantInvitationReceived).ToArray();
         if (receipts.Length != 1 || history.Any(entry => entry.Content is
-            InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted) ||
+            InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted or
+            UserSetupCompleted or OrganizationSetupCompleted) ||
             !ReceiptMatches(receipts[0], verified.FlowType, recipient))
         {
             return false;
