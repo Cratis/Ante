@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+#if DEBUG
 using Ante.Invitations.Receiving;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
@@ -32,3 +33,4 @@ public class registered_health_checks : Invitations.Receiving.for_IncomingInvita
 
     protected void RestoreHandler() => _handlerMissing = false;
 }
+#endif

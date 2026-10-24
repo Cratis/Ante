@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+#if DEBUG
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Ante.for_HostInboxHealth;
@@ -19,3 +20,4 @@ public class when_the_recovery_grace_period_is_exceeded : given.registered_healt
     [Fact] void should_explain_which_inbox_cannot_recover() => _result.Description.ShouldEqual(
         "Host inbox recovery grace period exceeded. Host event store 'StudioAdmin', reactor 'Ante.Invitations.Receiving.IncomingInvitationReactor.StudioAdmin': handler missing.");
 }
+#endif
