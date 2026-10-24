@@ -22,7 +22,7 @@ public class a_metadata_host : Specification
         InvitationTokenIsolation.ApplyDefaults(_config, new AnteOptions { EventStore = "ExampleLobby", Namespace = "Default" });
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
-        builder.Services.AddAuthorization(options => options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+        builder.Services.AddAuthorizationBuilder().SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
         _app = builder.Build();
         _app.UseAuthorization();
         _app.MapInvitationTokenMetadata(_config);

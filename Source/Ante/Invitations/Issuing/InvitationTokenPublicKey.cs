@@ -16,7 +16,10 @@ internal sealed record InvitationTokenPublicKey(
     [property: JsonPropertyName("e")] string Exponent)
 {
     public static InvitationTokenPublicKey From(RsaSecurityKey key) => new(
-        "RSA", "sig", "RS256", key.KeyId,
+        "RSA",
+        "sig",
+        "RS256",
+        key.KeyId,
         Base64UrlEncoder.Encode(key.Parameters.Modulus),
         Base64UrlEncoder.Encode(key.Parameters.Exponent));
 }

@@ -61,7 +61,8 @@ public sealed class InvitationTokenConfigurationValidator
             string.IsNullOrEmpty(uri.Host) || !string.IsNullOrEmpty(uri.UserInfo) ||
             !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
         {
-            throw new InvitationTokenConfigurationInvalid(nameof(InvitationTokenConfig.PublicBaseUrl),
+            throw new InvitationTokenConfigurationInvalid(
+                nameof(InvitationTokenConfig.PublicBaseUrl),
                 "must be an absolute HTTPS base URL (HTTP is allowed only on loopback), without credentials, query or fragment");
         }
     }

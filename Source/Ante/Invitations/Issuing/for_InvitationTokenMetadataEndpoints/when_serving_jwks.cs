@@ -41,7 +41,7 @@ public class when_serving_jwks : given.a_metadata_host
     [Fact] void should_be_anonymous() => Assert.Equal(HttpStatusCode.OK, _response.StatusCode);
     [Fact] void should_serve_json() => Assert.Equal("application/json", _response.Content.Headers.ContentType?.MediaType);
     [Fact] void should_be_publicly_cacheable_for_five_minutes() => Assert.Equal("public, max-age=300", _response.Headers.CacheControl?.ToString());
-    [Fact] void should_have_only_the_keys_container() => Assert.Equal(new[] { "keys" }, _document.RootElement.EnumerateObject().Select(property => property.Name));
+    [Fact] void should_have_only_the_keys_container() => Assert.Equal<string>(["keys"], _document.RootElement.EnumerateObject().Select(property => property.Name));
     [Fact] void should_publish_current_additional_and_previous_keys_once_each() => Assert.Equal(_expected.Keys.Order(StringComparer.Ordinal), _document.RootElement.GetProperty("keys").EnumerateArray().Select(key => key.GetProperty("kid").GetString()).Order(StringComparer.Ordinal));
     [Fact] void should_match_the_exchange_trusted_key_set() => Assert.Equal(InvitationTokenKeys.TrustedKeys(_config).Select(key => key.KeyId).Order(StringComparer.Ordinal), _document.RootElement.GetProperty("keys").EnumerateArray().Select(key => key.GetProperty("kid").GetString()).Order(StringComparer.Ordinal));
 
@@ -50,7 +50,7 @@ public class when_serving_jwks : given.a_metadata_host
     {
         foreach (var key in _document.RootElement.GetProperty("keys").EnumerateArray())
         {
-            Assert.Equal(new[] { "alg", "e", "kid", "kty", "n", "use" }, key.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
+            Assert.Equal<string>(["alg", "e", "kid", "kty", "n", "use"], key.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
             Assert.Equal("RSA", key.GetProperty("kty").GetString());
             Assert.Equal("sig", key.GetProperty("use").GetString());
             Assert.Equal("RS256", key.GetProperty("alg").GetString());

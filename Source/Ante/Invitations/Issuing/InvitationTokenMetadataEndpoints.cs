@@ -17,8 +17,11 @@ internal static class InvitationTokenMetadataEndpoints
             context.Response.Headers.CacheControl = "public, max-age=300";
             return string.IsNullOrWhiteSpace(config.PublicBaseUrl)
                 ? Results.NotFound()
-                : Results.Json(new InvitationTokenMetadata(config.Issuer, config.Audience,
-                    new Uri(config.PublicBaseUrl.TrimEnd('/') + "/.well-known/ante/jwks.json").AbsoluteUri, ["RS256"]));
+                : Results.Json(new InvitationTokenMetadata(
+                    config.Issuer,
+                    config.Audience,
+                    new Uri(config.PublicBaseUrl.TrimEnd('/') + "/.well-known/ante/jwks.json").AbsoluteUri,
+                    ["RS256"]));
         }).AllowAnonymous();
 
         endpoints.MapGet("/.well-known/ante/jwks.json", IResult (HttpContext context) =>
