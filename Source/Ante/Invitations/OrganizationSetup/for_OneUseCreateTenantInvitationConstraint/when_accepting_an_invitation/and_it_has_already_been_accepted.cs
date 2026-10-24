@@ -13,7 +13,7 @@ public class and_it_has_already_been_accepted : Specification
 
     async Task Establish() =>
         await _scenario.Given.ForEventSource(_invitationId).Events(
-            new InvitationToCreateTenantAccepted("Acme", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Owner"]));
+            new OrganizationSetupCompleted("Acme", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Owner"]));
 
     // Uses a different organization name than the first acceptance so only the one-use-per-invitation
     // constraint can fire here - not the unrelated organization-name-uniqueness constraint, which is
@@ -21,12 +21,12 @@ public class and_it_has_already_been_accepted : Specification
     async Task Because() =>
         _result = await _scenario.EventLog.Append(
             _invitationId,
-            new InvitationToCreateTenantAccepted("Northwind", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Owner"]));
+            new OrganizationSetupCompleted("Northwind", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Owner"]));
 
     [Fact] void should_be_failed() => _result.ShouldBeFailed();
 
     [Fact]
     void should_violate_the_one_use_invitation_constraint() =>
-        _result.ShouldHaveConstraintViolationFor(OrganizationSetupConstraintNames.OneUseInvitation);
+        _result.ShouldHaveConstraintViolationFor(OrganizationSetupConstraintNames.OneUseInvitation + "Completed");
 }
 #endif

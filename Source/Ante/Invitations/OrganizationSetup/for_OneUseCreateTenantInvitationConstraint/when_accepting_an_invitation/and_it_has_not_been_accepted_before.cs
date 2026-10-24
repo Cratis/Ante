@@ -12,7 +12,7 @@ public class and_it_has_not_been_accepted_before : Specification
     async Task Because() =>
         _result = await _scenario.EventLog.Append(
             InvitationId.New(),
-            new InvitationToCreateTenantAccepted("Acme", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Owner"]));
+            new OrganizationSetupCompleted("Acme", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Owner"]));
 
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
 }
