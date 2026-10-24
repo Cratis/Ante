@@ -114,6 +114,9 @@ public class InvitationTokenConfig
     /// </summary>
     public string Audience { get; set; } = string.Empty;
 
+    // Public metadata is disabled when no canonical public base URL is configured.
+    public string PublicBaseUrl { get; set; } = string.Empty;
+
     /// <summary>
     /// Gets a value indicating whether an issuer or audience was configured explicitly, as opposed to derived
     /// from the deployment. Fixed when defaults are applied (see <see cref="InvitationTokenIsolation.ApplyDefaults"/>),
