@@ -214,7 +214,7 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
-            new OrganizationRegistrationCompleted(
+            new OrganizationRegistrationRecorded(
                 OrganizationName,
                 subject,
                 identityProviderValue,
@@ -259,6 +259,9 @@ public static class RegistrationSourceAvailability
                 typeof(InvitationToCreateTenantAccepted).GetEventType(),
                 typeof(OnboardingAttemptClaimed).GetEventType(),
                 typeof(OrganizationRegistrationCompleted).GetEventType(),
+                typeof(OrganizationRegistrationRecorded).GetEventType(),
+                typeof(OrganizationSetupCompleted).GetEventType(),
+                typeof(UserSetupCompleted).GetEventType(),
                 typeof(RegistrationOwnerRecorded).GetEventType(),
             ]);
         return !events.Any();
@@ -279,6 +282,9 @@ public static class RegistrationSourceAvailability
 [Reactor(eventSequence: EventSequenceId.LogId)]
 public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<OrganizationRegistrationOutbox> logger) : IReactor
 {
+    public Task On(OrganizationRegistrationRecorded @event, EventContext context, ReactorDelivery delivery) =>
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, announceRecorded: true);
+
     /// <summary>
     /// Forwards the registration completed event to the outbox.
     /// </summary>

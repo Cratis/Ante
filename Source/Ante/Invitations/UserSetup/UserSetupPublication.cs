@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Ante.Contracts.Legal;
+using Ante.Legal;
 using Ante.Outbox;
 
 namespace Ante.Invitations.UserSetup;
@@ -24,11 +25,15 @@ namespace Ante.Invitations.UserSetup;
 /// </remarks>
 [ReadModel]
 [EventLog]
+[FromEvent<UserSetupCompleted>]
+[FromEvent<LegalTermsAcceptanceRecorded>]
 [FromEvent<InvitationToJoinTenantAccepted>]
 [FromEvent<LegalTermsAccepted>]
 public record UserSetupProgress(
     InvitationId Id,
+    [SetValue<UserSetupCompleted>(true)]
     [SetValue<InvitationToJoinTenantAccepted>(true)] bool AcceptanceRecorded = false,
+    [SetValue<LegalTermsAcceptanceRecorded>(true)]
     [SetValue<LegalTermsAccepted>(true)] bool LegalRecorded = false);
 
 /// <summary>

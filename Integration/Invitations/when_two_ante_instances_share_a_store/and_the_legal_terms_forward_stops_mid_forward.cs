@@ -15,6 +15,8 @@ namespace Ante.Integration.Invitations.when_two_ante_instances_share_a_store;
 [Collection(ChronicleCollection.Name)]
 public class and_the_legal_terms_forward_stops_mid_forward : an_outbox_forward_held_after_its_append<LegalTermsAcceptanceOutbox, LegalTermsAccepted>
 {
+    protected override Type RecordedFact => typeof(LegalTermsAcceptanceRecorded);
+
     readonly Guid _invitationId = NewInvitationId();
     readonly string _owner = $"owner-{Guid.NewGuid():N}";
 

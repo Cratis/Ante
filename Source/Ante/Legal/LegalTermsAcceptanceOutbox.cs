@@ -44,6 +44,9 @@ namespace Ante.Legal;
 [Reactor(eventSequence: EventSequenceId.LogId)]
 public class LegalTermsAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<LegalTermsAcceptanceOutbox> logger) : IReactor
 {
+    public Task On(LegalTermsAcceptanceRecorded @event, EventContext context, ReactorDelivery delivery) =>
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger);
+
     /// <summary>
     /// Forwards the acceptance to the outbox.
     /// </summary>

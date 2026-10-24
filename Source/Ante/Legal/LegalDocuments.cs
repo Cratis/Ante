@@ -234,7 +234,7 @@ public static class LegalAcceptanceEvidence
         }
 
         return Result<LegalAcceptanceSnapshot, ValidationResult>.Success(
-            new([new LegalTermsAccepted(tenantName, identityProvider, subject, current.Version)], scope));
+            new([new LegalTermsAcceptanceRecorded(tenantName, identityProvider, subject, current.Version)], scope));
     }
 
     /// <summary>

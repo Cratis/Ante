@@ -107,7 +107,10 @@ public class OneUseJoinTenantInvitationConstraint : IConstraint
         .ForEventLog()
         .Unique<InvitationToJoinTenantAccepted>(
             "This invitation has already been accepted.",
-            UserSetupConstraintNames.OneUseInvitation);
+            UserSetupConstraintNames.OneUseInvitation)
+        .Unique<UserSetupCompleted>(
+            "This invitation has already been accepted.",
+            UserSetupConstraintNames.OneUseInvitation + "Completed");
 }
 
 /// <summary>
@@ -231,7 +234,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
-            new InvitationToJoinTenantAccepted(
+            new UserSetupCompleted(
                 pendingInvitation.TenantName,
                 identity.Provider,
                 identity.Subject.ToString(),
@@ -329,6 +332,9 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
 [Reactor(eventSequence: EventSequenceId.LogId)]
 public class JoinTenantAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<JoinTenantAcceptanceOutbox> logger) : IReactor
 {
+    public Task On(UserSetupCompleted @event, EventContext context, ReactorDelivery delivery) =>
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, announceRecorded: true);
+
     /// <summary>
     /// Forwards the join-tenant accepted event to the outbox.
     /// </summary>
