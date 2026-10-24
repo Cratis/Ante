@@ -54,43 +54,43 @@ public class and_configured_end_to_end : Specification
     [Fact]
     async Task should_reject_an_unknown_path_under_a_reserved_prefix_instead_of_serving_the_spa_shell()
     {
-        var response = await _client.GetAsync(new Uri("/api/this-route-does-not-exist", UriKind.Relative));
+        var response = await _client.GetAsync(new Uri("/api/this-route-does-not-exist", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
     async Task should_still_reach_a_real_endpoint_registered_under_the_same_reserved_prefix()
     {
-        var response = await _client.GetAsync(new Uri("/api/register-organization", UriKind.Relative));
+        var response = await _client.GetAsync(new Uri("/api/register-organization", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
     async Task should_reach_the_spa_shell_for_a_public_onboarding_path()
     {
-        var response = await _client.GetAsync(new Uri("/register", UriKind.Relative));
+        var response = await _client.GetAsync(new Uri("/register", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(SpaShellBody, await response.Content.ReadAsStringAsync());
+        Assert.Equal(SpaShellBody, await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
     async Task should_not_expose_the_openapi_document_outside_development()
     {
-        var response = await _client.GetAsync(new Uri("/openapi/v1.json", UriKind.Relative));
+        var response = await _client.GetAsync(new Uri("/openapi/v1.json", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
     async Task should_answer_liveness_unconditionally()
     {
-        var response = await _client.GetAsync(new Uri("/healthz", UriKind.Relative));
+        var response = await _client.GetAsync(new Uri("/healthz", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
     async Task should_answer_readiness_as_healthy_when_the_dependency_is_reachable()
     {
-        var response = await _client.GetAsync(new Uri("/healthz/ready", UriKind.Relative));
+        var response = await _client.GetAsync(new Uri("/healthz/ready", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 

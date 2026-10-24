@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <IsTestProject>true</IsTestProject>
+        <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.OpenApi.Generated</InterceptorsNamespaces>
+        <!-- Inline specifications retain their Debug guards in every runner configuration. -->
+        <DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Ante/Ante.csproj" />
+        <InlineSpecification Include="../Ante/**/for_*/**/*.cs;../Ante/**/when_*/**/*.cs;../Ante/**/when_*.cs;../Ante/**/given/**/*.cs" />
+        <Compile Include="@(InlineSpecification->Distinct())" LinkBase="Ante" />
+        <Compile Include="../Ante/GlobalUsings.cs" Link="ProductionGlobalUsings.cs" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="xunit.v3.mtp-off" />
+        <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="All" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Cratis.Specifications.XUnit.v3" />
+        <PackageReference Include="NSubstitute" />
+        <PackageReference Include="Cratis.Arc.Chronicle.Testing" />
+        <PackageReference Include="Cratis.Chronicle.Testing" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    </ItemGroup>
+</Project>

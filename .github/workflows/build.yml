@@ -44,7 +44,7 @@ jobs:
         with:
           node-version: 22.x
 
-      # Debug regenerates the TypeScript proxies and compiles the #if DEBUG spec code. Release is a
+      # Debug regenerates the TypeScript proxies and builds the dedicated spec executables. Release is a
       # build-only check; CratisProxiesOutputPath is cleared so the proxy generator's MSBuild target
       # no-ops instead of re-running against a second compilation of already-correct generated files.
       - name: Build (Debug)
@@ -57,7 +57,9 @@ jobs:
 
       - name: Test
         if: matrix.configuration == 'Debug'
-        run: dotnet test Ante.slnx --configuration Debug --no-build --logger "console;verbosity=minimal"
+        run: |
+          ./Source/Ante.Specs/bin/Debug/net10.0/Ante.Specs
+          ./Source/Ante.Contracts.Specs/bin/Debug/net10.0/Ante.Contracts.Specs
 
   frontend:
     name: Frontend
