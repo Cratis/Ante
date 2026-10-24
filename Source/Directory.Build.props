@@ -10,8 +10,8 @@
         <PackageReference Include="Cratis.Fundamentals" />
     </ItemGroup>
 
-    <!-- Keep inline specifications beside the source, but compile them only in dedicated runners. -->
-    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Ante' Or '$(MSBuildProjectName)' == 'Ante.Contracts'">
+    <!-- Ante runs inline specifications in Debug; Ante.Contracts keeps its dedicated runner. -->
+    <PropertyGroup Condition="('$(MSBuildProjectName)' == 'Ante' And '$(Configuration)' == 'Release') Or '$(MSBuildProjectName)' == 'Ante.Contracts'">
         <DefaultItemExcludes>$(DefaultItemExcludes);**/for_*/**;**/when_*/**;**/when_*.cs;**/given/**</DefaultItemExcludes>
     </PropertyGroup>
 </Project>

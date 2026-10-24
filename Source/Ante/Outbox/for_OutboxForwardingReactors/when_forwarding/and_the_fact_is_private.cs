@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+#if DEBUG
 using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.UserSetup;
 using Ante.Legal;
@@ -79,3 +80,4 @@ public class and_the_fact_is_private : Specification
         Arg.Any<DateTimeOffset?>(),
         Arg.Any<Cratis.Chronicle.Subject>());
 }
+#endif
