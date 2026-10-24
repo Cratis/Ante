@@ -56,6 +56,13 @@ public static class AnteHealthChecks
     public static readonly TimeSpan DependencyTimeout = TimeSpan.FromSeconds(3);
 
     /// <summary>
+    /// The registration bound for the host-routing check. It outlasts <see cref="DependencyTimeout"/>, which the
+    /// check applies to its own probe, so a blocked handler-state call is reported with its host store and reactor
+    /// instead of being cancelled by the framework with no description.
+    /// </summary>
+    public static readonly TimeSpan HostRoutingTimeout = DependencyTimeout + TimeSpan.FromSeconds(2);
+
+    /// <summary>
     /// Registers Ante's health checks.
     /// </summary>
     /// <param name="services">The service collection to register against.</param>
