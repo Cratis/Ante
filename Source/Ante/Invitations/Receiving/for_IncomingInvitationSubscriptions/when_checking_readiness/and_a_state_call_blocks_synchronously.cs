@@ -69,7 +69,7 @@ public class and_a_state_call_blocks_synchronously : Specification
 
             using var timeout = new CancellationTokenSource();
             var health = new IncomingRoutingHealthCheck(_routing, Options.Create(_options));
-            var check = Task.Run(() => Record.ExceptionAsync(() => health.CheckHealthAsync(new(), timeout.Token)));
+            var check = Task.Run(() => Record.ExceptionAsync(() => health.CheckHealthAsync(new(), timeout.Token)).AsTask());
             await timeout.CancelAsync();
             _timeout = await check.WaitAsync(TimeSpan.FromSeconds(2));
         }

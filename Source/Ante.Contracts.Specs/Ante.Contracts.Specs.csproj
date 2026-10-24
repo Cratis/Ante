@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <IsTestProject>true</IsTestProject>
+        <!-- Inline specifications retain their Debug guards in every runner configuration. -->
+        <DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Ante.Contracts/Ante.Contracts.csproj" />
+        <InlineSpecification Include="../Ante.Contracts/**/for_*/**/*.cs;../Ante.Contracts/**/when_*/**/*.cs;../Ante.Contracts/**/when_*.cs;../Ante.Contracts/**/given/**/*.cs" />
+        <Compile Include="@(InlineSpecification->Distinct())" LinkBase="Ante.Contracts" />
+        <Compile Include="../Ante.Contracts/GlobalUsings.cs" Link="ProductionGlobalUsings.cs" />
+        <PackageReference Include="xunit.v3.mtp-off" />
+        <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="All" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Cratis.Specifications.XUnit.v3" />
+        <PackageReference Include="NSubstitute" />
+    </ItemGroup>
+</Project>

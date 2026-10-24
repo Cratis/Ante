@@ -69,7 +69,7 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
 
     IContainer Container => _container ?? throw new InvalidOperationException("The Chronicle container has not been started.");
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Client-only Mongo tests run before any Ante host starts; use the same concept map.
         InvitationMongoSerialization.EnsureConfigured();
@@ -139,7 +139,7 @@ public sealed class ChronicleInfrastructure : IAsyncLifetime
     /// <returns>Awaitable task.</returns>
     public Task StartChronicle() => Container.StartAsync();
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_container is not null && !KeepContainer)
         {

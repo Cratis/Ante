@@ -30,13 +30,15 @@ public class and_comparing_the_snapshot : Specification
     void should_preserve_every_existing_generation()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Ante.Contracts.csproj")))
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Ante.Contracts", "Ante.Contracts.csproj")))
         {
             directory = directory.Parent;
         }
 
         Assert.NotNull(directory);
+        directory = new DirectoryInfo(Path.Combine(directory.FullName, "Ante.Contracts"));
         var path = Path.Combine(directory.FullName, SnapshotName);
+        Assert.True(File.Exists(path), $"Missing canonical event schema snapshot: {path}");
         var pii = new PIIMetadataProvider();
         var generator = new JsonSchemaGenerator(
             new ComplianceMetadataResolver(

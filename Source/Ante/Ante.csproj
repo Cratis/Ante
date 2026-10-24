@@ -27,6 +27,7 @@
 
     <ItemGroup>
         <ProjectReference Include="../Ante.Contracts/Ante.Contracts.csproj" />
+        <InternalsVisibleTo Include="Ante.Specs" />
     </ItemGroup>
 
     <ItemGroup>

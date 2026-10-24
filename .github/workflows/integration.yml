@@ -48,11 +48,14 @@ jobs:
         with:
           node-version: 22.x
 
+      - name: Build container-backed specifications
+        run: dotnet build Integration/Ante.Integration.Specs.csproj --configuration Debug
+
       - name: Run container-backed specifications
         env:
           # Empty on pull requests: the fixture then uses the server release matching the pinned client.
           ANTE_CHRONICLE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.chronicle-image || github.event_name == 'schedule' && 'cratis/chronicle:latest-development' || '' }}
-        run: dotnet test Integration/Ante.Integration.Specs.csproj --configuration Debug --logger "console;verbosity=minimal"
+        run: ./Integration/bin/Debug/net10.0/Ante.Integration.Specs
 
   browser:
     name: Browser end-to-end${{ github.event.action == 'labeled' && github.event.label.name != 'run-integration' && format(' - {0}', github.event.label.name) || '' }}

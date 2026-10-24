@@ -12,6 +12,6 @@ public class and_another_actor_is_presented : a_recorded_completion
     async Task Because() => Outcome = await Sessions.Retry(Stage, Assertion with { ProviderSubject = "other" });
     [Fact] void should_refuse_the_conflicting_actor() => Assert.Equal(AttestedSessionOutcome.Rejected, Outcome);
     [Fact] async Task should_not_claim_its_assertion() => await Collection.DidNotReceiveWithAnyArgs().UpdateOneAsync(
-        default, default, default, default);
+        default, default, default, TestContext.Current.CancellationToken);
 }
 #endif

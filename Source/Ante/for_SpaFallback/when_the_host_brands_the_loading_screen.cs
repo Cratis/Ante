@@ -48,8 +48,8 @@ public class when_the_host_brands_the_loading_screen : Specification
     [InlineData($"/invite/{Token}")]
     async Task should_show_the_hosts_screen_from_the_first_byte(string path)
     {
-        var response = await _client.GetAsync(new Uri(path, UriKind.Relative));
-        var body = await response.Content.ReadAsStringAsync();
+        var response = await _client.GetAsync(new Uri(path, UriKind.Relative), TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("<title>Studio</title>", body, StringComparison.Ordinal);
@@ -60,14 +60,14 @@ public class when_the_host_brands_the_loading_screen : Specification
     [Fact]
     async Task should_not_let_a_browser_keep_a_copy_of_the_shell()
     {
-        var response = await _client.GetAsync(new Uri("/", UriKind.Relative));
+        var response = await _client.GetAsync(new Uri("/", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Contains("no-cache", response.Headers.CacheControl!.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
     async Task should_still_serve_other_static_files_untouched()
     {
-        Assert.Equal("plain", await _client.GetStringAsync(new Uri("/other.txt", UriKind.Relative)));
+        Assert.Equal("plain", await _client.GetStringAsync(new Uri("/other.txt", UriKind.Relative), TestContext.Current.CancellationToken));
     }
 
     async Task Destroy()

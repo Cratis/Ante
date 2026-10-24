@@ -19,13 +19,3 @@ global using Cratis.Concepts;
 global using Cratis.Monads;
 global using Microsoft.AspNetCore.Mvc;
 global using Microsoft.Extensions.Options;
-#if DEBUG
-global using Cratis.Arc.Chronicle.Testing.Commands;
-global using Cratis.Arc.Testing.Commands;
-global using Cratis.Chronicle.Testing;
-global using Cratis.Chronicle.Testing.EventSequences;
-global using Cratis.Chronicle.Testing.ReadModels;
-global using Cratis.Specifications;
-global using NSubstitute;
-global using Xunit;
-#endif
