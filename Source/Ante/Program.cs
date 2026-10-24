@@ -192,6 +192,8 @@ app.MapAnteHealthChecks();
 app.MapGet("/api/locale-config", () => Results.Json(LocaleNegotiation.PublicOptions(anteOptions)))
     .AllowAnonymous();
 
+app.MapInvitationTokenMetadata(invitationTokenOptions);
+
 // Reserved, API-shaped prefixes get a genuine 404 for anything not already matched by a real endpoint
 // above, instead of falling through to the SPA shell below - see ApiRouteGuard.
 ApiRouteGuard.MapReservedPrefixGuards(app);
