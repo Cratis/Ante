@@ -22,16 +22,8 @@ namespace Ante.Legal;
 /// the outbox after the flow's own accept/registration fact rather than before it.
 /// </para>
 /// <para>
-/// Pinned to the event log deliberately: <see cref="LegalTermsAccepted"/> is declared in
-/// <c language="csharp">Cratis.Ante.Contracts</c>, whose assembly-level <c language="csharp">[EventStore("Ante")]</c> attribute exists so a
-/// *host's own* reactor can observe it without knowing Ante's configured store name. Left unattributed
-/// itself, this reactor would fall into that same inference and get its handled event's declared store
-/// ("Ante", the compiled literal) compared against whatever this deployment's actual store is named - a
-/// deployment renamed away from that literal (see <see cref="AnteOptions.EventStore"/>) would silently
-/// mismatch and reroute local forwarding onto a nonexistent inbox sequence instead of the event log.
-/// </para>
-/// <para>
-/// The pin goes through <see cref="ReactorAttribute"/>'s event sequence rather than <c language="csharp">[EventLog]</c>:
+/// The local event log is named through <see cref="ReactorAttribute"/>'s event sequence rather than
+/// <c language="csharp">[EventLog]</c>:
 /// Chronicle's client treats any type carrying an <c language="csharp">EventSequenceAttribute</c> as a model-bound
 /// projection too, registers a projection under this reactor's id with no event types, and that projection takes
 /// over the observer - the reactor then never receives an event. The end-to-end fixture in

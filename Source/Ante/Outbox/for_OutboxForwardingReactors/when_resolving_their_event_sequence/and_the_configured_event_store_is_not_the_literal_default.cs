@@ -12,16 +12,10 @@ namespace Ante.Outbox.for_OutboxForwardingReactors.when_resolving_their_event_se
 /// <summary>
 /// The events these four reactors handle (<c language="csharp">InvitationToCreateTenantAccepted</c>,
 /// <c language="csharp">InvitationToJoinTenantAccepted</c>, <c language="csharp">OrganizationRegistrationCompleted</c>, <c language="csharp">LegalTermsAccepted</c>)
-/// are all declared in <c language="csharp">Cratis.Ante.Contracts</c>, whose assembly-level <c language="csharp">[EventStore("Ante")]</c>
-/// attribute exists so a *host's own* reactor can observe them without knowing Ante's configured store
-/// name. Chronicle resolves an unattributed reactor's event sequence by comparing that declared store
-/// ("Ante", the compiled literal) against the reactor's *actual* current store - so before these reactors
-/// were pinned with <c language="csharp">[EventLog]</c>, a deployment renamed away from the literal "Ante" (which is exactly
-/// what <see cref="AnteOptions.EventStore"/> exists to let an operator do, and what
-/// Documentation/configuration.md's own "DirectLobby" example demonstrates) made every one of these
-/// reactors resolve to a nonexistent inbox sequence instead of the local event log - forwarding to the
-/// outbox would then silently never happen. This spec pins that regression down directly against
-/// Chronicle's own resolution rule, independent of any particular configured store name.
+/// are declared in <c language="csharp">Cratis.Ante.Contracts</c>. A deployment can name its store anything through
+/// <see cref="AnteOptions.EventStore"/> (Documentation/configuration.md uses "DirectLobby"), and forwarding to the outbox
+/// must still read Ante's own event log there rather than an inbox. This pins that down against Chronicle's own
+/// resolution rule, independent of any particular configured store name.
 /// </summary>
 public class and_the_configured_event_store_is_not_the_literal_default : Specification
 {

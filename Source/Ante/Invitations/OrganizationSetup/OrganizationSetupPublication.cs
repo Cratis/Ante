@@ -22,14 +22,9 @@ namespace Ante.Invitations.OrganizationSetup;
 /// <param name="OrganizationName">The name of the organization that was set up.</param>
 /// <param name="LegalRecorded">Whether a <see cref="LegalTermsAccepted"/> fact was recorded alongside the acceptance.</param>
 /// <remarks>
-/// Pinned to the local event log: most of its events are declared in <c language="csharp">Cratis.Ante.Contracts</c>,
-/// whose assembly-level <c language="csharp">[EventStore("Ante")]</c> would otherwise make Chronicle read it from
-/// <c language="csharp">inbox-Ante</c> whenever <see cref="AnteOptions.EventStore"/> is not the literal "Ante".
-/// <para>
 /// The owner is carried by init properties, not optional constructor parameters: Chronicle's schema generator
 /// drops the type and the <c language="csharp">[PII]</c> classification of a nullable concept parameter defaulted to
 /// <see langword="null"/>, and the kernel then leaves the untyped values out of every instance it returns.
-/// </para>
 /// </remarks>
 [ReadModel]
 [EventLog]
