@@ -13,4 +13,5 @@ namespace Ante.Contracts.Invitations;
 /// <param name="Email">The email address of the invited user.</param>
 /// <param name="Roles">The roles the user will hold in the new tenant.</param>
 [EventType]
+[Public]
 public record UserInvitedToCreateTenant(Email Email, IReadOnlyList<RoleName> Roles);

@@ -51,6 +51,7 @@ public enum InvitationRejectionReasonV1
 /// </summary>
 /// <param name="Reason">Why the invitation was rejected.</param>
 [EventType(generation: 3)]
+[Public]
 public record InvitationRejected(InvitationRejectionReason Reason);
 
 /// <summary>The immutable, released second generation of the rejection contract.</summary>

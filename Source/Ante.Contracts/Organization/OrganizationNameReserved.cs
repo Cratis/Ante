@@ -16,6 +16,7 @@ namespace Ante.Contracts.Organization;
 /// </remarks>
 /// <param name="TenantName">The organization name the host holds.</param>
 [EventType]
+[Public]
 public record OrganizationNameReserved(TenantName TenantName);
 
 /// <summary>
@@ -24,4 +25,5 @@ public record OrganizationNameReserved(TenantName TenantName);
 /// </summary>
 /// <param name="TenantName">The organization name that is free again.</param>
 [EventType]
+[Public]
 public record OrganizationNameReleased(TenantName TenantName);

@@ -37,12 +37,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <AssemblyAttribute Include="Cratis.Chronicle.Events.EventStoreAttribute">
-            <_Parameter1>Ante</_Parameter1>
-        </AssemblyAttribute>
-    </ItemGroup>
-
-    <ItemGroup>
         <None Include="$(MSBuildThisFileDirectory)../../README.md" Pack="true" PackagePath="/" />
         <None Include="$(MSBuildThisFileDirectory)../../logo.png" Pack="true" PackagePath="/" />
     </ItemGroup>

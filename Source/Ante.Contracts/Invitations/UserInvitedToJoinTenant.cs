@@ -14,4 +14,5 @@ namespace Ante.Contracts.Invitations;
 /// <param name="TenantName">The name of the tenant the user is being invited to join.</param>
 /// <param name="Roles">The roles the user is being invited into.</param>
 [EventType]
+[Public]
 public record UserInvitedToJoinTenant(Email Email, TenantName TenantName, IReadOnlyList<RoleName> Roles);

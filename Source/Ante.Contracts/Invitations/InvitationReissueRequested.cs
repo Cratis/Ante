@@ -14,4 +14,5 @@ namespace Ante.Contracts.Invitations;
 /// invitation stay valid until they expire; revoke the invitation and create a new one to invalidate them.
 /// </remarks>
 [EventType]
+[Public]
 public record InvitationReissueRequested;

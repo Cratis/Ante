@@ -27,6 +27,7 @@ public record LegalDocumentRevision(long Value) : ConceptAs<long>(Value)
 /// <param name="TermsAndConditions">The full terms body.</param>
 /// <param name="PrivacyPolicy">The full privacy body.</param>
 [EventType]
+[Public]
 public record LegalDocumentSetPublished(
     LegalDocumentRevision Revision,
     LegalVersion Version,
@@ -40,4 +41,5 @@ public record LegalDocumentSetPublished(
 /// <param name="Revision">The activated revision.</param>
 /// <param name="Version">The activated version.</param>
 [EventType]
+[Public]
 public record LegalDocumentSetActivated(LegalDocumentRevision Revision, LegalVersion Version);

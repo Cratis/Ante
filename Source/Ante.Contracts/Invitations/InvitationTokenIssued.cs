@@ -14,6 +14,7 @@ namespace Ante.Contracts.Invitations;
 /// A missing expiry from a generation-1 payload becomes <see cref="DateTimeOffset.UnixEpoch"/>:
 /// the historical expiration is unknown, and hosts must not treat that sentinel as a usable expiry.
 [EventType(generation: 3)]
+[Public]
 public record InvitationTokenIssued
 {
     /// <summary>

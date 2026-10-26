@@ -16,6 +16,7 @@ namespace Ante.Contracts.Organization;
 /// reading an inbox Chronicle has not migrated - deserializes with an empty context.
 /// </remarks>
 [EventType(generation: 2)]
+[Public]
 public record OrganizationRegistrationCompleted
 {
     /// <summary>

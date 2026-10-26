@@ -10,4 +10,5 @@ namespace Ante.Contracts.Invitations;
 /// link unusable. The invitation identifier is the event source id.
 /// </summary>
 [EventType]
+[Public]
 public record InvitationRevoked;

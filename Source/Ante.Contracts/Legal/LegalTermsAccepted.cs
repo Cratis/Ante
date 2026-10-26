@@ -24,4 +24,5 @@ namespace Ante.Contracts.Legal;
 /// </param>
 /// <param name="Version">The version of the legal document set that was presented and accepted.</param>
 [EventType]
+[Public]
 public record LegalTermsAccepted(TenantName TenantName, IdentityProviderName IdentityProvider, string IdentityProviderSubject, LegalVersion Version);
