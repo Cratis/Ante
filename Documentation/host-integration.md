@@ -14,7 +14,7 @@ A host owns the invitation decision, link delivery, identity configuration and p
 
 **Host upgrade:** consume generation-3 `InvitationTokenIssued` **before** Ante starts publishing it: Chronicle cross-store subscriptions do not downcast the new generation for an old host. Keep the link and its embedded recipient email private. Add `InvitationRejected` generation 2 and its `InvitationIdReused` and `InvalidRecipient` reasons to the event types your host observes from Ante's outbox (and to mirrored contract definitions, if used). A host that observes only `InvitationTokenIssued` will not receive rejection events. On Chronicle 19.22.1 the isolated generation-2-only host reads a usable JWT, but **its raw MongoDB `inbox-{ante store}` generation-3 token is plaintext**, unlike the encrypted generation-3 token in Ante's outbox and the current host inbox. The older typed read does not establish a safe upgrade path or retroactive encryption; upgrade the consumer's PII metadata and protect existing token storage and backups. Hosts still using a generation-1 token-issued mirror must tolerate the additional `expiresAt` JSON member in cross-store deliveries.
 
-Use the [`Cratis.Ante.Contracts` NuGet package](https://www.nuget.org/packages/Cratis.Ante.Contracts) for the public event types. CI packs it with the image's release version when publishing is approved. The package still has an assembly-level `[EventStore("Ante")]`. A host can *already reference it* with any Ante store name: explicitly annotate its observer with `[EventStore("DirectLobby")]` (replace `DirectLobby` with the actual Ante store). That observer-level setting wins over the assembly annotation. Removing the assembly annotation is deferred to a coordinated breaking contracts release; existing observers may rely on the default. Do not duplicate discovered CLR event types with the same identities when replacing mirrors. If you keep mirrored contracts (as Direct currently does), compare event ids, generations, serialization and `[PII]` metadata; matching names alone do not establish compatibility.
+Use the [`Cratis.Ante.Contracts` NuGet package](https://www.nuget.org/packages/Cratis.Ante.Contracts) for the public event types. CI packs it with the image's release version when publishing is approved. Every contract type is `[Public]` and carries no origin event store, so referencing the package never routes an observer anywhere by itself: subscribe explicitly to your configured Ante store as described in [Subscribe to Ante's outbox](#subscribe-to-antes-outbox). Do not duplicate discovered CLR event types with the same identities when replacing mirrors. If you keep mirrored contracts (as Direct currently does), compare event ids, generations, serialization and `[PII]` metadata; matching names alone do not establish compatibility.
 
 Ante resolves one fixed namespace (`Ante:Namespace`, default `Default`) across all its requests and subscriptions. Chronicle forwards each host outbox into `inbox-{source}` in that *same namespace* on Ante's store; there is no namespace remapping. Publish and observe in a matching namespace, and test the full path before cutover. The host observer of Ante's outbox must likewise follow Ante's configured store and matching namespace. A multi-source list grants the three invitation contract types to each configured store; Inbox mode also subscribes its one configured legal publisher store to `LegalDocumentSetPublished`. The list does **not** enforce flow-specific Core/Admin permissions. These stores must belong to one trusted host product. The three inbound contracts currently use generation 1; Chronicle's subscription builder emits generation-1 filters, so a future inbound event generation needs a coordinated adapter change. Studio's Core revocation `UserInvitationRevoked` differs from Ante's `InvitationRevoked` and needs producer-side adaptation. The [Architecture](./architecture.md) page separates each host outbox, Ante inbox and Ante outbox.
 
@@ -27,7 +27,39 @@ await eventStore.GetEventSequence(EventSequenceId.Outbox)
     .Append(invitationId.ToString(), new UserInvitedToJoinTenant(email, tenantName, roles));
 ```
 
-Here `invitationId` is a `Guid`, `email` is `Email`, `tenantName` is `TenantName`, and `roles` is `IReadOnlyList<RoleName>`. Ensure the `eventStore` points to the host store, not Ante's. A complete host fixture with compiling setup and end-to-end tests is not included in this repository. Direct is one host implementation, but its current source does not prove a working invitation end to end; do not copy its id generation without checking the GUID requirement. For a host that needs runtime-configurable reverse routing rather than a compiled `[EventStore]` observer, use Chronicle's runtime reactor on `inbox-{configured Ante store}` and a single subscription from that store's outbox, filtering the union of events its host consumers need. Coordinate ownership of the source-name subscription id: separate consumers must not overwrite one another's filters. Neither adapter nor event-type filtering can route a token to only one of Studio's stores; each consumer must correlate the invitation id and ignore unrelated ids.
+Here `invitationId` is a `Guid`, `email` is `Email`, `tenantName` is `TenantName`, and `roles` is `IReadOnlyList<RoleName>`. Ensure the `eventStore` points to the host store, not Ante's. A complete host fixture with compiling setup and end-to-end tests is not included in this repository. Direct is one host implementation, but its current source does not prove a working invitation end to end; do not copy its id generation without checking the GUID requirement.
+
+## Subscribe to Ante's outbox
+
+A host receives Ante's outcomes through an explicit subscription; nothing in `Cratis.Ante.Contracts` routes an observer to Ante for you. Keep the name of the Ante store in the host's own configuration (it is Ante's `Ante:EventStore`, for example `DirectLobby`), then do two things at startup:
+
+1. Subscribe the host store to Ante's outbox. Chronicle forwards the listed event types into `inbox-{Ante store}` on the host store, in the same namespace. Use the Ante store name as the subscription id, and make one subscription per host store that filters the union of events all its consumers need: separate consumers must not overwrite one another's filters.
+2. Observe `inbox-{Ante store}` with an observer that names that event sequence. An observer that names no sequence reads the host's own event log and never sees Ante's events.
+
+```csharp
+await store.Subscriptions.Subscribe(
+    new EventStoreSubscriptionId(anteStore),
+    anteStore,
+    subscription => subscription
+        .WithEventType<InvitationTokenIssued>()
+        .WithEventType<InvitationRejected>()
+        .WithEventType<InvitationToJoinTenantAccepted>()
+        .WithEventType<InvitationToCreateTenantAccepted>()
+        .WithEventType<OrganizationRegistrationCompleted>()
+        .WithEventType<LegalTermsAccepted>());
+
+await store.Reactors.Register(
+    new ReactorId("Host.Invitations.AnteOutcomes"),
+    reactor => reactor
+        .OnEventSequence(new EventSequenceId($"{EventSequenceId.InboxPrefix}{anteStore}"))
+        .On<InvitationTokenIssued>((issued, context) => outcomes.TokenIssued(context.EventSourceId, issued))
+        .On<InvitationRejected>((rejected, context) => outcomes.Rejected(context.EventSourceId, rejected))
+        .On<InvitationToJoinTenantAccepted>((accepted, context) => outcomes.Joined(context.EventSourceId, accepted)));
+```
+
+Here `store` is the host's own `IEventStore`, `anteStore` is the configured Ante store name, and `outcomes` is the host's handler; add an `On<T>` for every event the host consumes. A host whose Ante store name never changes can name the sequence on a compiled reactor instead, `[Reactor(eventSequence: "inbox-DirectLobby")]`, and still makes the subscription in step 1. Projections and reducers over Ante's events name the same `inbox-{Ante store}` sequence. Neither adapter nor event-type filtering can route a token to only one of Studio's stores; each consumer must correlate the invitation id and ignore unrelated ids.
+
+**Upgrading from a contracts package with the assembly-level `[EventStore("Ante")]`:** an observer that relied on it, with no sequence or `[EventStore]` of its own, now reads the host's event log instead of `inbox-Ante`. Give each such observer the `inbox-{Ante store}` sequence as above and add the explicit subscription. Replace an observer-level `[EventStore("<Ante store>")]` the same way. Keep the reactor and projection ids unchanged so their positions carry over, and keep the Ante store name as the subscription id so the existing forwarding is reused rather than duplicated.
 
 ## Put a verifying proxy in front
 
