@@ -248,38 +248,41 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cratis/arc.react@npm:^22.44.2":
-  version: 22.44.2
-  resolution: "@cratis/arc.react@npm:22.44.2"
+"@cratis/arc.react@npm:^22.146.0":
+  version: 22.146.0
+  resolution: "@cratis/arc.react@npm:22.146.0"
   dependencies:
-    "@cratis/arc": "npm:22.44.2"
-    "@cratis/fundamentals": "npm:^7.19.8"
+    "@cratis/arc": "npm:22.146.0"
+    "@cratis/fundamentals": "npm:^7.27.0"
     tsyringe: "npm:^4.10.0"
   peerDependencies:
     react: ^18.0.0 || ^19.0.0
-  checksum: 10/80fa487fb12139e5b4b00da996725299b0f6085cbab10dcffbc78faa8cedf8bda1c1bbb566fe29e0757d6ca978439075c83f1e257790b2dbd121e11b0dcf8c76
+  checksum: 10/deb6a610aeabdcda86faf52c1bd4313fa5dea280b59c37d39fbfe174a0b63a0922acfa61a32eeb7761c446c143493d1bbded136ffe9628bee290e3092b78561c
   languageName: node
   linkType: hard
 
-"@cratis/arc.vite@npm:^22.44.2":
-  version: 22.44.2
-  resolution: "@cratis/arc.vite@npm:22.44.2"
+"@cratis/arc.vite@npm:^22.146.0":
+  version: 22.146.0
+  resolution: "@cratis/arc.vite@npm:22.146.0"
   dependencies:
-    "@cratis/arc": "npm:22.44.2"
-    "@swc/core": "npm:^1.16.13"
+    "@cratis/arc": "npm:22.146.0"
+    "@swc/core": "npm:^1.16.20"
+    magic-string: "npm:^0.30.21"
+    oxc-parser: "npm:^0.127.0"
   peerDependencies:
     react: ^18.0.0 || ^19.0.0
-  checksum: 10/b19ffd05923cd957f5ebd04ef6474faa212e98869fab95006759f596491e51f14b28de5607479277daa2cdb4f6952dbe808884f787210c2d9854d734c3547c35
+    vite: ^6.0.0 || ^7.0.0 || ^8.0.0
+  checksum: 10/f244336cbf3bceda23d32f1daccf662e6221afe1c20ce32af74798849d4ec9197a0c8db3d6ff1d03426431f105792f0213d2a5bcac94867e3b233c6746c0b194
   languageName: node
   linkType: hard
 
-"@cratis/arc@npm:22.44.2, @cratis/arc@npm:^22.44.2":
-  version: 22.44.2
-  resolution: "@cratis/arc@npm:22.44.2"
+"@cratis/arc@npm:22.146.0, @cratis/arc@npm:^22.146.0":
+  version: 22.146.0
+  resolution: "@cratis/arc@npm:22.146.0"
   dependencies:
-    "@cratis/fundamentals": "npm:^7.19.8"
+    "@cratis/fundamentals": "npm:^7.27.0"
     rxjs: "npm:^7.8.2"
-  checksum: 10/0cef13840abe09a700d0aabd852a2764895d1c957d1163024141615f47ddb69dc9e6633f1c8bf768cced54ffdd4957f7e22ac0d9f7f35e3238aba18c12c9212b
+  checksum: 10/2aab1fa6984c1c5ab42c5ada5e53dd8b84b99ab37432d9c38c9fbc31bb32f782dd490fd931f0041552bd5585130e0c029d914baf81c0d70aa4a00d339e45e8b7
   languageName: node
   linkType: hard
 
@@ -331,6 +334,13 @@ __metadata:
   version: 7.19.8
   resolution: "@cratis/fundamentals@npm:7.19.8"
   checksum: 10/126b1ff41cdb41bee88a0a3fd13ad456d02359e02db0ccc7f1bacc684de7c17285ed57a681ea3b31aa49794ef0919be26679a52ec6a208e3507817a71a7afbfe
+  languageName: node
+  linkType: hard
+
+"@cratis/fundamentals@npm:^7.27.0":
+  version: 7.27.0
+  resolution: "@cratis/fundamentals@npm:7.27.0"
+  checksum: 10/986ea7a38933e510d00eccf7347c332795fc13c8b0539a6dac193b252a86383a53a86940b53d4c9fb9d83ec744a6912c15c15b7af4c98df0ace403ad224120ca
   languageName: node
   linkType: hard
 
@@ -1649,106 +1659,106 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@swc/core-darwin-arm64@npm:1.16.13":
-  version: 1.16.13
-  resolution: "@swc/core-darwin-arm64@npm:1.16.13"
+"@swc/core-darwin-arm64@npm:1.16.20":
+  version: 1.16.20
+  resolution: "@swc/core-darwin-arm64@npm:1.16.20"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
 
-"@swc/core-darwin-x64@npm:1.16.13":
-  version: 1.16.13
-  resolution: "@swc/core-darwin-x64@npm:1.16.13"
+"@swc/core-darwin-x64@npm:1.16.20":
+  version: 1.16.20
+  resolution: "@swc/core-darwin-x64@npm:1.16.20"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
 
-"@swc/core-linux-arm-gnueabihf@npm:1.16.13":
-  version: 1.16.13
-  resolution: "@swc/core-linux-arm-gnueabihf@npm:1.16.13"
+"@swc/core-linux-arm-gnueabihf@npm:1.16.20":
+  version: 1.16.20
+  resolution: "@swc/core-linux-arm-gnueabihf@npm:1.16.20"
   conditions: os=linux & cpu=arm
   languageName: node
   linkType: hard
 
-"@swc/core-linux-arm64-gnu@npm:1.16.13":
-  version: 1.16.13
-  resolution: "@swc/core-linux-arm64-gnu@npm:1.16.13"
+"@swc/core-linux-arm64-gnu@npm:1.16.20":
+  version: 1.16.20
+  resolution: "@swc/core-linux-arm64-gnu@npm:1.16.20"
   conditions: os=linux & cpu=arm64 & libc=glibc
   languageName: node
   linkType: hard
 
-"@swc/core-linux-arm64-musl@npm:1.16.13":
-  version: 1.16.13
-  resolution: "@swc/core-linux-arm64-musl@npm:1.16.13"
+"@swc/core-linux-arm64-musl@npm:1.16.20":
+  version: 1.16.20
+  resolution: "@swc/core-linux-arm64-musl@npm:1.16.20"
   conditions: os=linux & cpu=arm64 & libc=musl
   languageName: node
   linkType: hard
 
-"@swc/core-linux-ppc64-gnu@npm:1.16.13":
-  version: 1.16.13
-  resolution: "@swc/core-linux-ppc64-gnu@npm:1.16.13"
+"@swc/core-linux-ppc64-gnu@npm:1.16.20":
+  version: 1.16.20
+  resolution: "@swc/core-linux-ppc64-gnu@npm:1.16.20"
   conditions: os=linux & cpu=ppc64 & libc=glibc
   languageName: node
   linkType: hard
 
-"@swc/core-linux-s390x-gnu@npm:1.16.13":
-  version: 1.16.13
-  resolution: "@swc/core-linux-s390x-gnu@npm:1.16.13"
+"@swc/core-linux-s390x-gnu@npm:1.16.20":
+  version: 1.16.20
+  resolution: "@swc/core-linux-s390x-gnu@npm:1.16.20"
   conditions: os=linux & cpu=s390x & libc=glibc
   languageName: node
   linkType: hard
 
-"@swc/core-linux-x64-gnu@npm:1.16.13":
-  version: 1.16.13
-  resolution: "@swc/core-linux-x64-gnu@npm:1.16.13"
+"@swc/core-linux-x64-gnu@npm:1.16.20":
+  version: 1.16.20
+  resolution: "@swc/core-linux-x64-gnu@npm:1.16.20"
   conditions: os=linux & cpu=x64 & libc=glibc
   languageName: node
   linkType: hard
 
-"@swc/core-linux-x64-musl@npm:1.16.13":
-  version: 1.16.13
-  resolution: "@swc/core-linux-x64-musl@npm:1.16.13"
+"@swc/core-linux-x64-musl@npm:1.16.20":
+  version: 1.16.20
+  resolution: "@swc/core-linux-x64-musl@npm:1.16.20"
   conditions: os=linux & cpu=x64 & libc=musl
   languageName: node
   linkType: hard
 
-"@swc/core-win32-arm64-msvc@npm:1.16.13":
-  version: 1.16.13
-  resolution: "@swc/core-win32-arm64-msvc@npm:1.16.13"
+"@swc/core-win32-arm64-msvc@npm:1.16.20":
+  version: 1.16.20
+  resolution: "@swc/core-win32-arm64-msvc@npm:1.16.20"
   conditions: os=win32 & cpu=arm64
   languageName: node
   linkType: hard
 
-"@swc/core-win32-ia32-msvc@npm:1.16.13":
-  version: 1.16.13
-  resolution: "@swc/core-win32-ia32-msvc@npm:1.16.13"
+"@swc/core-win32-ia32-msvc@npm:1.16.20":
+  version: 1.16.20
+  resolution: "@swc/core-win32-ia32-msvc@npm:1.16.20"
   conditions: os=win32 & cpu=ia32
   languageName: node
   linkType: hard
 
-"@swc/core-win32-x64-msvc@npm:1.16.13":
-  version: 1.16.13
-  resolution: "@swc/core-win32-x64-msvc@npm:1.16.13"
+"@swc/core-win32-x64-msvc@npm:1.16.20":
+  version: 1.16.20
+  resolution: "@swc/core-win32-x64-msvc@npm:1.16.20"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
 
-"@swc/core@npm:^1.16.13":
-  version: 1.16.13
-  resolution: "@swc/core@npm:1.16.13"
+"@swc/core@npm:^1.16.20":
+  version: 1.16.20
+  resolution: "@swc/core@npm:1.16.20"
   dependencies:
-    "@swc/core-darwin-arm64": "npm:1.16.13"
-    "@swc/core-darwin-x64": "npm:1.16.13"
-    "@swc/core-linux-arm-gnueabihf": "npm:1.16.13"
-    "@swc/core-linux-arm64-gnu": "npm:1.16.13"
-    "@swc/core-linux-arm64-musl": "npm:1.16.13"
-    "@swc/core-linux-ppc64-gnu": "npm:1.16.13"
-    "@swc/core-linux-s390x-gnu": "npm:1.16.13"
-    "@swc/core-linux-x64-gnu": "npm:1.16.13"
-    "@swc/core-linux-x64-musl": "npm:1.16.13"
-    "@swc/core-win32-arm64-msvc": "npm:1.16.13"
-    "@swc/core-win32-ia32-msvc": "npm:1.16.13"
-    "@swc/core-win32-x64-msvc": "npm:1.16.13"
+    "@swc/core-darwin-arm64": "npm:1.16.20"
+    "@swc/core-darwin-x64": "npm:1.16.20"
+    "@swc/core-linux-arm-gnueabihf": "npm:1.16.20"
+    "@swc/core-linux-arm64-gnu": "npm:1.16.20"
+    "@swc/core-linux-arm64-musl": "npm:1.16.20"
+    "@swc/core-linux-ppc64-gnu": "npm:1.16.20"
+    "@swc/core-linux-s390x-gnu": "npm:1.16.20"
+    "@swc/core-linux-x64-gnu": "npm:1.16.20"
+    "@swc/core-linux-x64-musl": "npm:1.16.20"
+    "@swc/core-win32-arm64-msvc": "npm:1.16.20"
+    "@swc/core-win32-ia32-msvc": "npm:1.16.20"
+    "@swc/core-win32-x64-msvc": "npm:1.16.20"
     "@swc/counter": "npm:^0.1.3"
     "@swc/types": "npm:^0.1.28"
   peerDependencies:
@@ -1781,7 +1791,7 @@ __metadata:
   peerDependenciesMeta:
     "@swc/helpers":
       optional: true
-  checksum: 10/f90e98685ffa43be9a49ea17b02482dab6f1455e0cb9aacbacae47b829cc9aaeaeaa70c23d32dd7a6d179e02890b6ad52ec78ce81ef5c14fa2025b6225066ae0
+  checksum: 10/0468ff010246a684d25099f4853b5bb6a631f03a01900b77177cb4a22cf39b914358e1189b98bc5fe7ae354c65e3e784767499fc68a44bffa5c4ad77b2084b00
   languageName: node
   linkType: hard
 
@@ -2647,9 +2657,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "ante@workspace:Source/Ante"
   dependencies:
-    "@cratis/arc": "npm:^22.44.2"
-    "@cratis/arc.react": "npm:^22.44.2"
-    "@cratis/arc.vite": "npm:^22.44.2"
+    "@cratis/arc": "npm:^22.146.0"
+    "@cratis/arc.react": "npm:^22.146.0"
+    "@cratis/arc.vite": "npm:^22.146.0"
     "@cratis/components": "npm:^4.23.0"
     "@cratis/components.primereact": "npm:^4.23.0"
     "@cratis/fundamentals": "npm:^7.19.8"
