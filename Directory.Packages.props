@@ -5,13 +5,13 @@
   <ItemGroup>
     <!-- Cratis — keep the public Cratis / Arc family aligned so generated self-bindings and runtime
          contracts are built against the same Chronicle contract generation. -->
-    <PackageVersion Include="Cratis" Version="22.153.0" />
+    <PackageVersion Include="Cratis" Version="22.153.1" />
     <PackageVersion Include="Cratis.Arc" Version="22.30.1" />
-    <PackageVersion Include="Cratis.Arc.ProxyGenerator.Build" Version="22.153.0" />
-    <PackageVersion Include="Cratis.Arc.Chronicle.Testing" Version="22.153.0" />
-    <PackageVersion Include="Cratis.Arc.MongoDB" Version="22.153.0" />
+    <PackageVersion Include="Cratis.Arc.ProxyGenerator.Build" Version="22.153.1" />
+    <PackageVersion Include="Cratis.Arc.Chronicle.Testing" Version="22.153.1" />
+    <PackageVersion Include="Cratis.Arc.MongoDB" Version="22.153.1" />
     <PackageVersion Include="Cratis.Arc.Core" Version="22.30.1" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.29.0" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.30.0" />
     <!-- Keep Chronicle clients and testing support on the same release. -->
     <PackageVersion Include="Cratis.Chronicle" Version="19.114.0" />
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.114.0" />
@@ -26,7 +26,7 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" NoWarn="NU5104" />
     <PackageVersion Include="Roslynator.Analyzers" Version="5.0.1" />
-    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.317" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.318" />
     <!-- Microsoft -->
     <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.23.0" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
