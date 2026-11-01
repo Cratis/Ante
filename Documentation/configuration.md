@@ -13,7 +13,8 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 | `Ante:Namespace` | string | `Default` | unset / unset | Fixed for this instance; nonempty at startup. No automatic history migration on change. |
 | `Ante:HostStores` | list of strings | `["Direct"]` | unset / unset | Trusted host outbox stores to receive from. Each has a separate `inbox-{store}` reactor and subscription. Cannot be empty, contain blank/duplicate entries, or include `Ante:EventStore` (ordinal comparisons). Restart after changing. |
 | `Ante:InboxSourceStore` | string | unset | unset / unset | Deprecated single-store alias. Used only if `HostStores` is absent; both settings may coexist only if the list has exactly the same one source. An explicitly empty value fails startup. |
-| `Ante:Legal:Source` | `InProcess` or `Inbox` | `InProcess` | unset / unset | InProcess preserves registered `ILegalDocumentSource` behavior, including no-step when it returns null. Inbox blocks onboarding until the first activated host set. Invalid values fail startup. |
+| `Ante:Legal:Source` | `InProcess`, `Files` or `Inbox` | `InProcess` | unset / unset | InProcess preserves registered `ILegalDocumentSource` behavior, including no-step when it returns null. Files reads the set from `Ante:Legal:Files` and versions it by content. Inbox blocks onboarding until the first activated host set. Invalid values fail startup. |
+| `Ante:Legal:Files:Folder`, `TermsAndConditions`, `PrivacyPolicy` | string paths | unset | unset / unset | Files mode only. Either set both document paths, or a `Folder` holding `terms.md` and `privacy.md` (`.html` and `.txt` also read; `terms-and-conditions` and `privacy-policy` are accepted names). Explicit paths win over the folder. A document that does not exist fails startup; one that becomes unreadable later blocks onboarding as unavailable instead of skipping the legal step. |
 | `Ante:Legal:PublisherStore` | string | unset | unset / unset | Required only in Inbox mode; must match one `Ante:HostStores` entry exactly. |
 | `Ante:Legal:DocumentSetId` | string | unset | unset / unset | Required only in Inbox mode; stable nonempty non-GUID outbox event-source id for the one document set, shared with the publisher. Do not change it without migrating the local legal history. |
 | `Ante:Health:HostInboxRecoveryGracePeriod` | `TimeSpan` | `00:03:00` | unset / unset | Continuous host-inbox unavailability tolerated by `/healthz` before returning 503 so the orchestrator can restart the instance. Positive `TimeSpan`, at most one day. `/healthz/ready` fails immediately; recovery resets the timer. |
@@ -36,6 +37,46 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 | `Ante:Organization:ReservedNames` | string array | empty | unset / unset | Names nobody can claim, compared ignoring case (for example `admin`, `app`, `api`). |
 | `Ante:DefaultLocale` | string | `en` | unset / unset | Default when no stored preference, allowed link hint, or browser language matches. `en`, `nb-NO` (also `nb` or `no` aliases); must be in the allowlist. |
 | `Ante:SupportedLocales` | string array | `en`, `nb-NO` when unset | unset / unset | Deployment allowlist, restricted to the bundled languages; nonempty, distinct. Set only `Ante__SupportedLocales__0=en` for an English-only deployment; configured entries replace the fallback rather than extending it. Unknown entries or a default outside the list fail startup. See [Customization](./customization.md#choose-the-lobby-language). |
+
+## Onboarding contract (Screenplay applications)
+
+A Screenplay application with an `onboarding` block gets onboarding as a service: **one Ante per application**. `cratis run` and Stage Manager produce the contract below from the model and a Cratis environment, so nobody writes the equivalent `Ante:*` keys by hand. Set `Ante:Onboarding:Enabled=true` to apply it. While it is `false` or absent, every `Ante:Onboarding:*` key is ignored and the settings above work exactly as before. When it is enabled, each value it carries is mapped onto the existing key and **wins over it**, including values from `appsettings.json`; keys it does not carry keep their normal source.
+
+| Key | Type | Maps to | Notes |
+| --- | --- | --- | --- |
+| `Ante:Onboarding:Enabled` | bool | none | Applies the contract. Default `false`. |
+| `HostStore` | string | `Ante:HostStores` (one entry) | The application's own Chronicle store, the only host store Ante observes. Required unless development mode is on (then it defaults to `Application`). |
+| `EventStore`, `Namespace` | string | `Ante:EventStore`, `Ante:Namespace` | Optional. Ante's own store and fixed namespace. |
+| `PublicBaseUrl` | absolute URL | `Ante:Invitations:Token:PublicBaseUrl` | Where users reach this Ante. HTTPS, or HTTP on loopback. |
+| `ApplicationUrl` | URL | `Ante:HostAppUrl` | Where people are sent when onboarding completes. |
+| `SignUp` | `CreateTenant` or `JoinTenant` | `Ante:Registration:Enabled` | `CreateTenant` (default) lets self-service registration create a tenant. `JoinTenant` closes `/register`: people only join existing tenants by invitation. |
+| `RegistrationEnabled` | bool, default `true` | `Ante:Registration:Enabled` | Registration on or off. Always off when `SignUp` is `JoinTenant`. |
+| `InvitationTypes` | list of `JoinTenant`, `CreateTenant` | none (runtime check) | Invitation types the application allows; unset allows both. An invitation of another type is rejected with `InvitationTypeNotAllowed` and no token. |
+| `Personas` | list of persona names | none (runtime check) | Personas an invitation may grant. An invitation whose `Roles` include a name outside the list is rejected with `PersonaNotGrantable` and no token; unset or empty accepts any role. Names compare ordinally. |
+| `DefaultLocale`, `AllowedLocales` | string, list | `Ante:DefaultLocale`, `Ante:SupportedLocales` | Same rules as those keys. |
+| `Legal:Folder`, `Legal:TermsAndConditions`, `Legal:PrivacyPolicy` | paths | `Ante:Legal:Source=Files`, `Ante:Legal:Files:*` | Legal terms are files in a mounted folder. Omit `Legal` for no legal step. |
+| `Secrets:Path` | folder | any key | A mounted folder, one file per setting, named after the key with `__` for `:` (`Ante__Invitations__Token__PrivateKeyPem`), as a Kubernetes secret volume provides. The file content is the value; a trailing newline is removed. Files whose name starts with `.` are skipped. |
+| `Secrets:SigningKeyFile` | file path | `Ante:Invitations:Token:PrivateKeyPem` | PEM RSA private key (at least 2048 bits) used to sign invitations. |
+| `Secrets:VerificationKeyFile` | file path | `Ante:Invitations:Token:PublicKeyPem` | Optional additional trusted public key. |
+| `Development:Enabled`, `Development:DataPath` | bool, folder | none | See [Development mode](#development-mode). |
+
+**Secrets** are the signing private key and, in Attested exchange, the attestation public keys (`Ante:Invitations:Exchange:Attestation:PublicKeys`, which are public but must be pinned from a trusted source). Provide them only through the mounted files above or standard configuration (environment variables, a secret volume or a secret manager provider). Ante accepts no secret on the command line and logs none of their values: configuration errors name the setting, never its content.
+
+The legal, signing and exchange keys that the contract does not carry (for example the Attested exchange settings, `Issuer`, `Audience` and `Expiry`) are still configured under `Ante:Invitations`. The same instance still needs `Cratis:Chronicle:ConnectionString` and `Cratis:MongoDB`, normally supplied by the Cratis environment.
+
+### Legal terms from files
+
+`Ante:Legal:Source=Files` presents the two documents from files. The version of the set is `sha256-` followed by the first 16 hex characters of a SHA-256 over both bodies, so identical content always has the same version and editing either file publishes a new one that everyone who is onboarding afterwards must accept. The set is read on every request, so a change to a mounted file takes effect without a restart. Acceptance is required before onboarding completes and is recorded and published as `LegalTermsAccepted` carrying that version; the bodies live in your files, so archive each version for consent audit. Unlike Inbox mode, Ante does not publish `LegalDocumentSetActivated` for a file set.
+
+### Development mode
+
+`Ante:Onboarding:Development:Enabled=true` (with `Ante:Onboarding:Enabled=true`) is for `cratis run`: nothing needs configuring and no secret is committed.
+
+- A 2048-bit RSA signing key is generated on first start and persisted as `invitation-signing-key.pem` in `Development:DataPath` (default `.ante-development` in the content root, ignored by Git), so it is per data volume and stable between runs. Delete the folder to rotate it.
+- HTTP on loopback is allowed for `PublicBaseUrl`, which Ante already permits.
+- One host store, `Application` unless `HostStore` is set. No deployment fixture is needed.
+
+Ante refuses to start in development mode when the environment looks like production: the environment name is `Production`, `Prod`, `Live`, `Staging`, `Stage` or `Preprod`, a Kubernetes pod is detected (`KUBERNETES_SERVICE_HOST`), or `PublicBaseUrl` or `ApplicationUrl` is not a loopback or `*.localhost` address. Never copy a development key to another environment. An explicit `Secrets:SigningKeyFile` is overridden by the generated key in development mode, so leave it out there.
 
 ## Signing options (`Ante:Invitations:Token`)
 

@@ -86,6 +86,16 @@ To send an invitee a fresh link - they lost the email, or the link expired - app
 
 Ante refuses an organization name, ignoring case, that is claimed by an earlier invited creation or registration, reserved by the host, or listed in `Ante:Organization:ReservedNames`. Before routing onboarding traffic to Ante, publish `OrganizationNameReserved` for every organization the host already has, so a new registration cannot collide with an existing tenant. When the host deletes an organization and its name may be used again, publish `OrganizationNameReleased`; Ante releases every claim it holds for that name. Both events are received from any `Ante:HostStores` source. The host's own uniqueness rule stays authoritative: Ante's registry prevents the obvious collision early, it does not replace the check during provisioning.
 
+## Screenplay applications
+
+A Screenplay application with an `onboarding` block does not wire a host product by hand. Cratis runs **one Ante per application**, configured from the [onboarding contract](./configuration.md#onboarding-contract-screenplay-applications) that `cratis run` and Stage Manager produce from the model and a Cratis environment. The application is the host:
+
+1. `Ante:Onboarding:HostStore` is the application's own Chronicle store. The application appends `UserInvitedToJoinTenant` or `UserInvitedToCreateTenant` to that store's outbox, exactly as in [Connect the event stores](#connect-the-event-stores), and consumes Ante's outbox events from the Ante store.
+2. Invitations carry the personas declared in the model in `Roles`. With `Personas` configured, Ante rejects an invitation that grants anything else: it publishes `InvitationRejected(PersonaNotGrantable)` and issues no token. The application should validate against its own persona list first, so this is a second line of defense, and must observe generation 4 of `InvitationRejected`. Likewise `InvitationTypes` rejects a type the model does not allow with `InvitationTypeNotAllowed`.
+3. Legal terms are files referenced by the model. Ante presents them, versions them by content and blocks onboarding until they are accepted.
+4. Ante sends no email. The application sends the invitation link, through Herald, using the `InvitationTokenIssued` token.
+5. `InvitationToJoinTenantAccepted`, `InvitationToCreateTenantAccepted`, `OrganizationRegistrationCompleted` and `LegalTermsAccepted` still mean **published to Ante's outbox, not provisioned**. Stage renders provisioning for the application; make it idempotent by event source id and event kind.
+
 ## Offer self-service signup
 
 `/register` is on by default; set `Ante:Registration:Enabled=false` on a deployment that should only onboard invited people, and use it as a kill switch during abuse. For a public signup link (for example a "Start free trial" button on a marketing site):

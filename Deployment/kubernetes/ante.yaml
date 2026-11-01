@@ -31,6 +31,16 @@ data:
   Ante__Legal__PublisherStore: "<HostStore>"
   Ante__Legal__DocumentSetId: "<host>-legal"
 
+  # Alternative for a Screenplay application: replace the host, legal and registration keys with the
+  # onboarding contract, which maps onto them (see Documentation/configuration.md). The signing key still
+  # comes from the Secret below.
+  # Ante__Onboarding__Enabled: "true"
+  # Ante__Onboarding__HostStore: "<ApplicationStore>"
+  # Ante__Onboarding__PublicBaseUrl: "https://<lobby.example.com>"
+  # Ante__Onboarding__ApplicationUrl: "https://<app.example.com>/"
+  # Ante__Onboarding__Personas__0: "<PersonaName>"
+  # Ante__Onboarding__Legal__Folder: "/etc/ante/legal"   # mount terms.md and privacy.md here
+
   # Optional host backchannels (cluster-internal URLs only).
   Ante__IdentityBackchannelUrl: "http://<host-service>/api/internal/identity-providers"
   Ante__HostOutcomeUrl: "http://<host-service>/api/internal/onboarding"

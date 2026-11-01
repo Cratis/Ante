@@ -85,6 +85,22 @@ axe violations of serious or critical impact fail the run, except the ones liste
 
 The `Browser end-to-end` job in `.github/workflows/integration.yml` runs the suite on the same triggers as the container-backed specifications, with the `PRIMEUI_LICENSE` secret. A pull request from a fork or from Dependabot does not receive the secret, so the job is skipped there with a notice. A failed run uploads the Playwright report and traces as the `browser-e2e-report` artifact.
 
+## Run Ante as a Screenplay application's onboarding service
+
+`cratis run` starts one Ante for a Screenplay application with no `Ante:*` configuration and no secrets. With MongoDB and Chronicle running, the equivalent by hand is:
+
+```bash
+cd Source/Ante
+Ante__Onboarding__Enabled=true \
+Ante__Onboarding__Development__Enabled=true \
+Ante__Onboarding__HostStore=Application \
+Ante__Onboarding__PublicBaseUrl=http://localhost:5002 \
+ASPNETCORE_ENVIRONMENT=Development \
+dotnet run --urls http://localhost:5002
+```
+
+Ante generates a signing key into `Source/Ante/.ante-development/` on first start and reuses it afterwards; the folder is ignored by Git. Add `Ante__Onboarding__Legal__Folder=<folder>` to present `terms.md` and `privacy.md` from a folder, and `Ante__Onboarding__Personas__0=Owner` to restrict grantable personas. Development mode is refused when the environment name is production-like, in Kubernetes, or when a configured URL is not loopback. See [Configuration](./configuration.md#onboarding-contract-screenplay-applications).
+
 ## Run a development server
 
 With MongoDB and Chronicle independently configured:
