@@ -47,6 +47,12 @@ public class AnteOptions
     public LegalOptions Legal { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets the onboarding contract of a Screenplay application. Inert unless
+    /// <c language="csharp">Ante:Onboarding:Enabled</c> is true; see <see cref="Onboarding.OnboardingConfiguration"/>.
+    /// </summary>
+    public Onboarding.OnboardingOptions Onboarding { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets how self-service registration behaves for this deployment.
     /// </summary>
     public RegistrationOptions Registration { get; set; } = new();

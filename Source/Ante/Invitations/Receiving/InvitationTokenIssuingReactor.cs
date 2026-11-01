@@ -35,15 +35,17 @@ namespace Ante.Invitations.Receiving;
 /// <param name="logger">The warning logger for invalid invitation ids and deferred issuance.</param>
 /// <param name="exchange">The selected exchange mode.</param>
 /// <param name="token">The signing configuration; when absent, a key is assumed to be configured.</param>
+/// <param name="ante">The deployment options; when absent, no onboarding contract restricts invitations.</param>
 [Reactor]
 public class InvitationTokenIssuingReactor(
     IInvitationTokenIssuer tokenIssuer,
     IEventStore eventStore,
     ILogger<InvitationTokenIssuingReactor> logger,
     IOptions<InvitationExchangeConfig>? exchange = null,
-    IOptions<InvitationTokenConfig>? token = null) : IReactor
+    IOptions<InvitationTokenConfig>? token = null,
+    IOptions<AnteOptions>? ante = null) : IReactor
 {
-    readonly InvitationTokenIssuance _issuance = new(tokenIssuer, eventStore, logger, exchange, token);
+    readonly InvitationTokenIssuance _issuance = new(tokenIssuer, eventStore, logger, exchange, token, ante);
 
     /// <summary>
     /// Issues a join-tenant token and forwards it to the outbox, or defers it while no signing key is configured.

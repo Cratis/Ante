@@ -14,6 +14,7 @@ using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Legal.Receiving;
 using Ante.Locale;
+using Ante.Onboarding;
 using Ante.Organization.Registration;
 using Cratis.Arc;
 using Cratis.Arc.MongoDB;
@@ -39,6 +40,9 @@ var builder = WebApplication.CreateBuilder(args);
 // store and/or namespace purely by setting Ante:EventStore / Ante:Namespace (Ante__EventStore /
 // Ante__Namespace as environment variables) differently - no code change, no rebuild.
 // Validate and freeze the trusted host sources at startup; no routing hot reload.
+// A Screenplay application's onboarding contract (Ante:Onboarding) is mapped onto the Ante:* keys before they are
+// read, so nothing below knows whether it was written by hand or produced by cratis run or Stage Manager.
+OnboardingConfiguration.Apply(builder.Configuration, builder.Environment);
 var anteConfiguration = builder.Configuration.GetSection("Ante");
 var anteOptions = anteConfiguration.Get<AnteOptions>() ?? new AnteOptions();
 AnteRoutingValidator.Validate(anteOptions, anteConfiguration);
@@ -123,6 +127,10 @@ builder.Services.AddScoped<IOrganizationSetupPublicationFacts, OrganizationSetup
 if (anteOptions.Legal.Source == "Inbox")
 {
     builder.Services.AddScoped<ILegalDocumentSource, InboxLegalDocumentSource>();
+}
+else if (anteOptions.Legal.Source == "Files")
+{
+    builder.Services.AddSingleton<ILegalDocumentSource, FileLegalDocumentSource>();
 }
 else
 {
