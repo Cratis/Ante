@@ -10,4 +10,7 @@ internal static partial class InvitationTokenIssuingReactorLogging
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "No invitation signing key is configured; the invitation waits and its token is issued once an instance with a key runs")]
     internal static partial void LogIssuanceDeferred(this ILogger<InvitationTokenIssuingReactor> logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Invitation rejected by the onboarding configuration: {Reason}; no token is issued")]
+    internal static partial void LogInvitationRestricted(this ILogger<InvitationTokenIssuingReactor> logger, InvitationRejectionReason reason);
 }

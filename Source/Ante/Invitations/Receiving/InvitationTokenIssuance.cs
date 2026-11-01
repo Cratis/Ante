@@ -5,6 +5,7 @@ using Ante.Invitations.Accepting;
 using Ante.Invitations.Issuing;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.UserSetup;
+using Ante.Onboarding;
 using Microsoft.Extensions.Options;
 
 namespace Ante.Invitations.Receiving;
@@ -18,12 +19,14 @@ namespace Ante.Invitations.Receiving;
 /// <param name="logger">The reactor's logger.</param>
 /// <param name="exchange">The selected exchange mode.</param>
 /// <param name="token">The signing configuration; when absent, a key is assumed to be configured.</param>
+/// <param name="ante">The deployment options; when absent, no onboarding contract restricts invitations.</param>
 internal sealed class InvitationTokenIssuance(
     IInvitationTokenIssuer tokenIssuer,
     IEventStore eventStore,
     ILogger<InvitationTokenIssuingReactor> logger,
     IOptions<InvitationExchangeConfig>? exchange,
-    IOptions<InvitationTokenConfig>? token)
+    IOptions<InvitationTokenConfig>? token,
+    IOptions<AnteOptions>? ante = null)
 {
     static readonly EventType[] _triggerTypes =
     [
@@ -160,6 +163,14 @@ internal sealed class InvitationTokenIssuance(
         };
         if (email is null)
         {
+            return null;
+        }
+
+        var restriction = ante is null ? null : OnboardingPolicy.Restriction(ante.Value.Onboarding, receipt);
+        if (restriction is { } reason)
+        {
+            logger.LogInvitationRestricted(reason);
+            await InvitationTokenOutbox.Publish(eventStore, trigger, deliveries, () => new InvitationRejected(reason));
             return null;
         }
 

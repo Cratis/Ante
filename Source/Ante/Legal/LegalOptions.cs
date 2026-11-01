@@ -14,6 +14,11 @@ public class LegalOptions
     public string Source { get; set; } = "InProcess";
 
     /// <summary>
+    /// Gets or sets the files the Files source reads the set from.
+    /// </summary>
+    public LegalFilesOptions Files { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets the trusted host store that publishes the set.
     /// </summary>
     public string? PublisherStore { get; set; }
@@ -36,6 +41,17 @@ public class LegalOptions
             return;
         }
 
+        if (legal.Source == "Files")
+        {
+            if (legal.PublisherStore is not null || legal.DocumentSetId is not null)
+            {
+                throw new LegalSourceConfigurationInvalid();
+            }
+
+            FileLegalDocumentSource.Validate(legal.Files);
+            return;
+        }
+
         if (legal.Source != "Inbox" || string.IsNullOrWhiteSpace(legal.PublisherStore) ||
             string.IsNullOrWhiteSpace(legal.DocumentSetId) ||
             !options.HostStores!.Contains(legal.PublisherStore, StringComparer.Ordinal) ||
@@ -50,5 +66,5 @@ public class LegalOptions
 /// The exception that is thrown when the configured legal source is not a trusted, unambiguous route.
 /// </summary>
 public class LegalSourceConfigurationInvalid() : Exception(
-    "Ante:Legal:Source must be InProcess or Inbox. Inbox requires Ante:Legal:PublisherStore in Ante:HostStores " +
+    "Ante:Legal:Source must be InProcess, Files or Inbox. Files reads the set from Ante:Legal:Files and uses no publisher settings. Inbox requires Ante:Legal:PublisherStore in Ante:HostStores " +
     "and a nonempty, non-GUID Ante:Legal:DocumentSetId; these settings are not used in InProcess mode.");
