@@ -467,6 +467,10 @@
     ],
     "title": "OrganizationNameReserved"
   },
+  "OrganizationRegistrationApproved:1": {
+    "type": "object",
+    "title": "OrganizationRegistrationApproved"
+  },
   "OrganizationRegistrationCompleted:2": {
     "type": "object",
     "properties": {
@@ -609,5 +613,81 @@
       "email"
     ],
     "title": "OrganizationRegistrationCompleted"
+  },
+  "OrganizationRegistrationDeclineRequested:1": {
+    "type": "object",
+    "properties": {
+      "message": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      }
+    },
+    "required": [
+      "message"
+    ],
+    "title": "OrganizationRegistrationDeclineRequested"
+  },
+  "OrganizationRegistrationDeclined:1": {
+    "type": "object",
+    "properties": {
+      "email": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "firstName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "middleName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "lastName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "message": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      }
+    },
+    "required": [
+      "email",
+      "firstName",
+      "middleName",
+      "lastName",
+      "message"
+    ],
+    "title": "OrganizationRegistrationDeclined"
   }
 }
