@@ -35,6 +35,13 @@ public record OrganizationRegistrationHeld(
     /// <returns>The registration as it would have been recorded without review.</returns>
     public OrganizationRegistrationRecorded ToRecorded() => new(
         TenantName, Subject, IdentityProvider, FirstName, MiddleName, LastName, Email, SignupContext);
+
+    /// <summary>
+    /// Gets the public outcome that tells the host a reviewer is needed.
+    /// </summary>
+    /// <returns>The event the host observes.</returns>
+    public OrganizationRegistrationAwaitingReview ToContract() => new(
+        TenantName, Subject, IdentityProvider, FirstName, MiddleName, LastName, Email, SignupContext);
 }
 
 /// <summary>

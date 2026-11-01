@@ -300,6 +300,15 @@ public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf
         await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger, announceRecorded: true);
 
     /// <summary>
+    /// Forwards the held registration to the outbox as <see cref="OrganizationRegistrationAwaitingReview"/>, so the host's reviewer can decide.
+    /// </summary>
+    /// <param name="event">The event.</param>
+    /// <param name="context">The event context.</param>
+    /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
+    public Task On(OrganizationRegistrationHeld @event, EventContext context, ReactorDelivery delivery) =>
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger);
+
+    /// <summary>
     /// Forwards the decision to decline a held registration to the outbox as <see cref="OrganizationRegistrationDeclined"/>.
     /// </summary>
     /// <param name="event">The event.</param>
