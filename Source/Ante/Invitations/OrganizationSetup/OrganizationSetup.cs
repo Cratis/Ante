@@ -11,6 +11,7 @@ using Ante.Legal;
 using Ante.Organization;
 using Ante.Organization.Names;
 using Ante.Organization.Registration;
+using Ante.Organization.Registration.Review;
 using Ante.Outbox;
 using Ante.Resources;
 using Cratis.Chronicle.EventSequences.Concurrency;
@@ -43,6 +44,17 @@ public enum OrganizationSetupAcceptanceStatus
     /// to hand off to the host.
     /// </summary>
     Accepted,
+
+    /// <summary>
+    /// A self-service registration is held for review: nothing is published to the host and the person
+    /// has to wait for a reviewer's decision. Not a failure and not safe to resubmit.
+    /// </summary>
+    Held,
+
+    /// <summary>
+    /// A reviewer declined a self-service registration held for review. The host tells the person why.
+    /// </summary>
+    Declined,
 }
 
 /// <summary>
@@ -384,6 +396,14 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
             !signedInIdentity.IsVerifiedRegistrationOwner(new RegistrationOwner(ownerSubject, ownerProvider)))
         {
             return unknown;
+        }
+
+        // A registration held for review has not been set up and must not read as recorded: the person is
+        // waiting for a reviewer, not for publication.
+        var review = await RegistrationReview.Read(eventStore, registrationId);
+        if (review.State != RegistrationReviewState.NotHeld && review.OrganizationName is { } requested)
+        {
+            return new(registrationId, review.State == RegistrationReviewState.Held ? OrganizationSetupAcceptanceStatus.Held : OrganizationSetupAcceptanceStatus.Declined, requested);
         }
 
         // The owner check above is the only authorization; the facts only decide how far along the setup is.

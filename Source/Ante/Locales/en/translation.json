@@ -87,6 +87,8 @@
         "startUnavailable": "We couldn't start this registration. Please try again or sign in with the account that started it.",
         "hostAppUrlUnavailable": "Organization was registered, but we could not determine where to take you next. Please contact support.",
         "startNewRegistration": "Register a different organization",
+        "waitingForReview": "Your sign-up is waiting for review. We'll email you when there is a decision.",
+        "declined": "Your sign-up was not approved. We'll email you the reason.",
         "closed": "Sign-up is not available right now.",
         "closedLink": "Find out more",
         "pricingLink": "See pricing",

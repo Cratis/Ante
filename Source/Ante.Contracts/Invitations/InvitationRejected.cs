@@ -78,6 +78,12 @@ public enum InvitationRejectionReasonV1
 /// Published to Ante's outbox on the host's original event source id when an inbound invitation
 /// cannot be accepted. No token is minted for a rejected invitation.
 /// </summary>
+/// <remarks>
+/// A rejection says the invitation did not match what the host allows: a mistake in the invitation or in the
+/// host's configuration, not a decision about the person. Hosts should treat it as a configuration problem for
+/// whoever issued the invitation and must not answer it with a message to the invitee. A sign-up that a reviewer
+/// declines is published as <c language="csharp">OrganizationRegistrationDeclined</c> instead.
+/// </remarks>
 /// <param name="Reason">Why the invitation was rejected.</param>
 [EventType(generation: 4)]
 public record InvitationRejected(InvitationRejectionReason Reason);

@@ -18,4 +18,8 @@ export const shouldRecheckRegistrationStatus = (
     hasData: boolean,
     status?: OrganizationSetupAcceptanceStatus) =>
     isRegistration && isSubmittedOrRecovering && !recoveryExpired &&
-    (!hasData || status !== OrganizationSetupAcceptanceStatus.accepted);
+    (!hasData || (status !== OrganizationSetupAcceptanceStatus.accepted && !isDecidedByReview(status)));
+
+/** A registration held for review, or declined by a reviewer, only changes when a person decides - there is nothing to poll for. */
+export const isDecidedByReview = (status?: OrganizationSetupAcceptanceStatus) =>
+    status === OrganizationSetupAcceptanceStatus.held || status === OrganizationSetupAcceptanceStatus.declined;

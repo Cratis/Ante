@@ -5,6 +5,7 @@ using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
 using Ante.Invitations.Accepting;
 using Ante.Legal.Receiving;
+using Ante.Organization.Registration.Review;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventStoreSubscriptions;
 using Cratis.Chronicle.Reactors;
@@ -101,7 +102,8 @@ public class IncomingInvitationSubscriptions(
                     logger,
                     exchange,
                     source,
-                    new LegalDocumentSetReceiver(store, Options.Create(options)));
+                    new LegalDocumentSetReceiver(store, Options.Create(options)),
+                    options.Registration.Review ? new RegistrationReviewReceiver(store, logger) : null);
                 var receivesLegal = options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore;
                 await store.Reactors.Register(
                     ReactorIdFor(source),
@@ -117,6 +119,12 @@ public class IncomingInvitationSubscriptions(
                         if (receivesLegal)
                         {
                             configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(LegalDocumentSetPublished)));
+                        }
+
+                        if (options.Registration.Review)
+                        {
+                            configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationRegistrationApproved)))
+                                .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationRegistrationDeclineRequested)));
                         }
                     },
                     async (delivery, _) =>
@@ -152,6 +160,12 @@ public class IncomingInvitationSubscriptions(
                     if (options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore)
                     {
                         definition.WithEventType<LegalDocumentSetPublished>();
+                    }
+
+                    if (options.Registration.Review)
+                    {
+                        definition.WithEventType<OrganizationRegistrationApproved>()
+                            .WithEventType<OrganizationRegistrationDeclineRequested>();
                     }
                 }).WaitAsync(cancellationToken);
             lock (_readinessLock)

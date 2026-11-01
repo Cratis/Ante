@@ -36,6 +36,12 @@ describe('when selecting onboarding status queries', () => {
     it('should stop rechecking when the registration is published', () =>
         shouldRecheckRegistrationStatus(true, true, false, true, OrganizationSetupAcceptanceStatus.accepted).should.be.false);
 
+    it('should stop rechecking when the registration is held for review', () =>
+        shouldRecheckRegistrationStatus(true, true, false, true, OrganizationSetupAcceptanceStatus.held).should.be.false);
+
+    it('should stop rechecking when the registration was declined', () =>
+        shouldRecheckRegistrationStatus(true, true, false, true, OrganizationSetupAcceptanceStatus.declined).should.be.false);
+
     it('should not recheck registration status in invited flows', () =>
         shouldRecheckRegistrationStatus(false, true, false, false).should.be.false);
 });

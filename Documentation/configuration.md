@@ -32,6 +32,7 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 | `Ante:Registration:Window` | TimeSpan | `30.00:00:00` | unset / unset | Sliding window for `MaxPerIdentity`; must be positive when a limit is set. |
 | `Ante:Registration:RequestsPerMinutePerClient` | int | `0` (off) | unset / unset | Fixed-window rate limit per client address on `/api/organization/registration*`. |
 | `Ante:Registration:TrustForwardedFor` | bool | `false` | unset / unset | Use the first `X-Forwarded-For` entry as the client address. Enable only behind a proxy that overwrites the header. |
+| `Ante:Registration:Review` | bool | `false` | unset / unset | `true` holds a completed sign-up for review instead of completing it: nothing is published until the host appends `OrganizationRegistrationApproved` (Ante then publishes `OrganizationRegistrationCompleted`) or `OrganizationRegistrationDeclineRequested` (Ante publishes `OrganizationRegistrationDeclined`). See [Review sign-ups](./host-integration.md#review-sign-ups-before-they-complete). |
 | `Ante:Registration:ContextKeys` | string array | empty | unset / unset | Query-string keys carried from `/register` into `OrganizationRegistrationCompleted.SignupContext`. At most 16, letters/digits/`_-.` only. |
 | `Ante:Registration:Content:{locale}:*` | object | none | unset / unset | `Title`, `Intro`, `Highlights` (array), `PricingUrl`, `LoginUrl`, `CompletionMessage`. Resolved by exact locale, then language, then `en`. Links must be https or same-origin paths. |
 | `Ante:Organization:ReservedNames` | string array | empty | unset / unset | Names nobody can claim, compared ignoring case (for example `admin`, `app`, `api`). |
@@ -51,6 +52,7 @@ A Screenplay application with an `onboarding` block gets onboarding as a service
 | `ApplicationUrl` | URL | `Ante:HostAppUrl` | Where people are sent when onboarding completes. |
 | `SignUp` | `CreateTenant` or `JoinTenant` | `Ante:Registration:Enabled` | `CreateTenant` (default) lets self-service registration create a tenant. `JoinTenant` closes `/register`: people only join existing tenants by invitation. |
 | `RegistrationEnabled` | bool, default `true` | `Ante:Registration:Enabled` | Registration on or off. Always off when `SignUp` is `JoinTenant`. |
+| `RegistrationReview` | bool, default `false` | `Ante:Registration:Review` | Holds a completed sign-up for the application's review; see [Review sign-ups](./host-integration.md#review-sign-ups-before-they-complete). |
 | `InvitationTypes` | list of `JoinTenant`, `CreateTenant` | none (runtime check) | Invitation types the application allows; unset allows both. An invitation of another type is rejected with `InvitationTypeNotAllowed` and no token. |
 | `Personas` | list of persona names | none (runtime check) | Personas an invitation may grant. An invitation whose `Roles` include a name outside the list is rejected with `PersonaNotGrantable` and no token; unset or empty accepts any role. Names compare ordinally. |
 | `DefaultLocale`, `AllowedLocales` | string, list | `Ante:DefaultLocale`, `Ante:SupportedLocales` | Same rules as those keys. |

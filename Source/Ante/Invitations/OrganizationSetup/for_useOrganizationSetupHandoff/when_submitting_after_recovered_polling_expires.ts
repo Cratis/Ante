@@ -92,3 +92,24 @@ describe('when a recovered registration is submitted after its initial polling w
         render().phase.should.equal('hostOutcome');
     });
 });
+
+describe('when a submitted registration is held for review', () => {
+    afterEach(() => { harness.reset(); vi.useRealTimers(); });
+
+    it('should show it is held, and keep showing it after the waiting window, without polling again', async () => {
+        vi.useFakeTimers();
+        harness.status = { hasData: true, isPerforming: false, data: { invitationId, status: 0, organizationName: '' } };
+        render().markSubmitted();
+        harness.status = { hasData: true, isPerforming: false, data: { invitationId, status: 3, organizationName: 'Acme' } };
+        render().phase.should.equal('heldForReview');
+        const refreshCount = harness.refresh.mock.calls.length;
+        await vi.advanceTimersByTimeAsync(25000);
+        render().phase.should.equal('heldForReview');
+        harness.refresh.mock.calls.length.should.equal(refreshCount);
+    });
+
+    it('should show it was declined once a reviewer declines it', () => {
+        harness.status = { hasData: true, isPerforming: false, data: { invitationId, status: 4, organizationName: 'Acme' } };
+        render().phase.should.equal('declined');
+    });
+});

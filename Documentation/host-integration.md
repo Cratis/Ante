@@ -96,6 +96,19 @@ A Screenplay application with an `onboarding` block does not wire a host product
 4. Ante sends no email. The application sends the invitation link, through Herald, using the `InvitationTokenIssued` token.
 5. `InvitationToJoinTenantAccepted`, `InvitationToCreateTenantAccepted`, `OrganizationRegistrationCompleted` and `LegalTermsAccepted` still mean **published to Ante's outbox, not provisioned**. Stage renders provisioning for the application; make it idempotent by event source id and event kind.
 
+## Review sign-ups before they complete
+
+Set `Ante:Registration:Review=true` (`RegistrationReview` in the onboarding contract) when a person must be approved before an organization is created. It is off by default and nothing changes while it is off. With review on, Ante accepts the sign-up as usual but **holds** it: no `OrganizationRegistrationCompleted` is published, and the person's registration is not complete. The flow is: held, then `OrganizationRegistrationAwaitingReview` published, then your host appends `OrganizationRegistrationApproved` or `OrganizationRegistrationDeclineRequested`, then Ante publishes `OrganizationRegistrationCompleted` or `OrganizationRegistrationDeclined`.
+
+`OrganizationRegistrationAwaitingReview` is published to Ante's outbox once per registration, on the registration id. It carries what a reviewer needs and what `OrganizationRegistrationCompleted` would carry: the organization name asked for, the contact address (can be empty, never verified), the first, middle and last name, the sign-in subject and provider, and the untrusted signup context. Surface it to your reviewers, and deduplicate it by registration id like the other outcomes. Ante has no administrator screen and takes no decision itself; your application's reviewer decides, and your host tells Ante by appending one of these to **your host store's outbox**, with the registration id (the event source id of the sign-up) as the event source id:
+
+- `OrganizationRegistrationApproved`: Ante completes the registration exactly as it would have without review and publishes `OrganizationRegistrationCompleted`.
+- `OrganizationRegistrationDeclineRequested(Message)`: Ante publishes `OrganizationRegistrationDeclined` with the contact address and name the person gave and your reviewer's message. Send the person the "your sign-up was declined" message from this event. `Message` is required; a blank one is refused and nothing is published.
+
+A registration is decided once. A decision for a registration that was completed, was already declined or was never held is ignored, so redelivery is safe and a completed registration is never declined afterwards. If an approved registration's organization name was claimed by someone else while it waited, it stays held and Ante logs a warning; decline it with a message instead. While the sign-up is held, the lobby's registration page tells the person that the sign-up is waiting for review, and after a decline that it was not approved; it stops polling and does not offer a second submission. Your host sends the person the actual message: Ante does not email anyone.
+
+`OrganizationRegistrationDeclined` is the only outcome that says a person was turned down. `InvitationRejected` is not: it says an invitation did not match what the host allows, so treat it as a configuration problem for whoever issued the invitation and never answer it with a message to the invitee.
+
 ## Offer self-service signup
 
 `/register` is on by default; set `Ante:Registration:Enabled=false` on a deployment that should only onboard invited people, and use it as a kill switch during abuse. For a public signup link (for example a "Start free trial" button on a marketing site):
