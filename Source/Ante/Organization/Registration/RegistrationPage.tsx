@@ -178,6 +178,22 @@ const OpenRegistration = ({ configuration }: { configuration: RegistrationConfig
         );
     }
 
+    // A sign-up held for review has been received but is not an organization yet: say so, rather than
+    // spinning as if it were about to complete.
+    if (handoff.phase === 'heldForReview' || handoff.phase === 'declined') {
+        return (
+            <OrganizationSetupFrame subtitle={subtitle}>
+                <div className='organization-setup-card__content'>
+                    <div className='organization-setup-waiting' role='status' aria-live='polite'>
+                        <p className='organization-setup-waiting__message'>
+                            {handoff.phase === 'heldForReview' ? strings.registration.waitingForReview : strings.registration.declined}
+                        </p>
+                    </div>
+                </div>
+            </OrganizationSetupFrame>
+        );
+    }
+
     if (handoff.phase === 'hostOutcome') {
         return (
             <OrganizationSetupFrame subtitle={subtitle}>

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Guid } from '@cratis/fundamentals';
 import { StatusForInvitation, StatusForRegistration } from './OrganizationSetup';
 import { OrganizationSetupAcceptanceStatus } from './OrganizationSetupAcceptanceStatus';
-import { organizationStatusIds, shouldRecheckRegistrationStatus } from './organizationStatusAccess';
+import { isDecidedByReview, organizationStatusIds, shouldRecheckRegistrationStatus } from './organizationStatusAccess';
 import { startRegistrationStatusPolling } from './registrationStatusPolling';
 import { HostUrl } from '../../Configuration/Configuration';
 import { resolveHostAppRedirectUrl } from '../../Configuration/hostAppRedirect';
@@ -36,7 +36,7 @@ export type OrganizationSetupHandoffOptions = {
 };
 
 /** The phases `OrganizationSetupPage` and `RegistrationPage` render from, once `hasStatus` is true. */
-export type OrganizationSetupHandoffPhase = OnboardingRecoveryPhase | 'hostOutcome';
+export type OrganizationSetupHandoffPhase = OnboardingRecoveryPhase | 'hostOutcome' | 'heldForReview' | 'declined';
 
 export type OrganizationSetupHandoffState = {
     /** Whether the durable status for this operation has been read at least once. */
@@ -61,6 +61,12 @@ export type OrganizationSetupHandoffState = {
     continueToHost: () => void;
 };
 
+const reviewPhase = (status?: OrganizationSetupAcceptanceStatus): OrganizationSetupHandoffPhase | undefined => {
+    if (status === OrganizationSetupAcceptanceStatus.held) return 'heldForReview';
+    if (status === OrganizationSetupAcceptanceStatus.declined) return 'declined';
+    return undefined;
+};
+
 /**
  * Shared status/hand-off coordination for the two wizards that create an organization -
  * `OrganizationSetupPage` (invited) and `RegistrationPage` (self-service) - which use distinct
@@ -83,6 +89,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     const hasStatus = hasReadStatus(statusResult, invitationId);
     const isRecorded = hasStatus && statusResult.data.status !== OrganizationSetupAcceptanceStatus.pending;
     const isAccepted = hasStatus && statusResult.data.status === OrganizationSetupAcceptanceStatus.accepted;
+    const reviewStatus = hasStatus ? statusResult.data.status : undefined;
     const recovery = useOnboardingRecovery(isRecorded, isAccepted);
     const [submitted, setSubmitted] = useState(false);
     const [pollWindowExpired, setPollWindowExpired] = useState(false);
@@ -100,10 +107,10 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     // A pointer recovered after reload may already have an owner, so recheck its initial snapshot.
     // Stop after the recovery window; Check Again starts a fresh window for a pending operation.
     useEffect(() => {
-        if (!isRegistration || !(submitted || recoveringRegistration) || pollWindowExpired || isAccepted) return;
+        if (!isRegistration || !(submitted || recoveringRegistration) || pollWindowExpired || isAccepted || isDecidedByReview(reviewStatus)) return;
         const timeout = globalThis.setTimeout(() => setPollWindowExpired(true), 20000);
         return () => globalThis.clearTimeout(timeout);
-    }, [isRegistration, submitted, recoveringRegistration, pollWindowExpired, isAccepted]);
+    }, [isRegistration, submitted, recoveringRegistration, pollWindowExpired, isAccepted, reviewStatus]);
 
     useEffect(() => {
         if (!shouldRecheckRegistrationStatus(
@@ -149,7 +156,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
 
     return {
         hasStatus,
-        phase: gate === 'showHostOutcome' ? 'hostOutcome' : recovery.phase,
+        phase: reviewPhase(reviewStatus) ?? (gate === 'showHostOutcome' ? 'hostOutcome' : recovery.phase),
         errorMessages,
         captureOrganizationName: (organizationName: string) => { organizationNameRef.current = organizationName; },
         markSubmitted: () => { setPollWindowExpired(false); setSubmitted(true); recovery.checkAgain(); recovery.markSubmitted(); },
