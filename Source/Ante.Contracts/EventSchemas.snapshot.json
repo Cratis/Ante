@@ -471,6 +471,86 @@
     "type": "object",
     "title": "OrganizationRegistrationApproved"
   },
+  "OrganizationRegistrationAwaitingReview:1": {
+    "type": "object",
+    "properties": {
+      "tenantName": {
+        "type": "string"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "identityProvider": {
+        "type": "string"
+      },
+      "firstName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "middleName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "lastName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "email": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "signupContext": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "key",
+            "value"
+          ],
+          "title": "SignupContextEntry"
+        }
+      }
+    },
+    "required": [
+      "tenantName",
+      "subject",
+      "identityProvider",
+      "firstName",
+      "middleName",
+      "lastName",
+      "email",
+      "signupContext"
+    ],
+    "title": "OrganizationRegistrationAwaitingReview"
+  },
   "OrganizationRegistrationCompleted:2": {
     "type": "object",
     "properties": {
