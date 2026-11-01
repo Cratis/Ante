@@ -3,7 +3,7 @@
     "type": "object",
     "title": "InvitationReissueRequested"
   },
-  "InvitationRejected:3": {
+  "InvitationRejected:4": {
     "type": "object",
     "properties": {
       "reason": {
@@ -12,13 +12,17 @@
           0,
           1,
           2,
-          3
+          3,
+          4,
+          5
         ],
         "x-enumNames": [
           "InvalidInvitationId",
           "InvitationIdReused",
           "InvalidRecipient",
-          "InvitationNotPending"
+          "InvitationNotPending",
+          "PersonaNotGrantable",
+          "InvitationTypeNotAllowed"
         ]
       }
     },
@@ -61,6 +65,30 @@
           "InvalidInvitationId",
           "InvitationIdReused",
           "InvalidRecipient"
+        ]
+      }
+    },
+    "required": [
+      "reason"
+    ],
+    "title": "InvitationRejected"
+  },
+  "InvitationRejected:3": {
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "integer",
+        "enum": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "x-enumNames": [
+          "InvalidInvitationId",
+          "InvitationIdReused",
+          "InvalidRecipient",
+          "InvitationNotPending"
         ]
       }
     },
