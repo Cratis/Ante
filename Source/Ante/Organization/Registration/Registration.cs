@@ -11,6 +11,7 @@ using Ante.Invitations.Receiving;
 using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Organization.Names;
+using Ante.Organization.Registration.Review;
 using Ante.Organization.Registration.Start;
 using Ante.Outbox;
 using Ante.Resources;
@@ -211,18 +212,21 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             return legalError;
         }
 
+        var recorded = new OrganizationRegistrationRecorded(
+            OrganizationName,
+            subject,
+            identityProviderValue,
+            FirstName,
+            MiddleName ?? Contracts.Invitations.MiddleName.NotSet,
+            LastName,
+            email,
+            SignupContextRules.Filter(options.Value.Registration, SignupContext));
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
-            new OrganizationRegistrationRecorded(
-                OrganizationName,
-                subject,
-                identityProviderValue,
-                FirstName,
-                MiddleName ?? Contracts.Invitations.MiddleName.NotSet,
-                LastName,
-                email,
-                SignupContextRules.Filter(options.Value.Registration, SignupContext)),
+
+            // A sign-up held for review is not a registration yet: nothing is published to the host until a reviewer approves it.
+            options.Value.Registration.Review ? recorded.ToHeld() : recorded,
             new RegistrationOwnerRecorded(owner.Subject, owner.Provider),
         };
         events.AddRange(legalEvidence.Events);
@@ -260,6 +264,7 @@ public static class RegistrationSourceAvailability
                 typeof(OnboardingAttemptClaimed).GetEventType(),
                 typeof(OrganizationRegistrationCompleted).GetEventType(),
                 typeof(OrganizationRegistrationRecorded).GetEventType(),
+                typeof(OrganizationRegistrationHeld).GetEventType(),
                 typeof(OrganizationSetupCompleted).GetEventType(),
                 typeof(UserSetupCompleted).GetEventType(),
                 typeof(RegistrationOwnerRecorded).GetEventType(),
@@ -293,4 +298,13 @@ public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf
     /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
     public async Task On(OrganizationRegistrationCompleted @event, EventContext context, ReactorDelivery delivery) =>
         await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger, announceRecorded: true);
+
+    /// <summary>
+    /// Forwards the decision to decline a held registration to the outbox as <see cref="OrganizationRegistrationDeclined"/>.
+    /// </summary>
+    /// <param name="event">The event.</param>
+    /// <param name="context">The event context.</param>
+    /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
+    public Task On(OrganizationRegistrationDeclineRecorded @event, EventContext context, ReactorDelivery delivery) =>
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger);
 }

@@ -66,6 +66,12 @@ public class OnboardingOptions
     public bool RegistrationEnabled { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets whether a completed sign-up is held for the application's review before it completes. Maps to
+    /// <c language="csharp">Ante:Registration:Review</c>; off by default.
+    /// </summary>
+    public bool RegistrationReview { get; set; }
+
+    /// <summary>
     /// Gets or sets the invitation types the application allows: <c language="csharp">JoinTenant</c> and/or
     /// <c language="csharp">CreateTenant</c>. Unset allows both. An invitation of another type is rejected with
     /// <c language="csharp">InvitationTypeNotAllowed</c>.

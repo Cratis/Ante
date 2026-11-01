@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Ante.Contracts.Organization;
+using Ante.Organization.Registration.Review;
 
 namespace Ante.Organization.Registration;
 
@@ -17,5 +18,8 @@ public record OrganizationRegistrationRecorded(
     IReadOnlyList<SignupContextEntry> SignupContext)
 {
     public OrganizationRegistrationCompleted ToContract() => new(
+        TenantName, Subject, IdentityProvider, FirstName, MiddleName, LastName, Email, SignupContext);
+
+    public OrganizationRegistrationHeld ToHeld() => new(
         TenantName, Subject, IdentityProvider, FirstName, MiddleName, LastName, Email, SignupContext);
 }

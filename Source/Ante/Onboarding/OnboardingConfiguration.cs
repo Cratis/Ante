@@ -105,6 +105,11 @@ public static class OnboardingConfiguration
         }
 
         values["Ante:Registration:Enabled"] = (options.RegistrationEnabled && options.SignUp == OnboardingOptions.CreateTenant).ToString();
+        if (options.RegistrationReview)
+        {
+            values["Ante:Registration:Review"] = bool.TrueString;
+        }
+
         for (var index = 0; index < options.AllowedLocales?.Length; index++)
         {
             values[$"Ante:SupportedLocales:{index}"] = options.AllowedLocales[index];

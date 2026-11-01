@@ -28,6 +28,13 @@ public class RegistrationOptions
     public bool Enabled { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets a value indicating whether a completed sign-up is held for review instead of completing. While held,
+    /// nothing is published to the host; the host decides by appending <c language="csharp">OrganizationRegistrationApproved</c>
+    /// or <c language="csharp">OrganizationRegistrationDeclineRequested</c> to its outbox. Off by default.
+    /// </summary>
+    public bool Review { get; set; }
+
+    /// <summary>
     /// Gets or sets an optional URL the closed page links to (for example a waitlist or contact page).
     /// </summary>
     public string ClosedUrl { get; set; } = string.Empty;

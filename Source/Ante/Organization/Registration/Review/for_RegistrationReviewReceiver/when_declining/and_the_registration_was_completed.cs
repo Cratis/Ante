@@ -1,0 +1,18 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+#if DEBUG
+using Ante.Contracts.Organization;
+using Ante.Organization.Registration.Review.for_RegistrationReviewReceiver.given;
+
+namespace Ante.Organization.Registration.Review.for_RegistrationReviewReceiver.when_declining;
+
+public class and_the_registration_was_completed : a_review_decision
+{
+    void Establish() => History = [_held, _held.ToRecorded()];
+
+    Task Because() => Receiver.Decline(new("Not a fit for this offer"), Context);
+
+    [Fact] void should_not_decline_it() => ShouldNotHaveAppended();
+}
+#endif

@@ -9,6 +9,7 @@ using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.UserSetup;
 using Ante.Legal.Receiving;
 using Ante.Organization.Names;
+using Ante.Organization.Registration.Review;
 using Ante.Outbox;
 using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.EventSequences.Concurrency;
@@ -72,7 +73,8 @@ public record InvitationSourceInboxEventRecorded(EventSequenceNumber InboxSequen
 /// <param name="exchange">The selected exchange mode.</param>
 /// <param name="sourceStore">The host store whose inbox delivered this event.</param>
 /// <param name="legalReceiver">The optional legal-set receiver for configured inbox deliveries.</param>
-public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name, LegalDocumentSetReceiver? legalReceiver = null)
+/// <param name="reviewReceiver">The optional receiver of review decisions, present when sign-ups are held for review.</param>
+public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name, LegalDocumentSetReceiver? legalReceiver = null, RegistrationReviewReceiver? reviewReceiver = null)
 {
     static readonly Type[] _deliverableEventTypes =
     [
@@ -83,6 +85,8 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         typeof(OrganizationNameReserved),
         typeof(OrganizationNameReleased),
         typeof(LegalDocumentSetPublished),
+        typeof(OrganizationRegistrationApproved),
+        typeof(OrganizationRegistrationDeclineRequested),
     ];
 
     static readonly EventType[] _decisionEventTypes =
@@ -188,6 +192,12 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             case InvitationRevoked revoked:
                 await AppendRevocation(revoked, context);
                 break;
+            case OrganizationRegistrationApproved:
+                await RequireReviewReceiver().Approve(context);
+                break;
+            case OrganizationRegistrationDeclineRequested declined:
+                await RequireReviewReceiver().Decline(declined, context);
+                break;
         }
     }
 
@@ -255,6 +265,9 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             ?? throw new InvalidOperationException($"Unexpected incoming invitation event type {delivery.Context.EventType}.");
         return serializer.Deserialize(clrType, delivery.Content);
     }
+
+    RegistrationReviewReceiver RequireReviewReceiver() =>
+        reviewReceiver ?? throw new InvalidOperationException("Registration review is not enabled.");
 
     async Task ReceiveLegal(LegalDocumentSetPublished published, EventContext context)
     {
