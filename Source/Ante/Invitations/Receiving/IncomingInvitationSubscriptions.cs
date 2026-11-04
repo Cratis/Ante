@@ -103,7 +103,8 @@ public class IncomingInvitationSubscriptions(
                     exchange,
                     source,
                     new LegalDocumentSetReceiver(store, Options.Create(options)),
-                    options.Registration.Review ? new RegistrationReviewReceiver(store, logger) : null);
+                    options.Registration.Review ? new RegistrationReviewReceiver(store, logger) : null,
+                    options.OperatorAudience);
                 var receivesLegal = options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore;
                 await store.Reactors.Register(
                     ReactorIdFor(source),
@@ -151,6 +152,12 @@ public class IncomingInvitationSubscriptions(
                 source,
                 definition =>
                 {
+                    // Audience routing: only what the host addressed to this lobby crosses; unset keeps the whole outbox.
+                    if (!string.IsNullOrEmpty(options.Audience))
+                    {
+                        definition.ForAudience(options.Audience);
+                    }
+
                     definition.WithEventType<UserInvitedToJoinTenant>()
                         .WithEventType<UserInvitedToCreateTenant>()
                         .WithEventType<InvitationRevoked>()
