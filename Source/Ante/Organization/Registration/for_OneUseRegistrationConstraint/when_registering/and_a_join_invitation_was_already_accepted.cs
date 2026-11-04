@@ -3,6 +3,7 @@
 
 #if DEBUG
 using Ante.Invitations;
+using Ante.Invitations.UserSetup;
 
 namespace Ante.Organization.Registration.for_OneUseRegistrationConstraint.when_registering;
 
@@ -12,10 +13,14 @@ public class and_a_join_invitation_was_already_accepted : Specification
     readonly EventScenario _scenario = new();
     IAppendResult _result = null!;
 
+    // Seeds the event log with UserSetupCompleted - the private fact AcceptInvitation actually
+    // appends - rather than its InvitationToJoinTenantAccepted outbox contract: that type carries an
+    // assembly-level [EventStore("Ante")], so Chronicle now refuses to append it to the event log at
+    // all (PublicEventTypeCannotBeAppendedToEventLog), even for a test fixture.
     async Task Establish() =>
         await _scenario.Given.ForEventSource(_id).Events(
             new OnboardingAttemptClaimed(),
-            new InvitationToJoinTenantAccepted("Acme", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Member"]));
+            new UserSetupCompleted("Acme", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Member"]));
 
     async Task Because() => _result = await _scenario.EventLog.Append(_id, new OnboardingAttemptClaimed());
 

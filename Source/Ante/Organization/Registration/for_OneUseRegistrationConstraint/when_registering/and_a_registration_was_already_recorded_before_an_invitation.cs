@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 #if DEBUG
-using Ante.Contracts.Organization;
 using Ante.Invitations;
 using Ante.Invitations.OrganizationSetup;
 
@@ -14,10 +13,14 @@ public class and_a_registration_was_already_recorded_before_an_invitation : Spec
     readonly EventScenario _scenario = new();
     IAppendResult _result = null!;
 
+    // Seeds the event log with OrganizationRegistrationRecorded - the private fact RegisterOrganization
+    // actually appends - rather than its OrganizationRegistrationCompleted outbox contract: that type
+    // carries an assembly-level [EventStore("Ante")], so Chronicle now refuses to append it to the
+    // event log at all (PublicEventTypeCannotBeAppendedToEventLog), even for a test fixture.
     async Task Establish() =>
         await _scenario.Given.ForEventSource(_id).Events(
             new OnboardingAttemptClaimed(),
-            new OrganizationRegistrationCompleted("Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
+            new OrganizationRegistrationRecorded("Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", []));
 
     async Task Because() => _result = await _scenario.EventLog.Append(_id, new OnboardingAttemptClaimed());
 

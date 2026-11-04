@@ -4,7 +4,6 @@
 #if DEBUG
 using System.Security.Claims;
 using Ante.Contracts.Legal;
-using Ante.Contracts.Organization;
 using Ante.IdentityProviders;
 using Ante.Invitations;
 using Ante.Invitations.OrganizationSetup;
@@ -24,15 +23,18 @@ public class and_the_registration_id_was_used_previously : Specification
 
     async Task Establish()
     {
-        _scenario.Given.ForEventSource(_id).Events(new OrganizationRegistrationCompleted(
-            "Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
+        // Seeds OrganizationRegistrationRecorded - the private fact RegisterOrganization actually
+        // appends - rather than its OrganizationRegistrationCompleted outbox contract: that type
+        // carries an assembly-level [EventStore("Ante")], so Chronicle now refuses to append it to
+        // the event log at all (PublicEventTypeCannotBeAppendedToEventLog), even for a test fixture.
+        _scenario.Given.ForEventSource(_id).Events(new OrganizationRegistrationRecorded(
+            "Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", []));
 
-        // A registration is always appended together with its one-use claim. The claim is what the
-        // in-memory event log can find: it only matches generation-1 event types by id
-        // (Cratis/Chronicle#4364), and OrganizationRegistrationCompleted is generation 2.
+        // A registration is always appended together with its one-use claim, which only the real
+        // event log (not CommandScenario's own in-memory read-model Given, seeded above) holds.
         await _scenario.EventScenario.Given.ForEventSource(_id).Events(
             new OnboardingAttemptClaimed(),
-            new OrganizationRegistrationCompleted("Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
+            new OrganizationRegistrationRecorded("Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", []));
         var names = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
         names.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
         var accessor = Substitute.For<IHttpContextAccessor>();

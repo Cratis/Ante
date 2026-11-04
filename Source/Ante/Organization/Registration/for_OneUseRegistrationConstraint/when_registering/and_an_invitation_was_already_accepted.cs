@@ -13,10 +13,14 @@ public class and_an_invitation_was_already_accepted : Specification
     readonly EventScenario _scenario = new();
     IAppendResult _result = null!;
 
+    // Seeds the event log with OrganizationSetupCompleted - the private fact the organization setup
+    // handler actually appends - rather than its InvitationToCreateTenantAccepted outbox contract:
+    // that type carries an assembly-level [EventStore("Ante")], so Chronicle now refuses to append it
+    // to the event log at all (PublicEventTypeCannotBeAppendedToEventLog), even for a test fixture.
     async Task Establish() =>
         await _scenario.Given.ForEventSource(_id).Events(
             new OnboardingAttemptClaimed(),
-            new InvitationToCreateTenantAccepted("Acme", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Owner"]));
+            new OrganizationSetupCompleted("Acme", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Owner"]));
 
     async Task Because() => _result = await _scenario.EventLog.Append(_id, new OnboardingAttemptClaimed());
 
