@@ -170,13 +170,13 @@ internal sealed class InvitationTokenIssuance(
         if (restriction is { } reason)
         {
             logger.LogInvitationRestricted(reason);
-            await InvitationTokenOutbox.Publish(eventStore, trigger, deliveries, () => new InvitationRejected(reason));
+            await PublishOutcome(trigger, deliveries, () => new InvitationRejected(reason));
             return null;
         }
 
         if (exchange?.Value.Mode == InvitationExchangeMode.Attested && !AttestedInvitationRecipient.IsValid(email))
         {
-            await InvitationTokenOutbox.Publish(eventStore, trigger, deliveries, () => new InvitationRejected(InvitationRejectionReason.InvalidRecipient));
+            await PublishOutcome(trigger, deliveries, () => new InvitationRejected(InvitationRejectionReason.InvalidRecipient));
             return null;
         }
 
@@ -187,7 +187,7 @@ internal sealed class InvitationTokenIssuance(
         }
 
         var flowType = receipt is JoinTenantInvitationReceived ? InvitationFlowType.JoinTenant : InvitationFlowType.CreateTenant;
-        await InvitationTokenOutbox.Publish(eventStore, trigger, deliveries, () =>
+        await PublishOutcome(trigger, deliveries, () =>
         {
             var issued = flowType == InvitationFlowType.JoinTenant
                 ? tokenIssuer.IssueJoinTenantInvitation(invitationId, email)
@@ -203,6 +203,9 @@ internal sealed class InvitationTokenIssuance(
 
         // Replay is not excluded, like token issuance: it recovers a lost publication, and the outbox check keeps
         // it from publishing the rejection twice.
-        await InvitationTokenOutbox.Publish(eventStore, trigger, deliveries, () => new InvitationRejected(InvitationRejectionReason.InvalidInvitationId));
+        await PublishOutcome(trigger, deliveries, () => new InvitationRejected(InvitationRejectionReason.InvalidInvitationId));
     }
+
+    Task PublishOutcome(EventContext trigger, IReadOnlyCollection<EventSequenceNumber> deliveries, Func<object> outcome) =>
+        InvitationTokenOutbox.Publish(eventStore, trigger, deliveries, outcome, ante?.Value.OperatorAudience);
 }

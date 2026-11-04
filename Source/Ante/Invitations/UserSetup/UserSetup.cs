@@ -329,11 +329,12 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
 /// <param name="eventStore">The event store.</param>
 /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>, given a chance to accelerate a live status subscription once this fact is durably published.</param>
 /// <param name="logger">The logger.</param>
+/// <param name="ante">The deployment options; <c language="csharp">OperatorAudience</c> addresses replies whose request named no requester. When absent such replies are unaddressed.</param>
 [Reactor(eventSequence: EventSequenceId.LogId)]
-public class JoinTenantAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<JoinTenantAcceptanceOutbox> logger) : IReactor
+public class JoinTenantAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<JoinTenantAcceptanceOutbox> logger, IOptions<AnteOptions>? ante = null) : IReactor
 {
     public Task On(UserSetupCompleted @event, EventContext context, ReactorDelivery delivery) =>
-        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, announceRecorded: true);
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, announceRecorded: true, operatorAudience: ante?.Value.OperatorAudience);
 
     /// <summary>
     /// Forwards the join-tenant accepted event to the outbox.
@@ -342,7 +343,7 @@ public class JoinTenantAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPu
     /// <param name="context">The event context.</param>
     /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
     public async Task On(InvitationToJoinTenantAccepted @event, EventContext context, ReactorDelivery delivery) =>
-        await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger, announceRecorded: true);
+        await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger, announceRecorded: true, operatorAudience: ante?.Value.OperatorAudience);
 }
 
 /// <summary>

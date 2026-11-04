@@ -118,3 +118,16 @@ A registration is decided once. A decision for a registration that was completed
 - Bound abuse with `Ante:Registration:MaxPerIdentity`/`Window` and `RequestsPerMinutePerClient` (see [Security and trust](./security.md#self-service-registration-limits)).
 - Configure `Ante:HostOutcomeUrl` so the new owner waits on a completion screen until your provisioning succeeds, instead of arriving before the organization exists.
 
+## Audience routing
+
+By default a lobby receives everything a host store publishes to its outbox. A host that runs several lobbies, or an operator that serves many products, addresses each request to one lobby instead. Chronicle carries the address as the `audience` named tag on the event; Ante filters on it and replies to whoever asked. Nothing changes for a host that does not use it.
+
+**Receiving.** Set `Ante:Audience` (environment variable `Ante__Audience`) to this lobby's identity. Each host-store subscription is then created with `ForAudience(<value>)`: the Chronicle kernel copies only events tagged `audience=<value>` into the lobby's inbox, in addition to the event-type filter. Unset, the subscription is unfiltered, exactly as before. Changing the value applies to events published afterward; it does not move earlier ones.
+
+**Addressing a request.** The host appends the request (`UserInvitedToJoinTenant`, `UserInvitedToCreateTenant`, a revocation, a reissue request and so on) to its outbox with two tags: `audience=<lobby>` so the right lobby receives it, and `from=<operator>` (`Ante.Contracts.AudienceTags.From`) naming itself. Chronicle's `EventTags.Audience(...)` and `EventTags.Scope("from", ...)` set both around an append without touching the event.
+
+**Replies.** While a lobby handles a request it stamps the request's `from` tag on everything it appends to its own log. When it publishes the reply (`InvitationTokenIssued`, `InvitationRejected`, `InvitationToJoinTenantAccepted`, `InvitationToCreateTenantAccepted`, `OrganizationRegistrationCompleted`, `LegalTermsAccepted`, the legal activation acknowledgement) it addresses it `audience=<from>`, taking the requester from the triggering event, else from the earliest event of the same event source that carries one. Subscribe the operator's inbox for that lobby with `ForAudience(<operator>)` and it receives exactly the replies to its own requests.
+
+**Without `from`.** A request that carries no `from` tag (an older host, or self-service sign-ups that have no inbound request) is answered to `Ante:OperatorAudience` when set, and otherwise left unaddressed as before.
+
+**Contract events.** No contract event is marked `[Audience]`. That attribute makes Chronicle refuse an append without an audience, which would break every host that does not set one. Hosts that always address their requests may mark their own copies or enforce it with an enricher.
