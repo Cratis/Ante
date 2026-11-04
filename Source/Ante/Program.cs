@@ -48,6 +48,7 @@ var anteOptions = anteConfiguration.Get<AnteOptions>() ?? new AnteOptions();
 AnteRoutingValidator.Validate(anteOptions, anteConfiguration);
 LegalOptions.Validate(anteOptions);
 RegistrationOptionsValidator.Validate(anteOptions);
+InvitationContentOptionsValidator.Validate(anteOptions, anteConfiguration);
 var localizationOptions = LocaleNegotiation.CreateOptions(anteOptions);
 var invitationTokenOptions = builder.Configuration.GetSection("Ante:Invitations:Token").Get<InvitationTokenConfig>() ?? new InvitationTokenConfig();
 InvitationTokenConfigurationValidator.Validate(invitationTokenOptions);

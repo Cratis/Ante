@@ -58,6 +58,11 @@ public class AnteOptions
     public RegistrationOptions Registration { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets presentation-only copy for user and organization invitation setup.
+    /// </summary>
+    public Invitations.InvitationOptions Invitations { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets the organization-name rules for this deployment.
     /// </summary>
     public OrganizationOptions Organization { get; set; } = new();
