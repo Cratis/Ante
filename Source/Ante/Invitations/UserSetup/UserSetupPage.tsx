@@ -18,6 +18,8 @@ import { HostOutcomeStatus } from '../HostOutcome/HostOutcomeStatus';
 import { HostUrl } from '../../Configuration/Configuration';
 import { useFreshLegalDocuments } from '../../Legal/useFreshLegalDocuments';
 import { UserSetupFrame } from './UserSetupFrame';
+import { useInvitationContent } from '../useInvitationContent';
+import { invitationCompletionMessage } from '../invitationCompletionMessage';
 import { InvitationIdentityDetails } from '../Accepting/Accepting';
 import { getInvitationIdFromToken } from '../Accepting/invitationToken';
 import { LegalAcceptanceField } from '../../Legal/LegalAcceptanceField';
@@ -39,6 +41,7 @@ type UserSetupPageProps = {
 };
 
 export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
+    const content = useInvitationContent('userSetup');
     const identity = useIdentity(InvitationIdentityDetails);
     const invitationIdentityDetails = identity.details as unknown as InvitationIdentityDetails | undefined;
     const invitationId = useMemo(() => {
@@ -114,7 +117,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
 
     if (errorMessages.length > 0) {
         return (
-            <UserSetupFrame>
+            <UserSetupFrame content={content}>
                 <div className='user-setup-card__content'>
                     <ErrorSummary messages={errorMessages} className='user-setup-errors' itemClassName='user-setup-errors__item' />
                 </div>
@@ -127,7 +130,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     // would let a recovered, already-submitted acceptance flash a form it must never resubmit.
     if ((!invitationId && !identity.isSet) || !hasStatus) {
         return (
-            <UserSetupFrame>
+            <UserSetupFrame content={content}>
                 <div className='user-setup-card__content'>
                     <div className='user-setup-waiting'>
                         <ProgressSpinner className='user-setup-waiting__spinner' />
@@ -139,7 +142,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
 
     if (recovery.phase === 'timedOut') {
         return (
-            <UserSetupFrame>
+            <UserSetupFrame content={content}>
                 <div className='user-setup-card__content'>
                     <div className='user-setup-waiting' role='status' aria-live='polite'>
                         <p className='user-setup-waiting__message'>{strings.onboarding.notYetConfirmed}</p>
@@ -159,13 +162,13 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     // never blocks the Continue action.
     if (hostOutcomeGate === 'showHostOutcome') {
         const message = hostOutcome.status === HostOutcomeStatus.succeeded
-            ? strings.userSetup.hostOutcomeSucceeded
+            ? invitationCompletionMessage(content, strings.userSetup.hostOutcomeSucceeded)
             : hostOutcome.status === HostOutcomeStatus.failed
                 ? strings.userSetup.hostOutcomeFailed
                 : strings.userSetup.hostOutcomePending;
 
         return (
-            <UserSetupFrame>
+            <UserSetupFrame content={content}>
                 <div className='user-setup-card__content'>
                     <div className='user-setup-waiting' role='status' aria-live='polite'>
                         <p className='user-setup-waiting__message'>{message}</p>
@@ -188,7 +191,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
 
     if (recovery.phase === 'waiting') {
         return (
-            <UserSetupFrame>
+            <UserSetupFrame content={content}>
                 <div className='user-setup-card__content'>
                     <div className='user-setup-waiting'>
                         <ProgressSpinner className='user-setup-waiting__spinner' aria-label={strings.userSetup.setting} />
@@ -201,7 +204,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
 
     if (checkingLegalDocuments && !displayedDocuments) {
         return (
-            <UserSetupFrame>
+            <UserSetupFrame content={content}>
                 <div className='user-setup-card__content'>
                     <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
                 </div>
@@ -211,7 +214,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
 
     if (!displayedDocuments) {
         return (
-            <UserSetupFrame>
+            <UserSetupFrame content={content}>
                 <div className='user-setup-card__content'>
                     <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />
                 </div>
@@ -244,7 +247,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     );
 
     return (
-        <UserSetupFrame>
+        <UserSetupFrame content={content}>
             <div className='user-setup-card__content user-setup-card__content--stepper' ref={stepperContainerRef}>
                 {validationMessages.length > 0 && (
                     <ErrorSummary messages={validationMessages} className='user-setup-errors' itemClassName='user-setup-errors__item' />

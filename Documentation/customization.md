@@ -49,6 +49,53 @@ Set `Ante:Registration:Content:{locale}` to explain a self-service signup on `/r
 
 Every value is plain text; markup is shown literally. Links must be https URLs or same-origin paths, otherwise startup fails. Ante picks the entry for the visitor's locale (`nb-NO`, then `nb`), then `en`; with no entry the page looks as it does without the setting. `Title` replaces the subtitle and `CompletionMessage` replaces the waiting and success text.
 
+## Describe invitation setup
+
+Set `Ante:Invitations:UserSetup:Content:{locale}` for a user invitation, and
+`Ante:Invitations:OrganizationSetup:Content:{locale}` for an organization invitation. These are independent of each
+other and of `Ante:Registration:Content`; existing registration settings never change invitation copy.
+
+```json
+"Ante": {
+  "Invitations": {
+    "UserSetup": {
+      "Content": {
+        "en": {
+          "Title": "Join your team",
+          "Intro": "Complete your profile to accept your invitation.",
+          "CompletionMessage": "Your account is ready.",
+          "SupportUrl": "https://example.com/support"
+        },
+        "nb": {
+          "Title": "Bli med i teamet ditt"
+        }
+      }
+    },
+    "OrganizationSetup": {
+      "Content": {
+        "en": {
+          "Title": "Set up your invited organization",
+          "Intro": "Choose your organization name to get started."
+        }
+      }
+    }
+  }
+}
+```
+
+Only `Title`, `Intro`, `CompletionMessage` and `SupportUrl` are accepted inside a locale entry; unknown or structured
+fields fail startup. `Title` replaces the subtitle below the deployment branding, `Intro` adds a paragraph, and
+`CompletionMessage` replaces **successful host-outcome** text only, not waiting, failure or retry messages. `SupportUrl`
+adds a link displaying its URL. It must be empty or an absolute HTTPS URL; relative paths, HTTP and other schemes fail
+startup. Text fields allow at most 10000 characters each. Values are plain text: HTML and Markdown are not interpreted,
+and markup is escaped when rendered. The support link opens in a new tab with `noopener noreferrer`.
+
+Selection is case-insensitive: exact visitor locale, neutral language, `en`, then `en-US`. If none matches, Ante uses its shipped
+localized copy. Missing or empty fields in the selected entry retain the shipped defaults (or show no optional intro/link);
+fields are not merged from other locales. With no invitation settings, both wizards look and behave as before. Legal
+content and acceptance, validation errors, buttons, user-entered values, tokens and commands are not customizable here.
+For an environment variable example, use `Ante__Invitations__UserSetup__Content__en__Title`.
+
 ## Supply legal documents
 
 Choose one source for the deployment:

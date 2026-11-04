@@ -5,7 +5,8 @@ import type { ReactNode } from 'react';
 import strings from 'Strings';
 import { useBrandLogo } from '../../Branding/useBrandLogo';
 import { useTrustedBrandingStyles } from '../../Branding/useTrustedBrandingStyles';
-import { GetConfiguration } from '../../Configuration/Configuration';
+import { GetConfiguration, type InvitationPageContent } from '../../Configuration/Configuration';
+import { InvitationContentDetails } from '../InvitationContentDetails';
 import { DisplayPreferencesMenu } from '../../DisplayPreferences/DisplayPreferencesMenu';
 import './OrganizationSetupPage.css';
 
@@ -14,9 +15,10 @@ const HEADING_ID = 'organization-setup-heading';
 interface OrganizationSetupFrameProps {
     children: ReactNode;
     subtitle?: string;
+    content?: InvitationPageContent;
 }
 
-export const OrganizationSetupFrame = ({ children, subtitle }: OrganizationSetupFrameProps) => {
+export const OrganizationSetupFrame = ({ children, subtitle, content }: OrganizationSetupFrameProps) => {
     const [brandingResult] = GetConfiguration.use();
     const logoUrl = brandingResult.data?.logoUrl;
     const { showImage, onImageError } = useBrandLogo(logoUrl);
@@ -33,7 +35,8 @@ export const OrganizationSetupFrame = ({ children, subtitle }: OrganizationSetup
                             ? <img src={logoUrl} alt={strings.branding.wordmark} className='organization-setup-logo' onError={onImageError} />
                             : strings.branding.wordmark}
                     </h1>
-                    <p className='organization-setup-subtitle'>{subtitle ?? strings.organizationSetup.subtitle}</p>
+                    <p className='organization-setup-subtitle'>{content?.title || (subtitle ?? strings.organizationSetup.subtitle)}</p>
+                    <InvitationContentDetails content={content} />
                 </div>
                 {children}
             </main>
