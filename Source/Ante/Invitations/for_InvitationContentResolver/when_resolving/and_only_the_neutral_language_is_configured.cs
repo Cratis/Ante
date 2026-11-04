@@ -18,6 +18,7 @@ public class and_only_the_neutral_language_is_configured : Specification
             {
                 ["NB"] = new() { Title = "Neutral" },
                 ["en"] = new() { Title = "English" },
+                ["en-US"] = new() { Title = "US English" },
             },
         };
         _result = InvitationContentResolver.For(options, CultureInfo.GetCultureInfo("nb-NO"));

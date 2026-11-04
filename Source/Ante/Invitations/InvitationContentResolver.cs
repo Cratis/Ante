@@ -9,20 +9,25 @@ namespace Ante.Invitations;
 /// <summary>Resolves one invitation journey's copy without consulting registration settings.</summary>
 public static class InvitationContentResolver
 {
-    /// <summary>Resolves exact locale, neutral language, then English; absent fields retain frontend defaults.</summary>
+    /// <summary>Resolves exact locale, neutral language, en, then en-US; absent fields retain frontend defaults.</summary>
     /// <param name="options">The journey's configured content.</param>
     /// <param name="culture">The negotiated request culture.</param>
     /// <returns>Only allowlisted, public presentation fields.</returns>
     public static InvitationPageContent For(InvitationSetupOptions options, CultureInfo culture)
     {
-        InvitationContent? Find(string locale) => options.Content
-            .FirstOrDefault(entry => string.Equals(entry.Key, locale, StringComparison.OrdinalIgnoreCase)).Value;
+        foreach (var candidate in new[] { culture.Name, culture.TwoLetterISOLanguageName, "en", "en-US" })
+        {
+            var match = options.Content.FirstOrDefault(entry => string.Equals(entry.Key, candidate, StringComparison.OrdinalIgnoreCase));
+            if (match.Value is { } content)
+            {
+                return new(
+                    content.Title ?? string.Empty,
+                    content.Intro ?? string.Empty,
+                    content.CompletionMessage ?? string.Empty,
+                    content.SupportUrl ?? string.Empty);
+            }
+        }
 
-        var content = Find(culture.Name) ?? Find(culture.TwoLetterISOLanguageName) ?? Find("en");
-        return new(
-            content?.Title ?? string.Empty,
-            content?.Intro ?? string.Empty,
-            content?.CompletionMessage ?? string.Empty,
-            content?.SupportUrl ?? string.Empty);
+        return new(string.Empty, string.Empty, string.Empty, string.Empty);
     }
 }

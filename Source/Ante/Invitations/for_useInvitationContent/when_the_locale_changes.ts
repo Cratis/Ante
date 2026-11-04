@@ -4,6 +4,9 @@
 import { beforeEach, describe, it, vi } from 'vitest';
 import { useInvitationContent } from '../useInvitationContent';
 
+// The CI runner shares its module cache across files; reload the hook after installing this file's mocks.
+vi.hoisted(() => { vi.resetModules(); });
+
 const harness = vi.hoisted(() => ({
     locale: 'en-US',
     reference: undefined as { current: unknown } | undefined,

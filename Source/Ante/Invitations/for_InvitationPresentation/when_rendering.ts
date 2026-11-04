@@ -11,6 +11,9 @@ import { OrganizationSetupPage } from '../OrganizationSetup/OrganizationSetupPag
 import { OrganizationSetupFrame } from '../OrganizationSetup/OrganizationSetupFrame';
 import strings from 'Strings';
 
+// The CI runner shares its module cache across files; reload pages and hooks against this file's mocks.
+vi.hoisted(() => { vi.resetModules(); });
+
 const state = vi.hoisted(() => ({
     content: undefined as InvitationConfiguration | undefined,
     contentAvailable: true,
@@ -174,7 +177,8 @@ describe('when registration uses the shared organization setup frame', () => {
     let html: string;
     beforeEach(() => {
         configureCopy();
-        html = renderToStaticMarkup(<OrganizationSetupFrame subtitle='Registration subtitle'>Registration form</OrganizationSetupFrame>);
+        const props = { subtitle: 'Registration subtitle', children: 'Registration form' };
+        html = renderToStaticMarkup(createElement(OrganizationSetupFrame, props));
     });
     it('should retain the registration subtitle', () => html.should.include('Registration subtitle'));
     it('should never apply organization invitation copy', () => html.should.not.include('Organization title'));

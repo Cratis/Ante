@@ -90,7 +90,7 @@ adds a link displaying its URL. It must be empty or an absolute HTTPS URL; relat
 startup. Text fields allow at most 10000 characters each. Values are plain text: HTML and Markdown are not interpreted,
 and markup is escaped when rendered. The support link opens in a new tab with `noopener noreferrer`.
 
-Selection is case-insensitive: exact visitor locale, neutral language, then `en`. If none matches, Ante uses its shipped
+Selection is case-insensitive: exact visitor locale, neutral language, `en`, then `en-US`. If none matches, Ante uses its shipped
 localized copy. Missing or empty fields in the selected entry retain the shipped defaults (or show no optional intro/link);
 fields are not merged from other locales. With no invitation settings, both wizards look and behave as before. Legal
 content and acceptance, validation errors, buttons, user-entered values, tokens and commands are not customizable here.

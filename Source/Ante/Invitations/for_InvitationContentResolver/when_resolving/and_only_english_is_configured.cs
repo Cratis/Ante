@@ -14,7 +14,11 @@ public class and_only_english_is_configured : Specification
     {
         var options = new InvitationSetupOptions
         {
-            Content = new Dictionary<string, InvitationContent> { ["EN"] = new() { Title = "English" } },
+            Content = new Dictionary<string, InvitationContent>
+            {
+                ["EN"] = new() { Title = "English" },
+                ["en-US"] = new() { Title = "US English" },
+            },
         };
         _result = InvitationContentResolver.For(options, CultureInfo.GetCultureInfo("nb-NO"));
     }
