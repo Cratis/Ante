@@ -2,9 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 #if DEBUG
-using Ante.Contracts.Organization;
 using Ante.Invitations;
-using Ante.Invitations.OrganizationSetup;
 
 namespace Ante.Organization.Registration.for_OneUseRegistrationConstraint.when_registering;
 
@@ -17,7 +15,11 @@ public class and_a_registration_was_already_recorded_before_an_invitation : Spec
     async Task Establish() =>
         await _scenario.Given.ForEventSource(_id).Events(
             new OnboardingAttemptClaimed(),
-            new OrganizationRegistrationCompleted("Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
+
+            // OrganizationRegistrationRecorded, not its outbox-only public contract OrganizationRegistrationCompleted:
+            // a public event type can never be appended to the event log (Chronicle 19.124.0 now enforces this
+            // in Given too, instead of silently dropping the seed - Cratis/Chronicle#5618).
+            new OrganizationRegistrationRecorded("Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", []));
 
     async Task Because() => _result = await _scenario.EventLog.Append(_id, new OnboardingAttemptClaimed());
 

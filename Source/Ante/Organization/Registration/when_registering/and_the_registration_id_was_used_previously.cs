@@ -29,10 +29,14 @@ public class and_the_registration_id_was_used_previously : Specification
 
         // A registration is always appended together with its one-use claim. The claim is what the
         // in-memory event log can find: it only matches generation-1 event types by id
-        // (Cratis/Chronicle#4364), and OrganizationRegistrationCompleted is generation 2.
+        // (Cratis/Chronicle#4364), and OrganizationRegistrationCompleted is generation 2. Seed
+        // OrganizationRegistrationRecorded here too, not its outbox-only public contract
+        // OrganizationRegistrationCompleted: a public event type can never be appended to the event
+        // log (Chronicle 19.124.0 now enforces this in Given too, instead of silently dropping the
+        // seed - Cratis/Chronicle#5618).
         await _scenario.EventScenario.Given.ForEventSource(_id).Events(
             new OnboardingAttemptClaimed(),
-            new OrganizationRegistrationCompleted("Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
+            new OrganizationRegistrationRecorded("Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", []));
         var names = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
         names.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
         var accessor = Substitute.For<IHttpContextAccessor>();

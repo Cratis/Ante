@@ -3,6 +3,7 @@
 
 #if DEBUG
 using Ante.Invitations;
+using Ante.Invitations.UserSetup;
 
 namespace Ante.Organization.Registration.for_OneUseRegistrationConstraint.when_registering;
 
@@ -15,7 +16,11 @@ public class and_a_join_invitation_was_already_accepted : Specification
     async Task Establish() =>
         await _scenario.Given.ForEventSource(_id).Events(
             new OnboardingAttemptClaimed(),
-            new InvitationToJoinTenantAccepted("Acme", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Member"]));
+
+            // UserSetupCompleted, not its outbox-only public contract InvitationToJoinTenantAccepted:
+            // a public event type can never be appended to the event log (Chronicle 19.124.0 now enforces this
+            // in Given too, instead of silently dropping the seed - Cratis/Chronicle#5618).
+            new UserSetupCompleted("Acme", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Member"]));
 
     async Task Because() => _result = await _scenario.EventLog.Append(_id, new OnboardingAttemptClaimed());
 
