@@ -22,7 +22,7 @@ public class and_the_member_has_joined : a_running_ante
         using var exchange = await Ante.ExchangeInvitation(issued.Token, _subject);
         await ExecuteOnceProjected(
             "/api/invitations/user-setup",
-            new { invitationId = _invitationId, firstName = "Jane", middleName = "", lastName = "Doe", acceptedLegalTerms = false },
+            new { invitationId = _invitationId, firstName = "Jane", middleName = "", lastName = "Doe", acceptedLegalTerms = false, acceptedLegalVersion = "" },
             _subject);
         await Host.WaitForFromAnte<InvitationToJoinTenantAccepted>(_invitationId.ToString("D"));
         _beforeConfirmation = await OnboardingTrace.Capture(Ante, Host, _invitationId.ToString("D"));
