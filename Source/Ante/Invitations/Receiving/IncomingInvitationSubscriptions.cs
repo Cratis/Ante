@@ -2,9 +2,11 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Ante.Contracts.Legal;
+using Ante.Contracts.Onboarding;
 using Ante.Contracts.Organization;
 using Ante.Invitations.Accepting;
 using Ante.Legal.Receiving;
+using Ante.Onboarding.Provisioning;
 using Ante.Organization.Registration.Review;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventStoreSubscriptions;
@@ -104,6 +106,7 @@ public class IncomingInvitationSubscriptions(
                     source,
                     new LegalDocumentSetReceiver(store, Options.Create(options)),
                     options.Registration.Review ? new RegistrationReviewReceiver(store, logger) : null,
+                    new ProvisioningCompletionReceiver(store, logger, source),
                     options.OperatorAudience);
                 var receivesLegal = options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore;
                 await store.Reactors.Register(
@@ -116,7 +119,8 @@ public class IncomingInvitationSubscriptions(
                             .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationRevoked)))
                             .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationReissueRequested)))
                             .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReserved)))
-                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReleased)));
+                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReleased)))
+                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OnboardingProvisioningCompleted)));
                         if (receivesLegal)
                         {
                             configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(LegalDocumentSetPublished)));
@@ -163,7 +167,8 @@ public class IncomingInvitationSubscriptions(
                         .WithEventType<InvitationRevoked>()
                         .WithEventType<InvitationReissueRequested>()
                         .WithEventType<OrganizationNameReserved>()
-                        .WithEventType<OrganizationNameReleased>();
+                        .WithEventType<OrganizationNameReleased>()
+                        .WithEventType<OnboardingProvisioningCompleted>();
                     if (options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore)
                     {
                         definition.WithEventType<LegalDocumentSetPublished>();

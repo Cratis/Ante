@@ -26,6 +26,7 @@ public sealed class HostStore : IAsyncDisposable
         typeof(LegalTermsAccepted),
         typeof(LegalDocumentSetActivated),
         typeof(OrganizationRegistrationCompleted),
+        typeof(Ante.Contracts.Onboarding.OnboardingProvisioningConfirmed),
     ];
 
     readonly ChronicleClient _client;
