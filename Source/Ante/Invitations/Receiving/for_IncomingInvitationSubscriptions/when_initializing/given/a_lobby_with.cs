@@ -45,7 +45,7 @@ public class a_lobby_with : Specification
             IncomingInvitationTestOptions.Legacy);
     }
 
-    async Task Because()
+    protected async Task Initialize()
     {
         AnteRoutingValidator.Validate(_options);
         await _routing.Initialize(_options);

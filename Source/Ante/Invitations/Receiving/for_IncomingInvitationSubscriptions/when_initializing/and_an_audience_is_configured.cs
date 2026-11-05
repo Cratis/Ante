@@ -8,6 +8,8 @@ public class and_an_audience_is_configured : given.a_lobby_with
 {
     void Establish() => _options.Audience = "lobby-a";
 
+    Task Because() => Initialize();
+
     [Fact] void should_subscribe_once() => Assert.Single(_subscriptions);
 
     [Fact] void should_filter_the_subscription_to_the_audience() => Assert.Equal([("audience", "lobby-a")], _subscriptions[0].NamedTags.Select(tag => (tag.Name.Value, tag.Value)));
