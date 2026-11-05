@@ -2,12 +2,14 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Ante.Contracts.Legal;
+using Ante.Contracts.Onboarding;
 using Ante.Contracts.Organization;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.Issuing;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.UserSetup;
 using Ante.Legal.Receiving;
+using Ante.Onboarding.Provisioning;
 using Ante.Organization.Names;
 using Ante.Organization.Registration.Review;
 using Ante.Outbox;
@@ -74,7 +76,8 @@ public record InvitationSourceInboxEventRecorded(EventSequenceNumber InboxSequen
 /// <param name="sourceStore">The host store whose inbox delivered this event.</param>
 /// <param name="legalReceiver">The optional legal-set receiver for configured inbox deliveries.</param>
 /// <param name="reviewReceiver">The optional receiver of review decisions, present when sign-ups are held for review.</param>
-public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name, LegalDocumentSetReceiver? legalReceiver = null, RegistrationReviewReceiver? reviewReceiver = null)
+/// <param name="provisioningReceiver">The receiver of host provisioning confirmations.</param>
+public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name, LegalDocumentSetReceiver? legalReceiver = null, RegistrationReviewReceiver? reviewReceiver = null, ProvisioningCompletionReceiver? provisioningReceiver = null)
 {
     static readonly Type[] _deliverableEventTypes =
     [
@@ -87,6 +90,7 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         typeof(LegalDocumentSetPublished),
         typeof(OrganizationRegistrationApproved),
         typeof(OrganizationRegistrationDeclineRequested),
+        typeof(OnboardingProvisioningCompleted),
     ];
 
     static readonly EventType[] _decisionEventTypes =
@@ -191,6 +195,9 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
                 break;
             case InvitationRevoked revoked:
                 await AppendRevocation(revoked, context);
+                break;
+            case OnboardingProvisioningCompleted:
+                await (provisioningReceiver ?? throw new InvalidOperationException("Provisioning completion receiver is not registered.")).Receive(context);
                 break;
             case OrganizationRegistrationApproved:
                 await RequireReviewReceiver().Approve(context);
