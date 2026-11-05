@@ -443,6 +443,14 @@
     ],
     "title": "LegalTermsAccepted"
   },
+  "OnboardingProvisioningCompleted:1": {
+    "type": "object",
+    "title": "OnboardingProvisioningCompleted"
+  },
+  "OnboardingProvisioningConfirmed:1": {
+    "type": "object",
+    "title": "OnboardingProvisioningConfirmed"
+  },
   "OrganizationNameReleased:1": {
     "type": "object",
     "properties": {
