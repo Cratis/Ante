@@ -167,9 +167,104 @@ jobs:
             E2E/test-results/
           retention-days: 7
 
+  fixture:
+    name: Fixture first invitation${{ github.event.action == 'labeled' && github.event.label.name != 'run-integration' && format(' - {0}', github.event.label.name) || '' }}
+    if: >-
+      github.event_name != 'pull_request' ||
+      (contains(github.event.pull_request.labels.*.name, 'run-integration') &&
+       (github.event.action != 'labeled' || github.event.label.name == 'run-integration'))
+    concurrency:
+      group: ${{ github.workflow }}-fixture-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      # Portable publishes match publish.yml; the API journey does not need the licensed SPA.
+      - name: Publish Ante
+        run: >-
+          dotnet publish Source/Ante/Ante.csproj --configuration Release
+          --self-contained false -p:UseAppHost=false -p:CratisProxiesOutputPath= -o Source/Ante/out
+
+      - name: Publish fixture host
+        run: >-
+          dotnet publish Fixture/Host/Ante.Fixture.Host.csproj --configuration Release
+          --self-contained false -p:UseAppHost=false -p:CratisProxiesOutputPath= -o Fixture/Host/out
+
+      - name: Publish fixture proxy
+        run: >-
+          dotnet publish Fixture/Proxy/Ante.Fixture.Proxy.csproj --configuration Release
+          --self-contained false -p:UseAppHost=false -p:CratisProxiesOutputPath= -o Fixture/Proxy/out
+
+      - name: Check compose policy
+        run: node Fixture/compose-policy.mjs
+
+      - name: Prepare images online
+        run: |
+          docker compose -f Fixture/compose.yml pull --ignore-buildable
+          docker compose -f Fixture/compose.yml build
+          for image in $(docker compose -f Fixture/compose.yml config --images | sort -u); do
+            docker image inspect --format '{{json .RepoTags}} {{json .RepoDigests}} {{.Id}}' "$image"
+          done
+
+      - name: Start offline fixture
+        timeout-minutes: 10
+        run: docker compose -f Fixture/compose.yml up -d --wait --pull never --no-build
+
+      - name: Prove backend cannot reach the internet
+        run: |
+          test "$(docker network inspect --format '{{.Internal}}' ante-fixture_backend)" = true
+          if docker run --rm --network ante-fixture_backend --entrypoint bash mongo:8.2 -c 'timeout 5 bash -c "exec 3<>/dev/tcp/1.1.1.1/443"'; then
+            echo "::error::the fixture backend network reached the internet"
+            exit 1
+          else
+            result=$?
+            if [ "$result" -ne 1 ] && [ "$result" -ne 124 ]; then
+              echo "::error::the egress probe could not run (exit $result)"
+              exit "$result"
+            fi
+            echo "Backend egress blocked as expected."
+          fi
+
+      - name: Run first invitation
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          node Fixture/first-invitation.mjs --timeout 300 | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect fixture logs
+        if: failure()
+        run: docker compose -f Fixture/compose.yml logs --no-color > fixture-logs.txt
+
+      - name: Upload fixture logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixture-logs
+          path: fixture-logs.txt
+          retention-days: 7
+
+      - name: Tear down fixture
+        if: always()
+        run: docker compose -f Fixture/compose.yml down -v
+
   coverage:
     name: Integration coverage${{ github.event.action == 'labeled' && github.event.label.name != 'run-integration' && format(' - {0}', github.event.label.name) || '' }}
-    needs: [integration, browser]
+    needs: [integration, browser, fixture]
     if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.action != 'labeled' || github.event.label.name == 'run-integration') }}
     permissions:
       contents: read
@@ -194,6 +289,7 @@ jobs:
           INTEGRATION: ${{ needs.integration.result }}
           BROWSER: ${{ needs.browser.result }}
           BROWSER_RAN: ${{ needs.browser.outputs.ran }}
+          FIXTURE: ${{ needs.fixture.result }}
         with:
           script: |
             await require('./.github/scripts/integration-coverage.cjs').run({github, context, core});

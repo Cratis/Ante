@@ -14,20 +14,22 @@ export const sharedWithCratisRun = [
     ...['Issuer', 'Audience', 'LobbyScope', 'PublicKeys__0__KeyId', 'Providers__0__Key', 'Providers__0__Issuer', 'Providers__0__AcceptableAssurances__0'].map(key => `Ante__Invitations__Exchange__Attestation__${key}`)
 ];
 
-export function check(config) {
-    const violations = [];
-    if (config.networks?.backend?.internal !== true) violations.push('backend must be internal');
-    const services = config.services ?? {};
-    if (!services.ante || !services.proxy) violations.push('ante and proxy services are required');
-    for (const [name, service] of Object.entries(services)) {
-        const networks = Object.keys(service.networks ?? {});
-        if (name !== 'proxy' && (networks.length !== 1 || networks[0] !== 'backend' || service.network_mode)) violations.push(`${name} must use only backend`);
-        if (service.ports?.length && name !== 'proxy') violations.push(`${name} cannot publish ports`);
-        if (service.ports?.some(port => port.host_ip !== '127.0.0.1')) violations.push(`${name} ports must bind 127.0.0.1`);
-        const tag = service.image?.split('/').at(-1)?.split(':')[1];
-        if (!tag || tag === 'latest') violations.push(`${name} image must have an explicit non-latest tag`);
+function isBackendOnly(service) {
+    if (service.network_mode) return false;
+    return Object.keys(service.networks ?? {}).join(',') === 'backend';
+}
+
+function checkService(name, service, violations) {
+    if (name !== 'proxy') {
+        if (!isBackendOnly(service)) violations.push(`${name} must use only backend`);
+        if (service.ports?.length) violations.push(`${name} cannot publish ports`);
     }
-    const environment = services.ante?.environment ?? {};
+    if (service.ports?.some(port => port.host_ip !== '127.0.0.1')) violations.push(`${name} ports must bind 127.0.0.1`);
+    const tag = service.image?.split('/').at(-1)?.split(':')[1];
+    if (!tag || tag === 'latest') violations.push(`${name} image must have an explicit non-latest tag`);
+}
+
+function checkEnvironment(environment, violations) {
     for (const key of sharedWithCratisRun) {
         if (!Object.hasOwn(environment, key) || environment[key] === null || environment[key] === '') violations.push(`missing ${key}`);
     }
@@ -39,6 +41,15 @@ export function check(config) {
     })) {
         if (environment[key] !== expected) violations.push(`${key} must equal ${expected}`);
     }
+}
+
+export function check(config) {
+    const violations = [];
+    if (config.networks?.backend?.internal !== true) violations.push('backend must be internal');
+    const services = config.services ?? {};
+    if (!services.ante || !services.proxy) violations.push('ante and proxy services are required');
+    for (const [name, service] of Object.entries(services)) checkService(name, service, violations);
+    checkEnvironment(services.ante?.environment ?? {}, violations);
     return violations;
 }
 

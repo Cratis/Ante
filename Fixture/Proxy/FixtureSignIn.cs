@@ -28,7 +28,6 @@ public sealed class FixtureSignIn(IConfiguration configuration, IHttpClientFacto
 
         var invitation = new PendingInvitation(id.Value, AttestationSigner.Nonce(), AttestationSigner.Nonce(), WebEncoders.Base64UrlEncode(SHA256.HashData(Encoding.UTF8.GetBytes(token))));
         using var response = await Send(
-            "/_invite/stage",
             invitation,
             new
             {
@@ -83,7 +82,7 @@ public sealed class FixtureSignIn(IConfiguration configuration, IHttpClientFacto
             string.IsNullOrWhiteSpace(subject) ? $"fixture-{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(email)))}" : subject,
             email,
             configuration["Fixture:SignIn:Assurance"]!);
-        using var response = await Send("/_invite/exchange", invitation, new { invitationTransaction = invitation.Transaction }, identity, context.RequestAborted);
+        using var response = await Send(invitation, new { invitationTransaction = invitation.Transaction }, identity, context.RequestAborted);
         if (!response.IsSuccessStatusCode)
         {
             return UpstreamFailure(response);
@@ -98,8 +97,9 @@ public sealed class FixtureSignIn(IConfiguration configuration, IHttpClientFacto
     static IResult UpstreamFailure(HttpResponseMessage response) =>
         Results.Text($"Ante refused the fixture exchange with HTTP {(int)response.StatusCode}.", statusCode: StatusCodes.Status502BadGateway);
 
-    async Task<HttpResponseMessage> Send(string path, PendingInvitation invitation, object body, SignedInIdentity? identity, CancellationToken cancellationToken)
+    async Task<HttpResponseMessage> Send(PendingInvitation invitation, object body, SignedInIdentity? identity, CancellationToken cancellationToken)
     {
+        var path = identity is null ? "/_invite/stage" : "/_invite/exchange";
         using var client = clients.CreateClient("fixture");
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{configuration["Fixture:Ante"]}{path}") { Content = JsonContent.Create(body) };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", signer.Sign(invitation, identity));
