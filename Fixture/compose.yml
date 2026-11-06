@@ -1,0 +1,129 @@
+# Copyright (c) Cratis. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+name: ante-fixture
+networks:
+  backend:
+    internal: true
+  edge: {}
+volumes:
+  mongodb-data:
+  attestation-keys:
+  ante-secrets:
+  ante-data:
+services:
+  mongodb:
+    image: mongo:8.2
+    command: [mongod, --replSet, rs0, --bind_ip_all]
+    networks: [backend]
+    volumes: [mongodb-data:/data/db]
+    healthcheck:
+      test: [CMD, mongosh, --quiet, --eval, "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]}).ok }"]
+      interval: 2s
+      retries: 30
+      start_period: 5s
+  chronicle:
+    image: ${CHRONICLE_IMAGE:-cratis/chronicle:19.23.0-development-slim}
+    networks: [backend]
+    environment:
+      Cratis__Chronicle__Storage__Type: MongoDB
+      Cratis__Chronicle__Storage__ConnectionDetails: mongodb://mongodb:27017/?directConnection=true
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, "curl -fsk https://localhost:35000/health || curl -fs http://localhost:8080/health"]
+      interval: 3s
+      retries: 60
+  keys:
+    image: ante-fixture/proxy:local
+    build: ./Proxy
+    command: [keys]
+    restart: "no"
+    networks: [backend]
+    volumes: [attestation-keys:/run/fixture/keys, ante-secrets:/run/cratis/secrets]
+  host:
+    image: ante-fixture/host:local
+    build: ./Host
+    networks: [backend]
+    environment:
+      Fixture__Chronicle: chronicle://chronicle:35000/?skipTlsValidation=true
+      Fixture__HostStore: Application
+      Fixture__AnteStore: Ante
+      Fixture__PublicBaseUrl: http://localhost:${ANTE_FIXTURE_PORT:-8080}
+      ASPNETCORE_HTTP_PORTS: "5100"
+    depends_on:
+      chronicle:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, dotnet, Ante.Fixture.Host.dll, healthcheck]
+      interval: 3s
+      retries: 60
+  ante:
+    image: ${ANTE_IMAGE:-ante-fixture/ante:local}
+    build:
+      context: ../Source/Ante
+    networks: [backend]
+    volumes: [ante-data:/run/cratis/data, ante-secrets:/run/cratis/secrets:ro]
+    environment:
+      ASPNETCORE_HTTP_PORTS: "5002"
+      ASPNETCORE_ENVIRONMENT: Development
+      Ante__Onboarding__Enabled: "true"
+      Ante__Onboarding__Development__Enabled: "true"
+      Ante__Onboarding__Development__DataPath: /run/cratis/data
+      Ante__Onboarding__Secrets__Path: /run/cratis/secrets
+      Ante__Onboarding__HostStore: Application
+      Ante__Onboarding__EventStore: Ante
+      Ante__Onboarding__Namespace: Default
+      Ante__Onboarding__PublicBaseUrl: http://localhost:${ANTE_FIXTURE_PORT:-8080}
+      Ante__Onboarding__ApplicationUrl: http://localhost:${ANTE_FIXTURE_PORT:-8080}/host/
+      Ante__Onboarding__SignUp: JoinTenant
+      Ante__Onboarding__RegistrationEnabled: "false"
+      Ante__Onboarding__InvitationTypes__0: JoinTenant
+      Ante__Onboarding__Personas__0: Member
+      Cratis__Chronicle__ConnectionString: chronicle://chronicle:35000/?skipTlsValidation=true
+      Cratis__MongoDB__Server: mongodb://mongodb:27017/?directConnection=true
+      Cratis__MongoDB__Database: Ante
+      Ante__Invitations__Exchange__Mode: Attested
+      Ante__Invitations__Exchange__Attestation__Issuer: urn:cratis:authproxy:local
+      Ante__Invitations__Exchange__Attestation__Audience: urn:cratis:ante:Ante:Default
+      Ante__Invitations__Exchange__Attestation__LobbyScope: Default
+      Ante__Invitations__Exchange__Attestation__PublicKeys__0__KeyId: fixture-attestation
+      Ante__Invitations__Exchange__Attestation__Providers__0__Key: fixture
+      Ante__Invitations__Exchange__Attestation__Providers__0__Issuer: http://localhost:${ANTE_FIXTURE_PORT:-8080}/fixture-idp
+      Ante__Invitations__Exchange__Attestation__Providers__0__AcceptableAssurances__0: oidc
+    depends_on:
+      keys:
+        condition: service_completed_successfully
+      host:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+  proxy:
+    image: ante-fixture/proxy:local
+    build: ./Proxy
+    networks: [backend, edge]
+    ports: ["127.0.0.1:${ANTE_FIXTURE_PORT:-8080}:8080"]
+    volumes: [attestation-keys:/run/fixture/keys:ro]
+    environment:
+      Fixture__Ante: http://ante:5002
+      Fixture__Host: http://host:5100
+      Fixture__PublicBaseUrl: http://localhost:${ANTE_FIXTURE_PORT:-8080}
+      Fixture__Attestation__Issuer: urn:cratis:authproxy:local
+      Fixture__Attestation__Audience: urn:cratis:ante:Ante:Default
+      Fixture__Attestation__LobbyScope: Default
+      Fixture__Attestation__KeyId: fixture-attestation
+      Fixture__Attestation__KeyFile: /run/fixture/keys/attestation.pem
+      Fixture__Capability__Issuer: urn:cratis:ante:Ante:Default
+      Fixture__Capability__Audience: urn:cratis:ante:Ante:Default:lobby
+      Fixture__SignIn__ProviderKey: fixture
+      Fixture__SignIn__Issuer: http://localhost:${ANTE_FIXTURE_PORT:-8080}/fixture-idp
+      Fixture__SignIn__Assurance: oidc
+      ASPNETCORE_HTTP_PORTS: "8080"
+    depends_on:
+      keys:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, dotnet, Ante.Fixture.Proxy.dll, healthcheck]
+      interval: 3s
+      retries: 60
