@@ -27,14 +27,14 @@ async function run({ github, context, core, env = process.env }) {
         return;
     }
 
-    if (env.INTEGRATION === 'success' && env.BROWSER === 'success' && env.BROWSER_RAN === 'true') {
-        core.info(`Integration and Browser end-to-end passed for head ${head}.`);
+    if (env.INTEGRATION === 'success' && env.BROWSER === 'success' && env.BROWSER_RAN === 'true' && env.FIXTURE === 'success') {
+        core.info(`Integration, Browser end-to-end and Fixture first invitation passed for head ${head}.`);
         return;
     }
 
     core.setFailed(
-        `run-integration is set on PR #${pr.number} but Integration and Browser end-to-end did not both run and pass for head ${head} ` +
-        `(integration: ${env.INTEGRATION}, browser: ${env.BROWSER}, browser ran: ${env.BROWSER_RAN}). ` +
+        `run-integration is set on PR #${pr.number} but Integration, Browser end-to-end and Fixture first invitation did not all run and pass for head ${head} ` +
+        `(integration: ${env.INTEGRATION}, browser: ${env.BROWSER}, browser ran: ${env.BROWSER_RAN}, fixture: ${env.FIXTURE}). ` +
         'A newer run may cover this head. Push, re-run this workflow, or remove the label and re-run this job.'
     );
 }

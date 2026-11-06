@@ -13,7 +13,7 @@ Start with [Host integration](./host-integration.md) to connect Chronicle event 
 
 Use [Deployment](./deployment.md) for the prerequisites and safe network boundary, [Configuration](./configuration.md) for exact settings, and [Diagnose onboarding](./operations.md) when publication or token issuance stalls. For source-level checks, see [Local development](./local-development.md).
 
-There is no verified, standalone host + Chronicle + MongoDB + validating-proxy fixture in this repository. These pages therefore do **not** promise a runnable first-invitation tutorial. A green health check alone cannot demonstrate a successful invitation or provisioning.
+The [standalone first-invitation fixture](./local-development.md#run-the-first-invitation-fixture) includes a host stub, Chronicle, MongoDB and a stub validating proxy. CI verifies one scripted first invitation through it; it is not a production deployment. A green health check alone cannot demonstrate a successful invitation or provisioning.
 
 ## Understand the boundary
 
