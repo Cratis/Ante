@@ -284,11 +284,12 @@ public static class RegistrationSourceAvailability
 /// <param name="eventStore">The event store.</param>
 /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>, given a chance to accelerate a live status subscription once this fact is durably published.</param>
 /// <param name="logger">The logger.</param>
+/// <param name="ante">The deployment options; <c language="csharp">OperatorAudience</c> addresses replies whose request named no requester. When absent such replies are unaddressed.</param>
 [Reactor(eventSequence: EventSequenceId.LogId)]
-public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<OrganizationRegistrationOutbox> logger) : IReactor
+public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<OrganizationRegistrationOutbox> logger, IOptions<AnteOptions>? ante = null) : IReactor
 {
     public Task On(OrganizationRegistrationRecorded @event, EventContext context, ReactorDelivery delivery) =>
-        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, announceRecorded: true);
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, announceRecorded: true, operatorAudience: ante?.Value.OperatorAudience);
 
     /// <summary>
     /// Forwards the registration completed event to the outbox.
@@ -297,7 +298,7 @@ public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf
     /// <param name="context">The event context.</param>
     /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
     public async Task On(OrganizationRegistrationCompleted @event, EventContext context, ReactorDelivery delivery) =>
-        await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger, announceRecorded: true);
+        await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger, announceRecorded: true, operatorAudience: ante?.Value.OperatorAudience);
 
     /// <summary>
     /// Forwards the held registration to the outbox as <see cref="OrganizationRegistrationAwaitingReview"/>, so the host's reviewer can decide.
@@ -306,7 +307,7 @@ public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf
     /// <param name="context">The event context.</param>
     /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
     public Task On(OrganizationRegistrationHeld @event, EventContext context, ReactorDelivery delivery) =>
-        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger);
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, operatorAudience: ante?.Value.OperatorAudience);
 
     /// <summary>
     /// Forwards the decision to decline a held registration to the outbox as <see cref="OrganizationRegistrationDeclined"/>.
@@ -315,5 +316,5 @@ public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf
     /// <param name="context">The event context.</param>
     /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
     public Task On(OrganizationRegistrationDeclineRecorded @event, EventContext context, ReactorDelivery delivery) =>
-        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger);
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, operatorAudience: ante?.Value.OperatorAudience);
 }

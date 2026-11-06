@@ -41,6 +41,19 @@ public class AnteOptions
     public string? InboxSourceStore { get; set; }
 
     /// <summary>
+    /// Gets or sets this lobby's audience identity. When set, every host-store inbox subscription is filtered to events
+    /// the host addressed to this audience (<c language="csharp">audience=&lt;value&gt;</c>), so one host can run several lobbies against
+    /// the same store without each receiving the others' invitations. Unset (the default) keeps the unfiltered behavior.
+    /// </summary>
+    public string? Audience { get; set; }
+
+    /// <summary>
+    /// Gets or sets the audience Ante addresses its replies to when the request that caused them carried no
+    /// <c language="csharp">from</c> tag. Unset (the default) leaves such replies unaddressed, exactly as before audiences existed.
+    /// </summary>
+    public string? OperatorAudience { get; set; }
+
+    /// <summary>
     /// Gets the legal document source and the host publication route. InProcess preserves the
     /// existing ILegalDocumentSource integration; Inbox requires both publisher and set id.
     /// </summary>

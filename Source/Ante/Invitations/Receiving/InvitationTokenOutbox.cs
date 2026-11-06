@@ -30,9 +30,10 @@ internal static class InvitationTokenOutbox
     /// <param name="trigger">The receipt or reissue request; its correlation, occurrence and subject are published.</param>
     /// <param name="deliveries">The local event log sequence numbers whose handling concludes the trigger.</param>
     /// <param name="outcome">Creates the outcome; not called when the trigger is already concluded.</param>
+    /// <param name="operatorAudience">The audience to address the outcome to when the request names no requester; <see langword="null"/> leaves it unaddressed.</param>
     /// <returns>Awaitable task.</returns>
     /// <exception cref="OutboxPublicationFailed">The append failed and no outcome for the trigger is published.</exception>
-    internal static async Task Publish(IEventStore eventStore, EventContext trigger, IReadOnlyCollection<EventSequenceNumber> deliveries, Func<object> outcome)
+    internal static async Task Publish(IEventStore eventStore, EventContext trigger, IReadOnlyCollection<EventSequenceNumber> deliveries, Func<object> outcome, string? operatorAudience = null)
     {
         var outbox = eventStore.GetEventSequence(EventSequenceId.Outbox);
         var published = await outbox.GetForEventSourceIdAndEventTypes(trigger.EventSourceId, _outcomeTypes);
@@ -45,13 +46,13 @@ internal static class InvitationTokenOutbox
         var tail = published.Count > 0 ? published[^1].Context.SequenceNumber : EventSequenceNumber.BeforeFirst;
 
         // The scope excludes a simultaneous publisher; the loser finds the winner's outcome below.
-        var result = await outbox.Append(
-            trigger.EventSourceId,
-            @event,
-            correlationId: trigger.CorrelationId,
-            concurrencyScope: new(tail, trigger.EventSourceId, EventTypes: _outcomeTypes),
-            occurred: trigger.Occurred,
-            subject: trigger.Subject);
+        var audience = await ReplyAudience.Resolve(eventStore, trigger, operatorAudience);
+        AppendResult result;
+        using (ReplyAudience.Address(audience))
+        {
+            result = await Append(outbox, trigger, @event, tail);
+        }
+
         if (!result.IsSuccess && !IsConcluded(await outbox.GetForEventSourceIdAndEventTypes(trigger.EventSourceId, _outcomeTypes), deliveries))
         {
             throw new OutboxPublicationFailed(trigger.EventSourceId, @event.GetType(), result);
@@ -66,4 +67,13 @@ internal static class InvitationTokenOutbox
     /// <returns>True when the trigger is concluded.</returns>
     internal static bool IsConcluded(IEnumerable<AppendedEvent> published, IReadOnlyCollection<EventSequenceNumber> deliveries) =>
         published.Any(entry => ReactorCausation.CausingDelivery(entry.Context, EventSequenceId.Log) is { } delivery && deliveries.Contains(delivery));
+
+    static Task<AppendResult> Append(IEventSequence outbox, EventContext trigger, object @event, EventSequenceNumber tail) =>
+        outbox.Append(
+            trigger.EventSourceId,
+            @event,
+            correlationId: trigger.CorrelationId,
+            concurrencyScope: new(tail, trigger.EventSourceId, EventTypes: _outcomeTypes),
+            occurred: trigger.Occurred,
+            subject: trigger.Subject);
 }

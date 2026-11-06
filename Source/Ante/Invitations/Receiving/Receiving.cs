@@ -77,7 +77,8 @@ public record InvitationSourceInboxEventRecorded(EventSequenceNumber InboxSequen
 /// <param name="legalReceiver">The optional legal-set receiver for configured inbox deliveries.</param>
 /// <param name="reviewReceiver">The optional receiver of review decisions, present when sign-ups are held for review.</param>
 /// <param name="provisioningReceiver">The receiver of host provisioning confirmations.</param>
-public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name, LegalDocumentSetReceiver? legalReceiver = null, RegistrationReviewReceiver? reviewReceiver = null, ProvisioningCompletionReceiver? provisioningReceiver = null)
+/// <param name="operatorAudience">The audience to address a rejection to when the request names no requester; <see langword="null"/> leaves it unaddressed.</param>
+public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name, LegalDocumentSetReceiver? legalReceiver = null, RegistrationReviewReceiver? reviewReceiver = null, ProvisioningCompletionReceiver? provisioningReceiver = null, string? operatorAudience = null)
 {
     static readonly Type[] _deliverableEventTypes =
     [
@@ -168,6 +169,9 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
     public async Task Handle(ReactorEvent delivery, IEventSerializer serializer)
     {
         var context = delivery.Context;
+
+        // Everything appended while handling the request remembers who sent it, so the replies can be addressed back.
+        using var requester = ReplyAudience.Inbound(context);
 
         // Delegate reactors do not select a generation or run typed-reactor middleware.
         // These contracts currently have one generation; fail delivery rather than acknowledge an unknown one.
@@ -500,7 +504,7 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             IncomingInvitationSubscriptions.ReactorIdFor(sourceStore),
             IncomingInvitationSubscriptions.InboxFor(sourceStore),
             context);
-        await eventStore.PublishToOutbox(delivery, context, new InvitationRejected(reason), [], logger);
+        await eventStore.PublishToOutbox(delivery, context, new InvitationRejected(reason), [], logger, operatorAudience: operatorAudience);
     }
 }
 
