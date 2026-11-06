@@ -35,7 +35,7 @@ function fixture({ payloadLabels = labels, currentLabels = labels, currentHead =
     };
     return {
         calls,
-        execute: () => run({ github, context, core, env: { INTEGRATION: 'success', BROWSER: 'success', BROWSER_RAN: 'true', ...env } })
+        execute: () => run({ github, context, core, env: { INTEGRATION: 'success', BROWSER: 'success', BROWSER_RAN: 'true', FIXTURE: 'success', ...env } })
     };
 }
 
@@ -64,7 +64,7 @@ test('removing the current label passes even if browser did not run', async () =
     assertPassed(calls, /not requested/);
 });
 
-test('both suites passing for the current labelled head passes and summarizes both SHAs', async () => {
+test('all suites passing for the current labelled head passes and summarizes both SHAs', async () => {
     const { calls, execute } = fixture();
     await execute();
     assertPassed(calls, /passed for head/);
@@ -74,7 +74,7 @@ test('both suites passing for the current labelled head passes and summarizes bo
     assert.equal(calls.writes, 1);
 });
 
-for (const suite of ['INTEGRATION', 'BROWSER']) {
+for (const suite of ['INTEGRATION', 'BROWSER', 'FIXTURE']) {
     for (const result of ['skipped', 'failure', 'cancelled', '']) {
         test(`${suite} ${result || 'missing'} fails closed for the current labelled head`, async () => {
             const { calls, execute } = fixture({ env: { [suite]: result } });
@@ -93,7 +93,7 @@ for (const ran of ['false', '', undefined]) {
         const { calls, execute } = fixture({ env: { BROWSER_RAN: ran } });
         await execute();
         assert.equal(calls.failures.length, 1);
-        assert.match(calls.failures[0], /did not both run and pass/);
+        assert.match(calls.failures[0], /did not all run and pass/);
         assert.ok(calls.failures[0].includes(head));
     });
 }
@@ -120,33 +120,33 @@ test('workflow reruns on synchronize and reopened, and quotes the run name conta
     assert.ok(runName.includes("format(' - PR #{0} @ {1}', github.event.pull_request.number, github.event.pull_request.head.sha)"));
 });
 
-test('all three job names suffix unrelated labels without changing suite conditions', () => {
-    assert.deepEqual(Object.keys(jobs), ['integration', 'browser', 'coverage']);
-    for (const [id, name] of [['integration', 'Integration'], ['browser', 'Browser end-to-end'], ['coverage', 'Integration coverage']]) {
+test('all four job names suffix unrelated labels without changing suite conditions', () => {
+    assert.deepEqual(Object.keys(jobs), ['integration', 'browser', 'fixture', 'coverage']);
+    for (const [id, name] of [['integration', 'Integration'], ['browser', 'Browser end-to-end'], ['fixture', 'Fixture first invitation'], ['coverage', 'Integration coverage']]) {
         assert.equal(jobs[id].match(/^    name: (.+)$/m)[1], name + suffix);
     }
-    for (const id of ['integration', 'browser']) {
+    for (const id of ['integration', 'browser', 'fixture']) {
         const condition = jobs[id].match(/    if: >-\n([\s\S]*?)(?=^    \S)/m)[1].trim().replace(/\s+/g, ' ');
         assert.equal(condition, suiteCondition);
         assert.match(jobs[id], /cancel-in-progress: \$\{\{ github.event_name == 'pull_request' \}\}/);
     }
 });
 
-test('coverage runs after both suites even when skipped or failed, excluding unrelated labels', () => {
-    assert.match(jobs.coverage, /needs: \[integration, browser\]/);
+test('coverage runs after all suites even when skipped or failed, excluding unrelated labels', () => {
+    assert.match(jobs.coverage, /needs: \[integration, browser, fixture\]/);
     assert.ok(jobs.coverage.includes("if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.action != 'labeled' || github.event.label.name == 'run-integration') }}"));
     assert.match(jobs.coverage, /permissions:\n      contents: read\n      pull-requests: read/);
     assert.match(jobs.coverage, /timeout-minutes: 5/);
 });
 
-test('coverage checks out its tests and workflow, tests the policy, and passes both results and browser ran', () => {
+test('coverage checks out its tests and workflow, tests the policy, and passes all results and browser ran', () => {
     assert.match(jobs.browser, /outputs:\n      ran: \$\{\{ steps.license.outputs.available \}\}/);
     assert.match(jobs.browser, /id: license/);
     assert.match(jobs.coverage, /uses: actions\/checkout@v4/);
     assert.match(jobs.coverage, /sparse-checkout: \|\n            \.github\/scripts\n            \.github\/workflows\/integration.yml\n          sparse-checkout-cone-mode: false/);
     assert.match(jobs.coverage, /run: node --test \.github\/scripts\/integration-coverage.test.cjs/);
     assert.match(jobs.coverage, /uses: actions\/github-script@v7/);
-    for (const [name, value] of [['INTEGRATION', 'needs.integration.result'], ['BROWSER', 'needs.browser.result'], ['BROWSER_RAN', 'needs.browser.outputs.ran']]) {
+    for (const [name, value] of [['INTEGRATION', 'needs.integration.result'], ['BROWSER', 'needs.browser.result'], ['BROWSER_RAN', 'needs.browser.outputs.ran'], ['FIXTURE', 'needs.fixture.result']]) {
         assert.ok(jobs.coverage.includes(`${name}: \${{ ${value} }}`));
     }
     assert.ok(jobs.coverage.includes("await require('./.github/scripts/integration-coverage.cjs').run({github, context, core});"));
