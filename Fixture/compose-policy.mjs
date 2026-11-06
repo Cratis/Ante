@@ -19,28 +19,35 @@ function isBackendOnly(service) {
     return Object.keys(service.networks ?? {}).join(',') === 'backend';
 }
 
-function checkService(name, service, violations) {
+function checkBindings(name, service, violations) {
     if (name !== 'proxy') {
         if (!isBackendOnly(service)) violations.push(`${name} must use only backend`);
         if (service.ports?.length) violations.push(`${name} cannot publish ports`);
     }
     if (service.ports?.some(port => port.host_ip !== '127.0.0.1')) violations.push(`${name} ports must bind 127.0.0.1`);
+}
+
+function checkService(name, service, violations) {
+    checkBindings(name, service, violations);
     const tag = service.image?.split('/').at(-1)?.split(':')[1];
     if (!tag || tag === 'latest') violations.push(`${name} image must have an explicit non-latest tag`);
 }
 
+function isConfigured(environment, key) {
+    return Object.hasOwn(environment, key) && ![null, ''].includes(environment[key]);
+}
+
 function checkEnvironment(environment, violations) {
-    for (const key of sharedWithCratisRun) {
-        if (!Object.hasOwn(environment, key) || environment[key] === null || environment[key] === '') violations.push(`missing ${key}`);
-    }
-    for (const [key, expected] of Object.entries({
+    const missing = sharedWithCratisRun.filter(key => !isConfigured(environment, key));
+    violations.push(...missing.map(key => `missing ${key}`));
+    const pins = Object.entries({
         ASPNETCORE_ENVIRONMENT: 'Development',
         Ante__Invitations__Exchange__Attestation__Issuer: 'urn:cratis:authproxy:local',
         Ante__Invitations__Exchange__Attestation__Audience: 'urn:cratis:ante:Ante:Default',
         Ante__Invitations__Exchange__Attestation__LobbyScope: 'Default'
-    })) {
-        if (environment[key] !== expected) violations.push(`${key} must equal ${expected}`);
-    }
+    });
+    const mismatches = pins.filter(([key, expected]) => environment[key] !== expected);
+    violations.push(...mismatches.map(([key, expected]) => `${key} must equal ${expected}`));
 }
 
 export function check(config) {
