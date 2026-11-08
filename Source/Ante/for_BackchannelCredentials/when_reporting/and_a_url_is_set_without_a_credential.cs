@@ -6,7 +6,7 @@ using Ante.for_BackchannelCredentials.given;
 
 namespace Ante.for_BackchannelCredentials.when_reporting;
 
-public class a_url_is_set_without_a_credential : Specification
+public class and_a_url_is_set_without_a_credential : Specification
 {
     RecordingLogger<AnteOptions> _production = null!;
     RecordingLogger<AnteOptions> _development = null!;

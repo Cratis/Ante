@@ -6,7 +6,7 @@ using Ante.for_BackchannelCredentials.given;
 
 namespace Ante.for_BackchannelCredentials.when_validating;
 
-public class the_url_is_http_outside_development : Specification
+public class and_the_url_is_http_outside_development : Specification
 {
     Exception? _identity;
     Exception? _outcome;

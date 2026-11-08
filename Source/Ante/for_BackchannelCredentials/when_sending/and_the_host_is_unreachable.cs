@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ante.for_BackchannelCredentials.when_sending;
 
-public class the_host_is_unreachable : Specification
+public class and_the_host_is_unreachable : Specification
 {
     sealed class Failing : HttpMessageHandler
     {

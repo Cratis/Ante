@@ -38,7 +38,15 @@ public static class BackchannelCredentials
     }
 
     /// <summary>
-    /// Rejects a credential that is too short, or one that would be sent over plain HTTP outside Development.
+    /// Stops a backchannel client from following redirects, so the credential is only ever sent to the configured URL.
+    /// </summary>
+    /// <param name="builder">The HTTP client builder of a backchannel that carries a credential.</param>
+    /// <returns>The same builder.</returns>
+    public static IHttpClientBuilder WithoutRedirects(this IHttpClientBuilder builder) =>
+        builder.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+
+    /// <summary>
+    /// Rejects a credential that is too short or not visible ASCII, or one that would be sent over plain HTTP outside Development.
     /// </summary>
     /// <param name="options">The deployment's options.</param>
     /// <param name="isDevelopment">Whether the application runs in the Development environment.</param>
@@ -83,6 +91,11 @@ public static class BackchannelCredentials
         if (credential.Length < MinimumLength || string.IsNullOrWhiteSpace(credential))
         {
             throw new BackchannelCredentialInvalid($"Ante:{name} must be at least {MinimumLength} characters.");
+        }
+
+        if (!credential.All(character => character is >= '!' and <= '~'))
+        {
+            throw new BackchannelCredentialInvalid($"Ante:{name} must contain only visible ASCII characters, with no spaces, control characters or line breaks.");
         }
 
         if (string.IsNullOrWhiteSpace(url) || isDevelopment)

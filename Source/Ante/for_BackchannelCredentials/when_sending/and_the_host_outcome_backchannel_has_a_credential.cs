@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ante.for_BackchannelCredentials.when_sending;
 
-public class the_host_outcome_backchannel_has_no_credential : Specification
+public class and_the_host_outcome_backchannel_has_a_credential : Specification
 {
     RecordingHandler _handler = null!;
 
@@ -17,9 +17,10 @@ public class the_host_outcome_backchannel_has_no_credential : Specification
 
     async Task Because() => await new HostOutcomeBackchannel(
         new HttpClient(_handler),
-        Options.Create(new AnteOptions { HostOutcomeUrl = "https://host.example.com/api" }),
+        Options.Create(new AnteOptions { HostOutcomeUrl = "https://host.example.com/api", HostOutcomeCredential = Credentials.Valid }),
         new RecordingLogger<HostOutcomeBackchannel>()).GetOutcome(InvitationId.New());
 
-    [Fact] void should_send_no_authorization() => Assert.Null(_handler.Requests[0].Headers.Authorization);
+    [Fact] void should_send_the_bearer_credential() => Assert.Equal($"Bearer {Credentials.Valid}", _handler.Requests[0].Headers.Authorization?.ToString());
+    [Fact] void should_not_put_the_credential_in_the_url() => Assert.DoesNotContain(Credentials.Valid, _handler.Requests[0].RequestUri!.ToString());
 }
 #endif

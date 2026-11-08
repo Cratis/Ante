@@ -6,7 +6,7 @@ using Ante.for_BackchannelCredentials.given;
 
 namespace Ante.for_BackchannelCredentials.when_validating;
 
-public class the_credential_is_too_short : Specification
+public class and_the_credential_is_too_short : Specification
 {
     Exception? _identity;
     Exception? _outcome;

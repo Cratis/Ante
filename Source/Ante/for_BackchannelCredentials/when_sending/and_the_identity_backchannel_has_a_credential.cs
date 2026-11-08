@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ante.for_BackchannelCredentials.when_sending;
 
-public class the_identity_backchannel_has_a_credential : Specification
+public class and_the_identity_backchannel_has_a_credential : Specification
 {
     RecordingHandler _handler = null!;
     RecordingLogger<IdentityBackchannel> _logger = null!;

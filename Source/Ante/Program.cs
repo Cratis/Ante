@@ -114,8 +114,8 @@ builder.Services.AddScoped<IAttestedInvitationSessions, AttestedInvitationSessio
 builder.Services.AddScoped<IInvitationAcceptanceFence, InvitationAcceptanceFence>();
 builder.Services.AddScoped<ISignedInIdentity, SignedInIdentity>();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddHttpClient<IIdentityBackchannel, IdentityBackchannel>();
-builder.Services.AddHttpClient<IHostOutcomeBackchannel, HostOutcomeBackchannel>();
+builder.Services.AddHttpClient<IIdentityBackchannel, IdentityBackchannel>().WithoutRedirects();
+builder.Services.AddHttpClient<IHostOutcomeBackchannel, HostOutcomeBackchannel>().WithoutRedirects();
 builder.Services.AddIdentityProvider<InvitationIdentityProvider>();
 builder.Services.AddSingleton<UserSetupStatusSubscriptions>();
 builder.Services.AddSingleton<OrganizationSetupStatusSubscriptions>();
