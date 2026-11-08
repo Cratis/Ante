@@ -3,6 +3,7 @@
 
 using System.Linq.Expressions;
 using Ante.Contracts.Legal;
+using Ante.IdentityProviders;
 using Ante.Legal.Receiving;
 using Ante.Resources;
 using Cratis.Chronicle.EventSequences.Concurrency;
@@ -165,6 +166,7 @@ public static class LegalAcceptanceEvidence
     /// <param name="tenantName">The organization the acceptance is for.</param>
     /// <param name="identityProvider">The identity provider the accepting user authenticated with.</param>
     /// <param name="subject">The compliance subject the acceptance is appended under.</param>
+    /// <param name="issuer">The canonical provider key and issuer, empty when unknown.</param>
     /// <returns>
     /// A <see cref="Result{TResult, TError}"/> containing either a failed <see cref="ValidationResult"/>
     /// or the events to append - empty when the host currently has no legal document source configured
@@ -176,10 +178,11 @@ public static class LegalAcceptanceEvidence
         LegalVersion acceptedLegalVersion,
         TenantName tenantName,
         IdentityProviderName identityProvider,
-        string subject)
+        string subject,
+        IdentityIssuerEvidence issuer = default)
     {
         var resolution = await ResolveWithScope(
-            legalDocumentSource, acceptedLegalTerms, acceptedLegalVersion, tenantName, identityProvider, subject);
+            legalDocumentSource, acceptedLegalTerms, acceptedLegalVersion, tenantName, identityProvider, subject, issuer);
         if (!resolution.TryGetResult(out var evidence))
         {
             resolution.TryGetError(out var error);
@@ -198,6 +201,7 @@ public static class LegalAcceptanceEvidence
     /// <param name="tenantName">The organization receiving acceptance.</param>
     /// <param name="identityProvider">The user's identity provider.</param>
     /// <param name="subject">The accepting subject.</param>
+    /// <param name="issuer">The canonical provider key and issuer, empty when unknown.</param>
     /// <returns>Either a rejection or the acceptance event and its optional concurrency fence.</returns>
     public static async Task<Result<LegalAcceptanceSnapshot, ValidationResult>> ResolveWithScope(
         ILegalDocumentSource legalDocumentSource,
@@ -205,7 +209,8 @@ public static class LegalAcceptanceEvidence
         LegalVersion acceptedLegalVersion,
         TenantName tenantName,
         IdentityProviderName identityProvider,
-        string subject)
+        string subject,
+        IdentityIssuerEvidence issuer = default)
     {
         var activated = legalDocumentSource is IActivatedLegalDocumentSource inbox ? await inbox.GetActivated() : null;
         var current = activated?.Documents ?? (activated is null ? await legalDocumentSource.GetCurrent() : null);
@@ -233,8 +238,12 @@ public static class LegalAcceptanceEvidence
             return ValidationResult.Error(Messages.Get(nameof(LegalTermsRules.StaleVersionMessage)));
         }
 
-        return Result<LegalAcceptanceSnapshot, ValidationResult>.Success(
-            new([new LegalTermsAcceptanceRecorded(tenantName, identityProvider, subject, current.Version)], scope));
+        var accepted = new LegalTermsAcceptanceRecorded(tenantName, identityProvider, subject, current.Version)
+        {
+            IdentityProviderKey = issuer.Key,
+            IdentityIssuer = issuer.IssuerValue,
+        };
+        return Result<LegalAcceptanceSnapshot, ValidationResult>.Success(new([accepted], scope));
     }
 
     /// <summary>

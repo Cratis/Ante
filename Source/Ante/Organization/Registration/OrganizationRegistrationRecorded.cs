@@ -17,9 +17,23 @@ public record OrganizationRegistrationRecorded(
     Email Email,
     IReadOnlyList<SignupContextEntry> SignupContext)
 {
+    /// <summary>Gets the canonical provider key the user authenticated with; empty when unknown.</summary>
+    public string IdentityProviderKey { get; init; } = string.Empty;
+
+    /// <summary>Gets the issuer the user authenticated with; empty when unknown.</summary>
+    public string IdentityIssuer { get; init; } = string.Empty;
+
     public OrganizationRegistrationCompleted ToContract() => new(
-        TenantName, Subject, IdentityProvider, FirstName, MiddleName, LastName, Email, SignupContext);
+        TenantName, Subject, IdentityProvider, FirstName, MiddleName, LastName, Email, SignupContext)
+    {
+        IdentityProviderKey = IdentityProviderKey,
+        IdentityIssuer = IdentityIssuer,
+    };
 
     public OrganizationRegistrationHeld ToHeld() => new(
-        TenantName, Subject, IdentityProvider, FirstName, MiddleName, LastName, Email, SignupContext);
+        TenantName, Subject, IdentityProvider, FirstName, MiddleName, LastName, Email, SignupContext)
+    {
+        IdentityProviderKey = IdentityProviderKey,
+        IdentityIssuer = IdentityIssuer,
+    };
 }

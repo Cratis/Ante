@@ -14,6 +14,16 @@ public record OrganizationSetupCompleted(
     Email Email,
     IReadOnlyList<RoleName> Roles)
 {
+    /// <summary>Gets the canonical provider key the user authenticated with; empty when unknown.</summary>
+    public string IdentityProviderKey { get; init; } = string.Empty;
+
+    /// <summary>Gets the issuer the user authenticated with; empty when unknown.</summary>
+    public string IdentityIssuer { get; init; } = string.Empty;
+
     public InvitationToCreateTenantAccepted ToContract() => new(
-        TenantName, IdentityProvider, IdentityProviderSubject, FirstName, MiddleName, LastName, Email, Roles);
+        TenantName, IdentityProvider, IdentityProviderSubject, FirstName, MiddleName, LastName, Email, Roles)
+    {
+        IdentityProviderKey = IdentityProviderKey,
+        IdentityIssuer = IdentityIssuer,
+    };
 }
