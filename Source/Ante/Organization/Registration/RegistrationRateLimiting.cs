@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Threading.RateLimiting;
+using Ante.Invitations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
@@ -10,7 +11,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Ante.Organization.Registration;
 
 /// <summary>
-/// Applies <see cref="RegistrationOptions.RequestsPerMinutePerClient"/> to the registration endpoints.
+/// Applies <see cref="RegistrationOptions.RequestsPerMinutePerClient"/> to the registration endpoints and
+/// <see cref="Invitations.InvitationOptions.RequestsPerMinutePerClient"/> to the invitation endpoints, as independent budgets.
 /// </summary>
 public static class RegistrationRateLimiting
 {
@@ -27,8 +29,7 @@ public static class RegistrationRateLimiting
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddRegistrationRateLimiting(this IServiceCollection services, AnteOptions options)
     {
-        var registration = options.Registration;
-        if (registration.RequestsPerMinutePerClient <= 0)
+        if (!IsEnabled(options))
         {
             return services;
         }
@@ -36,17 +37,7 @@ public static class RegistrationRateLimiting
         return services.AddRateLimiter(limiter =>
         {
             limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-                !IsRegistrationRequest(context.Request.Path)
-                    ? RateLimitPartition.GetNoLimiter(string.Empty)
-                    : RateLimitPartition.GetFixedWindowLimiter(
-                        ClientAddress(context, registration.TrustForwardedFor),
-                        _ => new FixedWindowRateLimiterOptions
-                        {
-                            PermitLimit = registration.RequestsPerMinutePerClient,
-                            Window = TimeSpan.FromMinutes(1),
-                            QueueLimit = 0,
-                        }));
+            limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context => Partition(context, options));
         });
     }
 
@@ -57,7 +48,30 @@ public static class RegistrationRateLimiting
     /// <param name="options">The deployment's options.</param>
     /// <returns>The application for chaining.</returns>
     public static IApplicationBuilder UseRegistrationRateLimiting(this IApplicationBuilder app, AnteOptions options) =>
-        options.Registration.RequestsPerMinutePerClient > 0 ? app.UseRateLimiter() : app;
+        IsEnabled(options) ? app.UseRateLimiter() : app;
+
+    /// <summary>
+    /// Selects the limiter partition of a request. Registration and invitation requests have independent budgets,
+    /// each partitioned by client address; every other request is unlimited.
+    /// </summary>
+    /// <param name="context">The request.</param>
+    /// <param name="options">The deployment's options.</param>
+    /// <returns>The partition the request is counted in.</returns>
+    public static RateLimitPartition<string> Partition(HttpContext context, AnteOptions options)
+    {
+        var registration = options.Registration;
+        if (registration.RequestsPerMinutePerClient > 0 && IsRegistrationRequest(context.Request.Path))
+        {
+            return FixedWindow("registration:", context, registration.TrustForwardedFor, registration.RequestsPerMinutePerClient);
+        }
+
+        if (options.Invitations.RequestsPerMinutePerClient > 0 && InvitationRateLimiting.IsInvitationRequest(context.Request.Path))
+        {
+            return FixedWindow("invitation:", context, registration.TrustForwardedFor, options.Invitations.RequestsPerMinutePerClient);
+        }
+
+        return RateLimitPartition.GetNoLimiter(string.Empty);
+    }
 
     /// <summary>
     /// Determines whether a request targets a registration endpoint.
@@ -87,4 +101,17 @@ public static class RegistrationRateLimiting
 
         return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }
+
+    static bool IsEnabled(AnteOptions options) =>
+        options.Registration.RequestsPerMinutePerClient > 0 || options.Invitations.RequestsPerMinutePerClient > 0;
+
+    static RateLimitPartition<string> FixedWindow(string budget, HttpContext context, bool trustForwardedFor, int limit) =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            budget + ClientAddress(context, trustForwardedFor),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = limit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            });
 }
