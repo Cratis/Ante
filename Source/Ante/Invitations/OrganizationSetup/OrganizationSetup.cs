@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
+using Ante.IdentityProviders;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.Receiving;
 using Ante.Invitations.UserSetup;
@@ -261,13 +262,15 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
             return ValidationResult.Error(Messages.Get("SetupIdentityRequired"));
         }
 
+        var issuer = signedInIdentity.ResolveIssuer(InvitationId);
         var legalResolution = await LegalAcceptanceEvidence.ResolveWithScope(
             legalDocumentSource,
             AcceptedLegalTerms,
             AcceptedLegalVersion,
             OrganizationName,
             identityProviderValue,
-            complianceSubject.ToString());
+            complianceSubject.ToString(),
+            issuer);
         if (!legalResolution.TryGetResult(out var legalEvidence))
         {
             legalResolution.TryGetError(out var legalError);
@@ -296,7 +299,11 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
                 MiddleName ?? Contracts.Invitations.MiddleName.NotSet,
                 LastName,
                 pendingInvitation.Email,
-                pendingInvitation.Roles),
+                pendingInvitation.Roles)
+            {
+                IdentityProviderKey = issuer.Key,
+                IdentityIssuer = issuer.IssuerValue,
+            },
         };
         if (owner is not null)
         {

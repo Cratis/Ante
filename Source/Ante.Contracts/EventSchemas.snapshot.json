@@ -101,6 +101,79 @@
     "type": "object",
     "title": "InvitationRevoked"
   },
+  "InvitationToCreateTenantAccepted:2": {
+    "type": "object",
+    "properties": {
+      "tenantName": {
+        "type": "string"
+      },
+      "identityProvider": {
+        "type": "string"
+      },
+      "identityProviderSubject": {
+        "type": "string"
+      },
+      "firstName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "middleName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "lastName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "email": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "roles": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "identityProviderKey": {
+        "type": "string"
+      },
+      "identityIssuer": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "tenantName",
+      "identityProvider",
+      "identityProviderSubject",
+      "firstName",
+      "middleName",
+      "lastName",
+      "email",
+      "roles"
+    ],
+    "title": "InvitationToCreateTenantAccepted"
+  },
   "InvitationToCreateTenantAccepted:1": {
     "type": "object",
     "properties": {
@@ -167,6 +240,79 @@
       "roles"
     ],
     "title": "InvitationToCreateTenantAccepted"
+  },
+  "InvitationToJoinTenantAccepted:2": {
+    "type": "object",
+    "properties": {
+      "tenantName": {
+        "type": "string"
+      },
+      "identityProvider": {
+        "type": "string"
+      },
+      "identityProviderSubject": {
+        "type": "string"
+      },
+      "firstName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "middleName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "lastName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "email": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "roles": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "identityProviderKey": {
+        "type": "string"
+      },
+      "identityIssuer": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "tenantName",
+      "identityProvider",
+      "identityProviderSubject",
+      "firstName",
+      "middleName",
+      "lastName",
+      "email",
+      "roles"
+    ],
+    "title": "InvitationToJoinTenantAccepted"
   },
   "InvitationToJoinTenantAccepted:1": {
     "type": "object",
@@ -419,6 +565,36 @@
     ],
     "title": "LegalDocumentSetPublished"
   },
+  "LegalTermsAccepted:2": {
+    "type": "object",
+    "properties": {
+      "tenantName": {
+        "type": "string"
+      },
+      "identityProvider": {
+        "type": "string"
+      },
+      "identityProviderSubject": {
+        "type": "string"
+      },
+      "version": {
+        "type": "string"
+      },
+      "identityProviderKey": {
+        "type": "string"
+      },
+      "identityIssuer": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "tenantName",
+      "identityProvider",
+      "identityProviderSubject",
+      "version"
+    ],
+    "title": "LegalTermsAccepted"
+  },
   "LegalTermsAccepted:1": {
     "type": "object",
     "properties": {
@@ -559,9 +735,15 @@
     ],
     "title": "OrganizationRegistrationAwaitingReview"
   },
-  "OrganizationRegistrationCompleted:2": {
+  "OrganizationRegistrationCompleted:3": {
     "type": "object",
     "properties": {
+      "identityProviderKey": {
+        "type": "string"
+      },
+      "identityIssuer": {
+        "type": "string"
+      },
       "tenantName": {
         "type": "string"
       },
@@ -699,6 +881,89 @@
       "middleName",
       "lastName",
       "email"
+    ],
+    "title": "OrganizationRegistrationCompleted"
+  },
+  "OrganizationRegistrationCompleted:2": {
+    "type": "object",
+    "properties": {
+      "tenantName": {
+        "type": "string"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "identityProvider": {
+        "type": "string"
+      },
+      "firstName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "middleName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "lastName": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "email": {
+        "type": "string",
+        "compliance": [
+          {
+            "metadataType": "PII",
+            "details": ""
+          }
+        ]
+      },
+      "signupContext": {
+        "type": [
+          "array",
+          "null"
+        ],
+        "items": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "key",
+            "value"
+          ],
+          "title": "SignupContextEntry"
+        }
+      }
+    },
+    "required": [
+      "tenantName",
+      "subject",
+      "identityProvider",
+      "firstName",
+      "middleName",
+      "lastName",
+      "email",
+      "signupContext"
     ],
     "title": "OrganizationRegistrationCompleted"
   },

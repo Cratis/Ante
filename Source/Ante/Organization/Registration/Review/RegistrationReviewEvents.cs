@@ -29,12 +29,22 @@ public record OrganizationRegistrationHeld(
     Email Email,
     IReadOnlyList<SignupContextEntry> SignupContext)
 {
+    /// <summary>Gets the canonical provider key the user signed in with; empty when unknown.</summary>
+    public string IdentityProviderKey { get; init; } = string.Empty;
+
+    /// <summary>Gets the issuer the user signed in with; empty when unknown.</summary>
+    public string IdentityIssuer { get; init; } = string.Empty;
+
     /// <summary>
     /// Gets the completed registration an approval records.
     /// </summary>
     /// <returns>The registration as it would have been recorded without review.</returns>
     public OrganizationRegistrationRecorded ToRecorded() => new(
-        TenantName, Subject, IdentityProvider, FirstName, MiddleName, LastName, Email, SignupContext);
+        TenantName, Subject, IdentityProvider, FirstName, MiddleName, LastName, Email, SignupContext)
+    {
+        IdentityProviderKey = IdentityProviderKey,
+        IdentityIssuer = IdentityIssuer,
+    };
 
     /// <summary>
     /// Gets the public outcome that tells the host a reviewer is needed.

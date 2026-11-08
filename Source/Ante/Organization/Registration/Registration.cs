@@ -199,13 +199,16 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
 
         var subject = owner.Subject.Value;
         var identityProviderValue = owner.Provider;
+        var issuer = IdentityIssuerEvidence.FromClaims(
+            user?.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value)) ?? []);
         var legalResolution = await LegalAcceptanceEvidence.ResolveWithScope(
             legalDocumentSource,
             AcceptedLegalTerms,
             AcceptedLegalVersion,
             OrganizationName,
             identityProviderValue,
-            subject);
+            subject,
+            issuer);
         if (!legalResolution.TryGetResult(out var legalEvidence))
         {
             legalResolution.TryGetError(out var legalError);
@@ -220,7 +223,11 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             MiddleName ?? Contracts.Invitations.MiddleName.NotSet,
             LastName,
             email,
-            SignupContextRules.Filter(options.Value.Registration, SignupContext));
+            SignupContextRules.Filter(options.Value.Registration, SignupContext))
+        {
+            IdentityProviderKey = issuer.Key,
+            IdentityIssuer = issuer.IssuerValue,
+        };
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
