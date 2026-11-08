@@ -31,6 +31,11 @@ public static class RegistrationOptionsValidator
             throw new RegistrationConfigurationInvalid("Ante:Registration:RequestsPerMinutePerClient cannot be negative.");
         }
 
+        if (options.Invitations.RequestsPerMinutePerClient < 0)
+        {
+            throw new RegistrationConfigurationInvalid("Ante:Invitations:RequestsPerMinutePerClient cannot be negative.");
+        }
+
         if (registration.ContextKeys.Count > RegistrationOptions.MaximumContextKeys)
         {
             throw new RegistrationConfigurationInvalid($"Ante:Registration:ContextKeys allows at most {RegistrationOptions.MaximumContextKeys} keys.");

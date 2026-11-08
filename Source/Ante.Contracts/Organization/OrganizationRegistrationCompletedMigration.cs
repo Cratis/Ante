@@ -8,13 +8,13 @@ namespace Ante.Contracts.Organization;
 /// <summary>
 /// Migrates registrations from generation 1, which carried no signup context, to an empty context.
 /// </summary>
-public class OrganizationRegistrationCompletedMigration : EventTypeMigration<OrganizationRegistrationCompleted, OrganizationRegistrationCompletedV1>
+public class OrganizationRegistrationCompletedMigration : EventTypeMigration<OrganizationRegistrationCompletedV2, OrganizationRegistrationCompletedV1>
 {
     /// <inheritdoc/>
-    public override void Upcast(IEventMigrationBuilder<OrganizationRegistrationCompleted, OrganizationRegistrationCompletedV1> builder) =>
+    public override void Upcast(IEventMigrationBuilder<OrganizationRegistrationCompletedV2, OrganizationRegistrationCompletedV1> builder) =>
         builder.Properties(properties => properties.DefaultValue(target => target.SignupContext, (List<SignupContextEntry>)[]));
 
     /// <inheritdoc/>
-    public override void Downcast(IEventMigrationBuilder<OrganizationRegistrationCompletedV1, OrganizationRegistrationCompleted> builder) =>
+    public override void Downcast(IEventMigrationBuilder<OrganizationRegistrationCompletedV1, OrganizationRegistrationCompletedV2> builder) =>
         builder.Properties(properties => { });
 }

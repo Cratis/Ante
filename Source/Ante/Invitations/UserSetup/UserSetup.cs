@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using Ante.Contracts.Legal;
+using Ante.IdentityProviders;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.Receiving;
@@ -204,6 +205,8 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
             return ValidationResult.Error(Messages.Get("AcceptNotPending"));
         }
 
+        var issuer = signedInIdentity.ResolveIssuer(InvitationId);
+
         // Resolved once, authoritatively, from the host's document source as it reads right now - not
         // trusted from the command payload - so the version recorded as evidence is always the version
         // this very check just confirmed was accepted.
@@ -213,7 +216,8 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
             AcceptedLegalVersion,
             pendingInvitation.TenantName,
             identity.Provider,
-            identity.Subject.ToString());
+            identity.Subject.ToString(),
+            issuer);
         if (!legalResolution.TryGetResult(out var legalEvidence))
         {
             legalResolution.TryGetError(out var legalError);
@@ -242,7 +246,11 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
                 MiddleName ?? Contracts.Invitations.MiddleName.NotSet,
                 LastName,
                 pendingInvitation.Email,
-                pendingInvitation.Roles),
+                pendingInvitation.Roles)
+            {
+                IdentityProviderKey = issuer.Key,
+                IdentityIssuer = issuer.IssuerValue,
+            },
         };
         if (owner is not null)
         {

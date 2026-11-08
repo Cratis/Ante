@@ -29,6 +29,17 @@ public interface ISignedInIdentity
     (IdentityProviderName Provider, Cratis.Chronicle.Subject Subject) Resolve(InvitationId invitationId, Cratis.Chronicle.Subject fallbackSubject);
 
     /// <summary>
+    /// Resolves the canonical provider key and issuer the accepting user authenticated with, to carry on the accepted-identity facts.
+    /// </summary>
+    /// <remarks>
+    /// In attested mode this is the key and issuer of the verified attested session. Otherwise it is the canonical
+    /// evidence the trusted proxy forwarded on the current request. It is empty - never guessed - when either is unknown.
+    /// </remarks>
+    /// <param name="invitationId">The invitation being accepted, or <see cref="InvitationId.NotSet"/> for self-service registration.</param>
+    /// <returns>The key and issuer, or empty evidence when unknown.</returns>
+    IdentityIssuerEvidence ResolveIssuer(InvitationId invitationId);
+
+    /// <summary>
     /// Resolves the identity provider for the current request; an empty provider does not identify an owner.
     /// </summary>
     /// <returns>The resolved identity provider.</returns>
@@ -123,6 +134,19 @@ public class SignedInIdentity(
         var session = SessionFor(invitationId, subject, ProviderOf(null));
 
         return (ProviderOf(session), SubjectOf(subject, session, fallbackSubject));
+    }
+
+    /// <inheritdoc/>
+    public IdentityIssuerEvidence ResolveIssuer(InvitationId invitationId)
+    {
+        if (IsAttestedExchange)
+        {
+            var attested = AttestedSessionFor(invitationId);
+            return attested is null ? default : IdentityIssuerEvidence.From(attested.ProviderKey, attested.ProviderIssuer);
+        }
+
+        return IdentityIssuerEvidence.FromClaims(
+            httpContextAccessor.HttpContext?.User?.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value)) ?? []);
     }
 
     /// <inheritdoc/>

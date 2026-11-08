@@ -85,7 +85,7 @@ public class and_a_property_shares_its_name_with_the_event : Specification
             new("Mapped", [new FromEventAttribute<OrganizationRegistrationCompleted>()], [TenantName(new SetFromAttribute<OrganizationRegistrationCompleted>(nameof(OrganizationRegistrationCompleted.TenantName)))]),
             new("Opted", [new FromEventAttribute<OrganizationRegistrationCompleted>()], [TenantName(new NoAutoMapAttribute())]),
             new("Removed", [new RemovedWithAttribute<OrganizationRegistrationCompleted>()], [TenantName()]),
-            new("FirstGeneration", [new FromEventAttribute<InvitationToCreateTenantAccepted>()], [TenantName()]),
+            new("FirstGeneration", [new FromEventAttribute<OrganizationRegistrationAwaitingReview>()], [TenantName()]),
             new(
                 "Owner",
                 [],
