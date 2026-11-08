@@ -14,6 +14,9 @@ namespace Ante.IdentityProviders;
 /// <param name="Issuer">The canonical issuer, or empty when unknown.</param>
 public readonly record struct IdentityIssuerEvidence(string? ProviderKey, string? Issuer)
 {
+    const string ProviderKeyClaimType = "urn:cratis:identity:provider-key";
+    const string IssuerClaimType = "urn:cratis:identity:issuer";
+
     /// <summary>Gets the provider key, never null.</summary>
     public string Key => ProviderKey ?? string.Empty;
 
@@ -32,9 +35,19 @@ public readonly record struct IdentityIssuerEvidence(string? ProviderKey, string
     /// Creates evidence from the forwarded principal's claims.
     /// </summary>
     /// <param name="claims">Claims from the trusted proxy's forwarded principal.</param>
-    /// <returns>The evidence, or an empty one when the claims do not carry both values.</returns>
-    public static IdentityIssuerEvidence FromClaims(IEnumerable<KeyValuePair<string, string>> claims) =>
-        From(AuthProxySignInReport.FromClaims(claims));
+    /// <returns>The evidence, or an empty one when the claims do not carry both values exactly once.</returns>
+    public static IdentityIssuerEvidence FromClaims(IEnumerable<KeyValuePair<string, string>> claims)
+    {
+        var values = claims.ToArray();
+
+        // Conflicting duplicates are ambiguous evidence: fail closed instead of recording whichever came first.
+        if (values.Count(claim => claim.Key == ProviderKeyClaimType) > 1 || values.Count(claim => claim.Key == IssuerClaimType) > 1)
+        {
+            return default;
+        }
+
+        return From(AuthProxySignInReport.FromClaims(values));
+    }
 
     /// <summary>
     /// Creates evidence from a provider key and issuer, leaving both empty unless both are present.
