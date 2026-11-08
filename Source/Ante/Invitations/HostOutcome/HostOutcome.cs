@@ -90,7 +90,7 @@ public record HostOutcomeAnswer(string Status, string? ReasonCode);
 /// ever queried.
 /// </remarks>
 /// <param name="httpClient">The HTTP client used to reach the host.</param>
-/// <param name="options">The Ante options carrying the configured host outcome URL.</param>
+/// <param name="options">The Ante options carrying the configured host outcome URL and credential.</param>
 /// <param name="logger">The logger.</param>
 public class HostOutcomeBackchannel(
     HttpClient httpClient,
@@ -111,7 +111,10 @@ public class HostOutcomeBackchannel(
 
         try
         {
-            var answer = await httpClient.GetFromJsonAsync<HostOutcomeAnswer>(url);
+            using var request = BackchannelCredentials.CreateRequest(url, options.Value.HostOutcomeCredential);
+            using var response = await httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            var answer = await response.Content.ReadFromJsonAsync<HostOutcomeAnswer>();
             return ParseAnswer(answer);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or NotSupportedException or System.Text.Json.JsonException)

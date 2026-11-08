@@ -29,7 +29,9 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 | `Ante:SplashMessage` | string | `Loading` | `Loading` / `Loading` | Accessible name announced by the screen shown while the application loads. |
 | `Ante:SplashHtml` | string | empty | empty / empty | Trusted markup that replaces the default loading screen. Style it with `Ante:CustomCssUrl`. See [Customization](./customization.md#brand-the-loading-screen). |
 | `Ante:IdentityBackchannelUrl` | string | empty | empty / unset | Optional host base URL for join-invitation `/in-use` GET. |
+| `Ante:IdentityBackchannelCredential` | string | empty | empty / unset | Optional per-host bearer secret (at least 32 characters) sent as `Authorization: Bearer` on `IdentityBackchannelUrl` calls. When set, the URL must be https outside Development or startup fails. Store it in a secret store; it is never logged. With a URL but no credential, startup logs a warning outside Development. |
 | `Ante:HostOutcomeUrl` | string | empty | unset / unset | Optional host base URL for the `/outcome` GET after invited creation, join and self-service registration. |
+| `Ante:HostOutcomeCredential` | string | empty | unset / unset | Optional per-host bearer secret (at least 32 characters) sent as `Authorization: Bearer` on `HostOutcomeUrl` calls, with the same https, secret-store and warning rules as `Ante:IdentityBackchannelCredential`. Use a different value per backchannel. |
 | `Ante:Registration:Enabled` | bool | `true` | unset / unset | `false` closes `/register`: the page shows a notice and the server rejects registration commands. |
 | `Ante:Registration:ClosedUrl` | string | empty | unset / unset | Optional https (or same-origin path) link shown when registration is closed. |
 | `Ante:Registration:MaxPerIdentity` | int | `0` (unlimited) | unset / unset | Most organizations one sign-in (provider + subject) may register within `Window`. Negative fails startup. |

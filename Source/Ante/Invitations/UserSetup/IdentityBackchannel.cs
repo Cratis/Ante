@@ -63,7 +63,10 @@ public class IdentityBackchannel(
 
         try
         {
-            var answer = await httpClient.GetFromJsonAsync<IdentityBackchannelAnswer>(url);
+            using var request = BackchannelCredentials.CreateRequest(url, options.Value.IdentityBackchannelCredential);
+            using var response = await httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            var answer = await response.Content.ReadFromJsonAsync<IdentityBackchannelAnswer>();
             return answer?.IsInUse == true;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or NotSupportedException or System.Text.Json.JsonException)
