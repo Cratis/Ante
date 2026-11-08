@@ -41,7 +41,7 @@ data:
   # Ante__Onboarding__Personas__0: "<PersonaName>"
   # Ante__Onboarding__Legal__Folder: "/etc/ante/legal"   # mount terms.md and privacy.md here
 
-  # Optional host backchannels (cluster-internal URLs only).
+  # Optional host backchannels (cluster-internal URLs only). Credentials for them belong in the Secret below.
   Ante__IdentityBackchannelUrl: "http://<host-service>/api/internal/identity-providers"
   Ante__HostOutcomeUrl: "http://<host-service>/api/internal/onboarding"
 
@@ -74,6 +74,10 @@ stringData:
     <-----BEGIN PRIVATE KEY----- ... ----->
   Ante__Invitations__Token__PublicKeyPem: |
     <-----BEGIN PUBLIC KEY----- ... ----->
+  # Optional per-host bearer secrets for the backchannels above (at least 32 random characters each, one per
+  # backchannel). A credential requires an https URL outside Development; the host must verify it.
+  # Ante__IdentityBackchannelCredential: "<random-secret>"
+  # Ante__HostOutcomeCredential: "<random-secret>"
 ---
 apiVersion: apps/v1
 kind: Deployment

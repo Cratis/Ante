@@ -144,6 +144,20 @@ public class AnteOptions
     public string HostOutcomeUrl { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the per-host bearer secret Ante sends as <c language="csharp">Authorization: Bearer</c>
+    /// on its calls to <see cref="IdentityBackchannelUrl"/>. At least 32 characters, and the URL must be https
+    /// outside Development. When empty, no credential is sent. Keep it in a secret store, never in a URL.
+    /// </summary>
+    public string IdentityBackchannelCredential { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the per-host bearer secret Ante sends as <c language="csharp">Authorization: Bearer</c>
+    /// on its calls to <see cref="HostOutcomeUrl"/>. At least 32 characters, and the URL must be https
+    /// outside Development. When empty, no credential is sent. Keep it in a secret store, never in a URL.
+    /// </summary>
+    public string HostOutcomeCredential { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the default language for visitors without a recognized preference.
     /// </summary>
     public string DefaultLocale { get; set; } = "en";
