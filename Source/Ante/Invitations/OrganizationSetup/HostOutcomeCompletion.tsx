@@ -23,9 +23,11 @@ export type HostOutcomeCompletionProps = {
 export const HostOutcomeCompletion = ({ handoff, succeededMessage }: HostOutcomeCompletionProps) => {
     const message = handoff.hostOutcomeStatus === HostOutcomeStatus.succeeded
         ? (succeededMessage || strings.organizationSetup.hostOutcomeSucceeded)
-        : handoff.hostOutcomeStatus === HostOutcomeStatus.failed
-            ? strings.organizationSetup.hostOutcomeFailed
-            : strings.organizationSetup.hostOutcomePending;
+        : handoff.hostOutcomeRequiresNewInvitation
+            ? strings.organizationSetup.hostOutcomeRequiresNewInvitation
+            : handoff.hostOutcomeStatus === HostOutcomeStatus.failed
+                ? strings.organizationSetup.hostOutcomeFailed
+                : strings.organizationSetup.hostOutcomePending;
 
     return (
         <div className='organization-setup-waiting' role='status' aria-live='polite'>

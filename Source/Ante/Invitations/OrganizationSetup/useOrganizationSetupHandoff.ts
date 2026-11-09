@@ -55,6 +55,8 @@ export type OrganizationSetupHandoffState = {
     hostOutcomeStatus: HostOutcomeStatus;
     /** A stable, low-cardinality reason code accompanying a terminal host outcome; empty otherwise. */
     hostOutcomeReasonCode: string;
+    /** Whether the host reported, with a signed outcome, that the person needs a new invitation; `hostOutcomeStatus` is then `failed`. */
+    hostOutcomeRequiresNewInvitation: boolean;
     /** Re-runs the host outcome lookup, for a host that has not yet reported a terminal result. */
     checkHostOutcomeAgain: () => void;
     /** Navigates to the host now - published onboarding never depends on host outcome, so this is always safe to call regardless of what (if anything) the host has reported. */
@@ -163,6 +165,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
         checkAgain: () => { setPollWindowExpired(false); recovery.checkAgain(); },
         hostOutcomeStatus: hostOutcome.status,
         hostOutcomeReasonCode: hostOutcome.reasonCode,
+        hostOutcomeRequiresNewInvitation: hostOutcome.requiresNewInvitation,
         checkHostOutcomeAgain: hostOutcome.checkAgain,
         continueToHost: navigateToHost,
     };

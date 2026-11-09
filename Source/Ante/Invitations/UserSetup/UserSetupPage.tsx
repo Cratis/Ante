@@ -163,9 +163,11 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     if (hostOutcomeGate === 'showHostOutcome') {
         const message = hostOutcome.status === HostOutcomeStatus.succeeded
             ? invitationCompletionMessage(content, strings.userSetup.hostOutcomeSucceeded)
-            : hostOutcome.status === HostOutcomeStatus.failed
-                ? strings.userSetup.hostOutcomeFailed
-                : strings.userSetup.hostOutcomePending;
+            : hostOutcome.requiresNewInvitation
+                ? strings.userSetup.hostOutcomeRequiresNewInvitation
+                : hostOutcome.status === HostOutcomeStatus.failed
+                    ? strings.userSetup.hostOutcomeFailed
+                    : strings.userSetup.hostOutcomePending;
 
         return (
             <UserSetupFrame content={content}>
