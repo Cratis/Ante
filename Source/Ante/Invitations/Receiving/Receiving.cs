@@ -78,7 +78,8 @@ public record InvitationSourceInboxEventRecorded(EventSequenceNumber InboxSequen
 /// <param name="reviewReceiver">The optional receiver of review decisions, present when sign-ups are held for review.</param>
 /// <param name="provisioningReceiver">The receiver of host provisioning confirmations.</param>
 /// <param name="operatorAudience">The audience to address a rejection to when the request names no requester; <see langword="null"/> leaves it unaddressed.</param>
-public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name, LegalDocumentSetReceiver? legalReceiver = null, RegistrationReviewReceiver? reviewReceiver = null, ProvisioningCompletionReceiver? provisioningReceiver = null, string? operatorAudience = null)
+/// <param name="hostProvisioningReceiver">The receiver of host-signed provisioning outcomes, present when durable host outcomes are required.</param>
+public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name, LegalDocumentSetReceiver? legalReceiver = null, RegistrationReviewReceiver? reviewReceiver = null, ProvisioningCompletionReceiver? provisioningReceiver = null, string? operatorAudience = null, HostProvisioningOutcomeReceiver? hostProvisioningReceiver = null)
 {
     static readonly Type[] _deliverableEventTypes =
     [
@@ -92,6 +93,10 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         typeof(OrganizationRegistrationApproved),
         typeof(OrganizationRegistrationDeclineRequested),
         typeof(OnboardingProvisioningCompleted),
+        typeof(HostProvisioningAttemptStarted),
+        typeof(HostProvisioningSucceeded),
+        typeof(HostProvisioningFailed),
+        typeof(HostProvisioningRequiresNewInvitation),
     ];
 
     static readonly EventType[] _decisionEventTypes =
@@ -202,6 +207,14 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
                 break;
             case OnboardingProvisioningCompleted:
                 await (provisioningReceiver ?? throw new InvalidOperationException("Provisioning completion receiver is not registered.")).Receive(context);
+                break;
+            case HostProvisioningAttemptStarted or HostProvisioningSucceeded or HostProvisioningFailed or HostProvisioningRequiresNewInvitation:
+                // Without durable host outcomes these are not subscribed; a stray one changes nothing.
+                if (hostProvisioningReceiver is not null)
+                {
+                    await hostProvisioningReceiver.Receive(content, context);
+                }
+
                 break;
             case OrganizationRegistrationApproved:
                 await RequireReviewReceiver().Approve(context);

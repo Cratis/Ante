@@ -15,6 +15,7 @@ using Ante.Legal;
 using Ante.Legal.Receiving;
 using Ante.Locale;
 using Ante.Onboarding;
+using Ante.Onboarding.Provisioning;
 using Ante.Organization.Registration;
 using Cratis.Arc;
 using Cratis.Arc.MongoDB;
@@ -56,6 +57,8 @@ InvitationTokenConfigurationValidator.Validate(invitationTokenOptions);
 InvitationTokenIsolation.ApplyDefaults(invitationTokenOptions, anteOptions);
 var invitationExchangeOptions = builder.Configuration.GetSection("Ante:Invitations:Exchange").Get<InvitationExchangeConfig>() ?? new InvitationExchangeConfig();
 InvitationExchangeConfigurationValidator.Validate(invitationExchangeOptions, invitationTokenOptions);
+var hostOutcomesOptions = builder.Configuration.GetSection(HostOutcomesConfig.Section).Get<HostOutcomesConfig>() ?? new HostOutcomesConfig();
+HostOutcomesConfigurationValidator.Validate(hostOutcomesOptions, anteOptions.HostStores!);
 
 builder.AddCratis(
     options =>
@@ -90,6 +93,7 @@ builder.Services.AddOpenApi();
 builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o => o.SuppressModelStateInvalidFilter = true);
 
 builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(anteOptions));
+builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(hostOutcomesOptions));
 builder.Services.TryAddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IncomingInvitationSubscriptions>();
 builder.Services.AddHostedService<IncomingInvitationRegistration>();

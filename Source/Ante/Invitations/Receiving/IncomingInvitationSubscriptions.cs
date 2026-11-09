@@ -26,13 +26,16 @@ namespace Ante.Invitations.Receiving;
 /// <param name="scopeFactory">Creates a scope per delivery for Chronicle's event serializer.</param>
 /// <param name="logger">The incoming handler's logger.</param>
 /// <param name="exchange">The selected invitation exchange mode.</param>
+/// <param name="hostOutcomes">The durable host outcome configuration; absent means disabled.</param>
 public class IncomingInvitationSubscriptions(
     IChronicleClient client,
     IServiceScopeFactory scopeFactory,
     ILogger<IncomingInvitationReactor> logger,
-    IOptions<InvitationExchangeConfig> exchange)
+    IOptions<InvitationExchangeConfig> exchange,
+    IOptions<HostOutcomesConfig>? hostOutcomes = null)
 {
     const string LegacyReactorId = "Ante.Invitations.Receiving.IncomingInvitationReactor";
+    readonly bool _durableOutcomesRequired = hostOutcomes?.Value.Mode == HostOutcomesMode.DurableRequired;
     readonly HashSet<string> _registeredReactors = new(StringComparer.Ordinal);
     readonly HashSet<string> _subscribed = new(StringComparer.Ordinal);
     readonly Lock _readinessLock = new();
@@ -106,8 +109,9 @@ public class IncomingInvitationSubscriptions(
                     source,
                     new LegalDocumentSetReceiver(store, Options.Create(options)),
                     options.Registration.Review ? new RegistrationReviewReceiver(store, logger) : null,
-                    new ProvisioningCompletionReceiver(store, logger, source),
-                    options.OperatorAudience);
+                    new ProvisioningCompletionReceiver(store, logger, source, _durableOutcomesRequired),
+                    options.OperatorAudience,
+                    _durableOutcomesRequired ? new HostProvisioningOutcomeReceiver(store, logger, source, new HostProvisioningProofVerifier(hostOutcomes!)) : null);
                 var receivesLegal = options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore;
                 await store.Reactors.Register(
                     ReactorIdFor(source),
@@ -121,6 +125,14 @@ public class IncomingInvitationSubscriptions(
                             .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReserved)))
                             .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReleased)))
                             .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OnboardingProvisioningCompleted)));
+                        if (_durableOutcomesRequired)
+                        {
+                            configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningAttemptStarted)))
+                                .WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningSucceeded)))
+                                .WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningFailed)))
+                                .WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningRequiresNewInvitation)));
+                        }
+
                         if (receivesLegal)
                         {
                             configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(LegalDocumentSetPublished)));
@@ -169,6 +181,14 @@ public class IncomingInvitationSubscriptions(
                         .WithEventType<OrganizationNameReserved>()
                         .WithEventType<OrganizationNameReleased>()
                         .WithEventType<OnboardingProvisioningCompleted>();
+                    if (_durableOutcomesRequired)
+                    {
+                        definition.WithEventType<HostProvisioningAttemptStarted>()
+                            .WithEventType<HostProvisioningSucceeded>()
+                            .WithEventType<HostProvisioningFailed>()
+                            .WithEventType<HostProvisioningRequiresNewInvitation>();
+                    }
+
                     if (options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore)
                     {
                         definition.WithEventType<LegalDocumentSetPublished>();

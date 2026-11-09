@@ -619,6 +619,82 @@
     ],
     "title": "LegalTermsAccepted"
   },
+  "HostProvisioningAttemptStarted:1": {
+    "type": "object",
+    "properties": {
+      "attemptId": {
+        "type": "string",
+        "format": "guid"
+      },
+      "proof": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "attemptId",
+      "proof"
+    ],
+    "title": "HostProvisioningAttemptStarted"
+  },
+  "HostProvisioningFailed:1": {
+    "type": "object",
+    "properties": {
+      "attemptId": {
+        "type": "string",
+        "format": "guid"
+      },
+      "reasonCode": {
+        "type": "string"
+      },
+      "proof": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "attemptId",
+      "reasonCode",
+      "proof"
+    ],
+    "title": "HostProvisioningFailed"
+  },
+  "HostProvisioningRequiresNewInvitation:1": {
+    "type": "object",
+    "properties": {
+      "attemptId": {
+        "type": "string",
+        "format": "guid"
+      },
+      "reasonCode": {
+        "type": "string"
+      },
+      "proof": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "attemptId",
+      "reasonCode",
+      "proof"
+    ],
+    "title": "HostProvisioningRequiresNewInvitation"
+  },
+  "HostProvisioningSucceeded:1": {
+    "type": "object",
+    "properties": {
+      "attemptId": {
+        "type": "string",
+        "format": "guid"
+      },
+      "proof": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "attemptId",
+      "proof"
+    ],
+    "title": "HostProvisioningSucceeded"
+  },
   "OnboardingProvisioningCompleted:1": {
     "type": "object",
     "title": "OnboardingProvisioningCompleted"
