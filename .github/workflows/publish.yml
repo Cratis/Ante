@@ -204,7 +204,8 @@ jobs:
 
   publish-image:
     name: Build and push image
-    if: needs.release.outputs.publish == 'true'
+    # !cancelled() keeps the implicit success() from counting the skipped verify-build ancestor of release (manual runs).
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.publish == 'true' }}
     needs: [release]
     runs-on: ubuntu-latest
 
@@ -298,7 +299,8 @@ jobs:
   # (publish.yml) by name, so the job must live here rather than in a separately named workflow.
   publish-nuget:
     name: Pack and push Cratis.Ante.Contracts
-    if: needs.release.outputs.publish == 'true'
+    # !cancelled() keeps the implicit success() from counting the skipped verify-build ancestor of release (manual runs).
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.release.outputs.publish == 'true' }}
     needs: [release]
     runs-on: ubuntu-latest
     permissions:
