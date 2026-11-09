@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
+using System.Text;
+using System.Text.Json;
 using Ante.Integration.Routes.given;
 
 namespace Ante.Integration.Routes.when_setting_cookies;
@@ -21,6 +23,9 @@ public abstract class setting_cookies : a_routed_ante
     Reply _anonymousMe;
     Reply _signedInMe;
     Reply _legacyCookieReplayed;
+    Reply _forgedCookieAnonymous;
+    Reply _forgedCookieCommand;
+    Reply _forgedCookieSignedIn;
     Reply _registered;
     readonly List<Reply> _others = [];
 
@@ -32,6 +37,12 @@ public abstract class setting_cookies : a_routed_ante
         _anonymousMe = await Send(HttpMethod.Get, "/.cratis/me");
         _signedInMe = await Send(HttpMethod.Get, "/.cratis/me", visitor);
         _legacyCookieReplayed = await Send(HttpMethod.Get, "/.cratis/me", visitor, cookie: $"{IdentityCookie}=left-over-from-an-older-arc");
+
+        // A well-formed identity cookie of the shape earlier Arc versions issued, naming someone else, replayed by a foreign page or a stale browser.
+        var forgedCookie = $"{IdentityCookie}={Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { id = "victim", name = "victim", isAuthenticated = true, isAuthorized = true, roles = Array.Empty<string>(), details = new { } })))}";
+        _forgedCookieAnonymous = await Send(HttpMethod.Get, "/.cratis/me", cookie: forgedCookie);
+        _forgedCookieCommand = await Send(HttpMethod.Post, "/api/organization/registration/start", body: new { registrationId = Guid.NewGuid() }, cookie: forgedCookie);
+        _forgedCookieSignedIn = await Send(HttpMethod.Get, "/.cratis/me", visitor, cookie: forgedCookie);
         _others.Add(await Send(HttpMethod.Get, "/healthz/ready", visitor));
         _others.Add(await Send(HttpMethod.Get, "/", visitor));
         _others.Add(await Send(HttpMethod.Get, "/api/configuration/get-configuration", visitor));
@@ -46,6 +57,9 @@ public abstract class setting_cookies : a_routed_ante
     [Fact] public void should_set_no_cookie_for_a_signed_in_caller() => _signedInMe.SetCookies.ShouldBeEmpty();
     [Fact] public void should_report_the_identity_of_a_signed_in_caller_in_the_body() => (_signedInMe.IsOk && _signedInMe.Body.Contains(_visitor, StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] public void should_expire_a_left_over_identity_cookie_instead_of_setting_one() => (_legacyCookieReplayed.Cookie(IdentityCookie)?.Value.Length == 0 && _legacyCookieReplayed.SetCookies.Count == 1).ShouldBeTrue();
+    [Fact] public void should_not_accept_a_forged_identity_cookie_from_an_anonymous_caller() => _forgedCookieAnonymous.Status.ShouldEqual(HttpStatusCode.Unauthorized);
+    [Fact] public void should_not_run_a_command_for_a_forged_identity_cookie() => (_forgedCookieCommand.Status == HttpStatusCode.BadRequest && !_forgedCookieCommand.IsSuccess).ShouldBeTrue();
+    [Fact] public void should_keep_the_real_identity_when_a_forged_identity_cookie_is_replayed() => (_forgedCookieSignedIn.IsOk && _forgedCookieSignedIn.Body.Contains(_visitor, StringComparison.Ordinal) && !_forgedCookieSignedIn.Body.Contains("victim", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] public void should_neither_set_nor_remove_a_cookie_when_the_registration_completes() => (_registered.IsSuccess && _registered.SetCookies.Count == 0).ShouldBeTrue();
     [Fact] public void should_set_no_other_cookie_anywhere() => _others.Append(_registered).Append(_signedInMe).Append(_anonymousMe).SelectMany(reply => reply.SetCookies).ShouldBeEmpty();
     [Fact] public void should_set_no_cookie_on_the_other_routes() => _others.Where(reply => reply.SetCookies.Count > 0).Select(reply => (int)reply.Status).ShouldBeEmpty();
