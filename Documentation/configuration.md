@@ -124,6 +124,19 @@ With `PublicBaseUrl` configured, `GET /.well-known/ante/invitation-token` publis
 
 `Mode=Attested` fails startup unless `Ante:Invitations:Token:PrivateKeyPem`, `Issuer` and `Audience` and the separate attestation trust settings are populated and valid. The configured lobby scope is an **authentication scope**, not an organization membership id. AuthProxy's `Invite:TenantClaim` must read the `tenant_id` claim issued from this scope; `Invite:EmailClaim` must read `email`. `MaximumLifetimeSeconds` bounds the assertion, whereas `MaximumAuthenticationAgeSeconds` bounds the sign-in and the staged transaction expires within 15 minutes (or sooner with the capability). The completed attested session retains the capability's original expiry, never the shorter stage-window expiry and never a retry-derived expiry. In Legacy mode the attestation settings do not authorize an upgrade of legacy sessions.
 
+## Host provisioning outcomes (`Ante:HostOutcomes`)
+
+`Mode` defaults to `Disabled`, which keeps the released behavior: the host confirms provisioning with the unsigned `OnboardingProvisioningCompleted` and Ante does not subscribe to the signed outcome events. `DurableRequired` makes the host-signed events described in [Signed host provisioning outcomes](./host-integration.md#signed-host-provisioning-outcomes) the only way to confirm provisioning, ignores `OnboardingProvisioningCompleted`, and shows the recorded outcome on the completion screens. Switch it on only after every configured host store signs its outcomes.
+
+| Suffix | Type | Code default | When needed |
+| --- | --- | --- | --- |
+| `Mode` | `Disabled` or `DurableRequired` | `Disabled` | Select whether provisioning outcomes must be host-signed. |
+| `Audience` | string | empty | Exact `aud` every proof must carry; required for `DurableRequired`. Use a value that names this Ante deployment. |
+| `MaximumLifetimeSeconds` | integer | `60` | Maximum proof lifetime (`exp` minus `iat`), 10–300. |
+| `Keys` | list `{KeyId, Host, PublicKeyPem}` | empty | At least one key in `DurableRequired`. Pins an RS256 `kid` and **public** RSA key, ≥ 2048 bits, to one store in `Ante:HostStores`. Key ids are unique; a key signs only for its own host. |
+
+`Mode=DurableRequired` fails startup when no key is pinned, the audience is blank, the lifetime is outside 10–300 seconds, a key names a host that is not in `Ante:HostStores`, a key id repeats, or a key is not a public RSA key of at least 2048 bits. An undefined mode also fails startup.
+
 ## Identity and infrastructure
 
 **Upgrade note:** invitation exchange and registration reject a sign-in whose identity provider cannot be resolved, instead of recording it with an empty provider. Exchange and subsequent requests use the same AuthProxy precedence. With canonical identity, AuthProxy sends `providerKey` and normalized `issuer` in the body and forwards `urn:cratis:identity:provider-key` / `urn:cratis:identity:issuer` on requests; Ante resolves only those two candidates (not raw legacy claims or Arc metadata). Without canonical identity, AuthProxy chooses one exchange value in order: `iss`, `identity_provider`, the Microsoft access-control-service identity-provider claim, then `AuthenticationType` (also forwarded as Arc provider metadata on requests). Ante selects that same first present value on requests, so a later configured claim cannot override an earlier unconfigured one. Without an identifying value, one configured provider can be inferred; with only an `AuthenticationTypes.Federation` marker, that sole provider must have an issuer. Startup warns when the provider list is empty, the only provider has no `Issuer`, or multiple providers include any issuer-bearing provider (a marker alone cannot distinguish those OIDC sign-ins). An unresolved exchange is also logged without personal or token data. Mirror the proxy's providers here, including each OIDC provider's `Issuer`, or configure canonical identity forwarding.
