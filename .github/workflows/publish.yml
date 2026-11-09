@@ -1,7 +1,8 @@
 name: Publish
 
 # Never cancel a release in flight. See cratis/release-action's README ("Choosing a trigger") for why
-# push is the recommended trigger and why cancel-in-progress must be false with it.
+# push is the recommended trigger. cancel-in-progress is left out on purpose: it defaults to false, and GitHub
+# rejects a workflow that sets it next to the release job's `queue: max` (Cratis/Workflows#162).
 #
 # The workflow-level group is per commit on push, so runs never queue behind each other here: the
 # verify-build gate can wait a long time for Build, and a shared group would let GitHub (which keeps
@@ -10,7 +11,6 @@ name: Publish
 # tag/release - is on the release job instead, where it only holds for the short release section.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
-  cancel-in-progress: false
 
 env:
   DOTNET_VERSION: "10.0.x"
@@ -138,17 +138,65 @@ jobs:
     if: ${{ !cancelled() && (needs.verify-build.result == 'success' || needs.verify-build.result == 'skipped') }}
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.release.outputs.version }}
-      publish: ${{ steps.release.outputs.should-publish }}
-      prerelease: ${{ steps.release.outputs.prerelease }}
-      reason: ${{ steps.release.outputs.reason }}
+      version: ${{ steps.resolve.outputs.version || steps.release.outputs.version }}
+      publish: ${{ steps.resolve.outputs.publish || steps.release.outputs.should-publish }}
+      prerelease: ${{ steps.resolve.outputs.prerelease || steps.release.outputs.prerelease }}
+      reason: ${{ steps.resolve.outputs.reason || steps.release.outputs.reason }}
+      # The commit the artifacts are built from: the tag commit when an explicit version is already released.
+      commit: ${{ steps.resolve.outputs.commit || github.sha }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # The release action leaves should-publish unset for a manual run with an explicit version, so on its own such a run
+      # cuts the release and publishes nothing. For a plain x.y.z version from main this step decides instead: with no
+      # tag yet, the action cuts the release at this commit and the artifacts follow; with the tag already there,
+      # the release is not touched and the artifacts are built from the tag commit, which must be on main.
+      # The empty and 0.0.0 placeholders, and anything else, stay with the action.
+      - name: Resolve an explicit version
+        id: resolve
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          INPUT_VERSION: ${{ inputs.version }}
+          REF: ${{ github.ref }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || [ "$INPUT_VERSION" = "0.0.0" ]; then
+            echo "Not an explicit x.y.z version; the release action decides."
+            exit 0
+          fi
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::An explicit version is published only from main, not from $REF."
+            exit 1
+          fi
+          tag="v$INPUT_VERSION"
+          commit="$SHA"
+          exists=false
+          if tagged="$(gh api "repos/$REPOSITORY/commits/refs/tags/$tag" --jq .sha 2>/dev/null)"; then
+            status="$(gh api "repos/$REPOSITORY/compare/$tagged...$SHA" --jq .status)"
+            if [ "$status" != "identical" ] && [ "$status" != "ahead" ]; then
+              echo "::error::Tag $tag points at $tagged, which is not on main (compare status: $status)."
+              exit 1
+            fi
+            commit="$tagged"
+            exists=true
+          fi
+          {
+            echo "version=$INPUT_VERSION"
+            echo "publish=true"
+            echo "prerelease=false"
+            echo "reason=release"
+            echo "commit=$commit"
+            echo "exists=$exists"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Release
         id: release
+        if: steps.resolve.outputs.exists != 'true'
         uses: cratis/release-action@v1
         with:
           version: ${{ github.event.inputs.version }}
@@ -163,6 +211,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.commit }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -227,7 +277,7 @@ jobs:
           VERSION: ${{ needs.release.outputs.version }}
           PRERELEASE: ${{ needs.release.outputs.prerelease }}
           SOURCE: https://github.com/${{ github.repository }}
-          REVISION: ${{ github.sha }}
+          REVISION: ${{ needs.release.outputs.commit }}
         run: |
           set -euo pipefail
           CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -260,6 +310,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.commit }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
