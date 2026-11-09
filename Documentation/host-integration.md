@@ -15,6 +15,32 @@ A host owns the invitation decision, link delivery, identity configuration and p
 
 Reconcile the acceptance events in your inbox with `OnboardingProvisioningConfirmed`: for accepted attempts without confirmation, finish or verify durable provisioning and publish `OnboardingProvisioningCompleted` again. Ante ignores confirmations before acceptance, from a different invitation source store, or repeated after its first receipt; it does not buffer early confirmations or publish a rejection. For self-service registrations and legacy invitations without a source marker, **any configured host store may confirm**. `Ready` is a historical provisioning fact, **not active membership**, and is never withdrawn if your product later removes or deprovisions membership. Reconciliation of current membership remains the host's responsibility.
 
+### Signed host provisioning outcomes
+
+With `Ante:HostOutcomes:Mode=DurableRequired` (see [Configuration](./configuration.md#host-provisioning-outcomes-antehostoutcomes)), the host reports provisioning with four signed events instead of the unsigned `OnboardingProvisioningCompleted`, which Ante then ignores. Append them to **your host store's outbox** under the accepted invitation or registration id: `HostProvisioningAttemptStarted` when you begin, then exactly one terminal outcome: `HostProvisioningSucceeded`, `HostProvisioningFailed` or `HostProvisioningRequiresNewInvitation`. Choose one nonempty attempt GUID per provisioning attempt and keep it for every event of that attempt. With the default `Disabled` mode Ante does not subscribe to these events and nothing changes.
+
+Each event carries `Proof`: a compact JWS that you sign with a private RSA key (2048 bits or more) whose public key Ante pins to your host store. The header is `alg` `RS256`, `typ` `ante-host-outcome+jwt` and `kid` set to the pinned key id. The payload holds exactly these claims, each once:
+
+| Claim | Value |
+| --- | --- |
+| `iss` | Your host store name, as configured in `Ante:HostStores` and on the pinned key |
+| `aud` | `Ante:HostOutcomes:Audience` |
+| `purpose` | `ante-host-provisioning-outcome/v1` |
+| `event_type` | The contract event name, for example `HostProvisioningSucceeded` |
+| `operation_id` | The event source id: the lowercase hyphenated invitation or registration id |
+| `attempt_id` | The event's `AttemptId`, lowercase hyphenated |
+| `outcome` | `started`, `succeeded`, `failed` or `requires-new-invitation` |
+| `reason_code` | The event's `ReasonCode`; present only for `failed` and `requires-new-invitation` |
+| `jti` | A fresh proof id: 32 random bytes, base64url without padding (43 characters) |
+| `iat`, `exp` | Numeric dates; `exp - iat` at most `Ante:HostOutcomes:MaximumLifetimeSeconds` |
+| `nbf` | Optional single numeric date, before `exp` and no later than the outbox append time plus the 5-second skew |
+
+Ante checks the lifetime against the time the event was appended to your outbox, with a 5-second clock skew, so an outcome that Chronicle delivers late still verifies; sign the proof just before the append. Ante refuses, without recording anything, an outcome with an invalid, unknown or expired proof, a key pinned to another host, a claim that does not match the event, a reason code that is not generic, or an operation Ante did not accept from your host store. Refusals are logged and counted (`Cratis.Ante.HostProvisioning` meter) by reason only.
+
+The first verified event binds the attempt id; events for another attempt are refused. The first terminal outcome wins: an identical repeat, including a redelivery, is a no-op, while a contradicting terminal outcome is quarantined - recorded by kind only, with no change to the status. Reusing a `jti` for a different outcome is refused. A verified `HostProvisioningSucceeded` confirms provisioning exactly as `OnboardingProvisioningCompleted` does in `Disabled` mode, so Ante publishes `OnboardingProvisioningConfirmed`. A host that never reports a terminal outcome leaves the attempt pending; Ante never turns waiting into a failure. Reason codes are shown to the person as a reference, so use generic codes such as `quota-exceeded`, never personal data or internal detail.
+
+Rotate a key by adding the new key id to `Ante:HostOutcomes:Keys`, signing with it, and removing the old key only after every outcome signed with it has been delivered.
+
 **Host upgrade:** consume generation-3 `InvitationTokenIssued` **before** Ante starts publishing it: Chronicle cross-store subscriptions do not downcast the new generation for an old host. Keep the link and its embedded recipient email private. Add `InvitationRejected` generation 2 and its `InvitationIdReused` and `InvalidRecipient` reasons to the event types your host observes from Ante's outbox (and to mirrored contract definitions, if used). A host that observes only `InvitationTokenIssued` will not receive rejection events. On Chronicle 19.22.1 the isolated generation-2-only host reads a usable JWT, but **its raw MongoDB `inbox-{ante store}` generation-3 token is plaintext**, unlike the encrypted generation-3 token in Ante's outbox and the current host inbox. The older typed read does not establish a safe upgrade path or retroactive encryption; upgrade the consumer's PII metadata and protect existing token storage and backups. Hosts still using a generation-1 token-issued mirror must tolerate the additional `expiresAt` JSON member in cross-store deliveries.
 
 Use the [`Cratis.Ante.Contracts` NuGet package](https://www.nuget.org/packages/Cratis.Ante.Contracts) for the public event types. CI packs it with the image's release version when publishing is approved. The package still has an assembly-level `[EventStore("Ante")]`. A host can *already reference it* with any Ante store name: explicitly annotate its observer with `[EventStore("DirectLobby")]` (replace `DirectLobby` with the actual Ante store). That observer-level setting wins over the assembly annotation. Removing the assembly annotation is deferred to a coordinated breaking contracts release; existing observers may rely on the default. Do not duplicate discovered CLR event types with the same identities when replacing mirrors. If you keep mirrored contracts (as Direct currently does), compare event ids, generations, serialization and `[PII]` metadata; matching names alone do not establish compatibility.

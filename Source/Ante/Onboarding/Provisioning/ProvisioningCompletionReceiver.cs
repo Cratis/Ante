@@ -14,7 +14,8 @@ namespace Ante.Onboarding.Provisioning;
 /// <param name="eventStore">Ante's local store.</param>
 /// <param name="logger">The inbox logger.</param>
 /// <param name="sourceStore">The configured host store delivering this confirmation.</param>
-public sealed class ProvisioningCompletionReceiver(IEventStore eventStore, ILogger logger, string sourceStore)
+/// <param name="durableOutcomesRequired">Whether only a verified, host-signed success may confirm provisioning.</param>
+public sealed class ProvisioningCompletionReceiver(IEventStore eventStore, ILogger logger, string sourceStore, bool durableOutcomesRequired = false)
 {
     static readonly EventType[] _decisionEventTypes =
     [
@@ -32,6 +33,12 @@ public sealed class ProvisioningCompletionReceiver(IEventStore eventStore, ILogg
     /// <exception cref="InvalidOperationException">The guarded local receipt append failed.</exception>
     public async Task Receive(EventContext context)
     {
+        if (durableOutcomesRequired)
+        {
+            logger.UnsignedProvisioningIgnored(context.EventSourceId, sourceStore);
+            return;
+        }
+
         if (!InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out _))
         {
             logger.InvalidProvisioningId(context.EventSourceId);

@@ -55,9 +55,11 @@ export type OrganizationSetupHandoffState = {
     hostOutcomeStatus: HostOutcomeStatus;
     /** A stable, low-cardinality reason code accompanying a terminal host outcome; empty otherwise. */
     hostOutcomeReasonCode: string;
+    /** Whether the host reported, with a signed outcome, that the person needs a new invitation; `hostOutcomeStatus` is then `failed`. */
+    hostOutcomeRequiresNewInvitation: boolean;
     /** Re-runs the host outcome lookup, for a host that has not yet reported a terminal result. */
     checkHostOutcomeAgain: () => void;
-    /** Navigates to the host now - published onboarding never depends on host outcome, so this is always safe to call regardless of what (if anything) the host has reported. */
+    /** Navigates to the host only when the outcome gate permits handoff. */
     continueToHost: () => void;
 };
 
@@ -128,6 +130,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     const gate = resolveHostOutcomeGate(recovery.isAccepted, supportsHostOutcome && hostOutcome.isConfigured, !supportsHostOutcome || hostOutcome.isRead, hostOutcome.status, hostOutcome.hasGivenUp);
 
     const navigateToHost = useCallback(() => {
+        if (gate !== 'redirectAutomatically') return;
         if (!hostUrlResult.isSuccess) {
             setErrorMessages([hostAppUnavailableMessage]);
             return;
@@ -144,7 +147,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
             // crashed page - setup already published, so the person's information was not lost.
             setErrorMessages([hostAppUnavailableMessage]);
         }
-    }, [hostUrlResult, statusResult.data.organizationName, hostAppUnavailableMessage]);
+    }, [gate, hostUrlResult, statusResult.data.organizationName, hostAppUnavailableMessage]);
 
     useEffect(() => {
         // Unchanged automatic redirect when the host-outcome screen was never opted into or configured -
@@ -163,6 +166,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
         checkAgain: () => { setPollWindowExpired(false); recovery.checkAgain(); },
         hostOutcomeStatus: hostOutcome.status,
         hostOutcomeReasonCode: hostOutcome.reasonCode,
+        hostOutcomeRequiresNewInvitation: hostOutcome.requiresNewInvitation,
         checkHostOutcomeAgain: hostOutcome.checkAgain,
         continueToHost: navigateToHost,
     };

@@ -1,9 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Globalization;
 using System.Security.Cryptography;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
@@ -200,41 +198,11 @@ public class InvitationAttestationVerifier(IOptions<InvitationExchangeConfig> ex
         }
     }
 
-    static string? ExactlyOne(JsonWebToken jwt, string name)
-    {
-        var values = jwt.Claims.Where(claim => claim.Type == name).Select(claim => claim.Value).ToArray();
-        return values.Length == 1 && values[0].Length <= 2048 &&
-            !string.IsNullOrWhiteSpace(values[0]) && values[0] == values[0].Trim()
-            ? values[0]
-            : null;
-    }
+    static string? ExactlyOne(JsonWebToken jwt, string name) => StrictJwtClaims.ExactlyOne(jwt, name);
 
-    static DateTimeOffset? NumericDate(JsonWebToken jwt, string name)
-    {
-        var raw = ExactlyOne(jwt, name);
-        return long.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var seconds) &&
-            seconds is >= -62135596800 and <= 253402300799
-            ? DateTimeOffset.FromUnixTimeSeconds(seconds)
-            : null;
-    }
+    static DateTimeOffset? NumericDate(JsonWebToken jwt, string name) => StrictJwtClaims.NumericDate(jwt, name);
 
-    static bool IsCanonicalDigest(string? value)
-    {
-        if (value is not { Length: 43 })
-        {
-            return false;
-        }
-
-        try
-        {
-            var decoded = WebEncoders.Base64UrlDecode(value);
-            return decoded.Length == SHA256.HashSizeInBytes && WebEncoders.Base64UrlEncode(decoded) == value;
-        }
-        catch (FormatException)
-        {
-            return false;
-        }
-    }
+    static bool IsCanonicalDigest(string? value) => StrictJwtClaims.IsCanonicalDigest(value);
 
     static bool IsEmail(string value)
     {

@@ -199,7 +199,7 @@ public record HostOutcomeView(InvitationId AttemptId, bool IsConfigured, HostOut
 
     // An invited attempt is owned through its verified invitation session; a self-service registration
     // through the owner recorded with it. Either way only that exact sign-in may see the host's answer.
-    static async Task<bool> IsOwner(InvitationId attemptId, ISignedInIdentity signedInIdentity, IEventStore eventStore)
+    internal static async Task<bool> IsOwner(InvitationId attemptId, ISignedInIdentity signedInIdentity, IEventStore eventStore)
     {
         if (signedInIdentity.IsVerifiedRecoveryOwnerOf(attemptId, eventStore))
         {

@@ -114,7 +114,8 @@
         "hostAppUrlUnavailable": "Organization was created, but we could not determine where to take you next. Please contact support.",
         "hostOutcomePending": "Your organization was created. We're still finishing setup with the host application.",
         "hostOutcomeSucceeded": "Your organization was created and the host confirmed everything is ready.",
-        "hostOutcomeFailed": "Your organization was created, but the host reported a problem finishing setup."
+        "hostOutcomeFailed": "Your organization was created, but the host reported a problem finishing setup.",
+        "hostOutcomeRequiresNewInvitation": "Your organization was created, but the host could not finish setup with this invitation. Ask for a new invitation."
     },
     "userSetup": {
         "subtitle": "Complete your profile",
@@ -132,6 +133,7 @@
         "acceptanceFailed": "We could not complete your account setup. Please contact support.",
         "hostOutcomePending": "Your account was created. We're still finishing setup with the host application.",
         "hostOutcomeSucceeded": "Your account was created and the host confirmed everything is ready.",
-        "hostOutcomeFailed": "Your account was created, but the host reported a problem finishing setup."
+        "hostOutcomeFailed": "Your account was created, but the host reported a problem finishing setup.",
+        "hostOutcomeRequiresNewInvitation": "Your account was created, but the host could not finish setup with this invitation. Ask for a new invitation."
     }
 }

@@ -28,6 +28,12 @@ describe('when resolving the host outcome gate', () => {
     it('should show the host outcome with its manual actions once waiting has been given up', () =>
         resolveHostOutcomeGate(true, true, true, HostOutcomeStatus.pending, true).should.equal('showHostOutcome'));
 
+    it('should offer recovery without redirecting when the durable lookup times out', () =>
+        resolveHostOutcomeGate(true, true, false, HostOutcomeStatus.pending, true).should.equal('showHostOutcome'));
+
+    it('should never redirect an unread cached success, even after timeout', () =>
+        resolveHostOutcomeGate(true, true, false, HostOutcomeStatus.succeeded, true).should.equal('showHostOutcome'));
+
     it('should keep waiting once accepted until the host outcome lookup has settled', () =>
         resolveHostOutcomeGate(true, false, false).should.equal('keepWaiting'));
 });

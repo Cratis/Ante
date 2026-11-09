@@ -8,4 +8,8 @@ internal static class OnboardingEventTypeIds
 {
     internal const string ProvisioningCompleted = nameof(OnboardingProvisioningCompleted);
     internal const string ProvisioningConfirmed = nameof(OnboardingProvisioningConfirmed);
+    internal const string HostProvisioningAttemptStarted = nameof(Onboarding.HostProvisioningAttemptStarted);
+    internal const string HostProvisioningSucceeded = nameof(Onboarding.HostProvisioningSucceeded);
+    internal const string HostProvisioningFailed = nameof(Onboarding.HostProvisioningFailed);
+    internal const string HostProvisioningRequiresNewInvitation = nameof(Onboarding.HostProvisioningRequiresNewInvitation);
 }
