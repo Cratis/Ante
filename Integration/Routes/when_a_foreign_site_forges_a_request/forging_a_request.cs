@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
+using System.Text;
+using System.Text.Json;
 using Ante.Integration.Routes.given;
 
 namespace Ante.Integration.Routes.when_a_foreign_site_forges_a_request;
@@ -68,8 +70,8 @@ public abstract class forging_a_request : a_routed_ante
         _wrongMethods.Add(("POST to a query", await Send(HttpMethod.Post, "/api/configuration/get-configuration", visitor, body: new { }, origin: Foreign)));
 
         // What a page can make the browser attach on its own - the cookie, an Authorization header - without the proxy's identity.
-        // A command with only the replayed cookie, or only a bearer, has no signed-in caller. Whether /.cratis/me itself
-        // echoes a replayed identity cookie is Cratis/Ante#143 and is not pinned here.
+        // A command with only the replayed cookie, or only a bearer, has no signed-in caller.
+        // The identity endpoint's cookie rejection is pinned by when_setting_cookies.
         var withoutIdentity = new (string What, Func<Task<Reply>> Send)[]
         {
             ("a bearer", () => Send(HttpMethod.Get, "/.cratis/me", bearer: "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ2aXNpdG9yIn0.c2ln")),

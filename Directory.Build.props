@@ -7,6 +7,10 @@
 
         <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
 
+        <!-- Ante does not consume embedded Screenplay documents. Keep generation disabled while Arc's
+             Debug/test target cycle is unresolved: https://github.com/Cratis/Arc/issues/2979. -->
+        <CratisEmbeddedScreenplayEnabled>false</CratisEmbeddedScreenplayEnabled>
+
         <RunAnalyzersDuringBuild>True</RunAnalyzersDuringBuild>
         <RunAnalyzersDuringLiveAnalysis>True</RunAnalyzersDuringLiveAnalysis>
         <RunAnalyzers>True</RunAnalyzers>

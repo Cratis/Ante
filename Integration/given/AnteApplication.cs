@@ -159,6 +159,7 @@ public sealed class AnteApplication(
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // Integration runs the real Program with isolated host stores, kernel and MongoDB.
+        // The fixture owns the transport and supplies the trusted proxy's identity headers.
         using var signingKey = RSA.Create();
         signingKey.ImportFromPem(AttestationPrivateKeyPem);
         builder
@@ -170,6 +171,13 @@ public sealed class AnteApplication(
             .UseSetting("Cratis:MongoDB:Database", EventStore)
             .UseSetting("Ante:EventStore", EventStore)
             .UseSetting("IdentityProviders:Providers:0:Name", IdentityProvider);
+
+        // The fixture supplies the trusted proxy's identity headers unless a specification sets (or deliberately omits) the key.
+        if (settings?.ContainsKey("Cratis:Arc:TrustForwardedIdentityHeaders") != true)
+        {
+            builder.UseSetting("Cratis:Arc:TrustForwardedIdentityHeaders", "true");
+        }
+
         if (attestedExchange)
         {
             builder
@@ -230,7 +238,11 @@ public sealed class AnteApplication(
 
         foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
         {
-            builder.UseSetting(key, value);
+            // A null value leaves the key unset, as opposed to an empty string, which configuration binding rejects.
+            if (value is not null)
+            {
+                builder.UseSetting(key, value);
+            }
         }
 
         if (remoteIpAddress is not null)

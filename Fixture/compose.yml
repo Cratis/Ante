@@ -84,6 +84,8 @@ services:
       Cratis__Chronicle__ConnectionString: chronicle://chronicle:35000/?skipTlsValidation=true
       Cratis__MongoDB__Server: mongodb://mongodb:27017/?directConnection=true
       Cratis__MongoDB__Database: Ante
+      # The fixture proxy authenticates callers and replaces client-supplied identity headers.
+      Cratis__Arc__TrustForwardedIdentityHeaders: "true"
       Ante__Invitations__Exchange__Mode: Attested
       Ante__Invitations__Exchange__Attestation__Issuer: urn:cratis:authproxy:local
       Ante__Invitations__Exchange__Attestation__Audience: urn:cratis:ante:Ante:Default
