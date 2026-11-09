@@ -95,6 +95,20 @@ public abstract class host_provisioning_proofs : Specification
             SigningCredentials = new SigningCredentials(new RsaSecurityKey(PrivateParameters(key ?? _hostKey)) { KeyId = kid }, SecurityAlgorithms.RsaSha256),
         });
 
+    protected string SignWithTimes(object? issued, object? expires, object? notBefore = null)
+    {
+        var claims = SucceededClaims();
+        claims["iss"] = Host;
+        claims["aud"] = Audience;
+        if (issued is not null) claims["iat"] = issued;
+        if (expires is not null) claims["exp"] = expires;
+        if (notBefore is not null) claims["nbf"] = notBefore;
+        return new JsonWebTokenHandler { SetDefaultTimesOnTokenCreation = false }.CreateToken(
+            System.Text.Json.JsonSerializer.Serialize(claims),
+            new SigningCredentials(new RsaSecurityKey(PrivateParameters(_hostKey)) { KeyId = "host-key" }, SecurityAlgorithms.RsaSha256),
+            new Dictionary<string, object> { ["typ"] = HostProvisioningProofVerifier.TokenType });
+    }
+
     static RSAParameters PrivateParameters(RSA key)
     {
         lock (key)

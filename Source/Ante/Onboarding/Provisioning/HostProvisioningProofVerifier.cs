@@ -234,8 +234,16 @@ public class HostProvisioningProofVerifier(IOptions<HostOutcomesConfig> config)
         var issued = StrictJwtClaims.NumericDate(jwt, JwtRegisteredClaimNames.Iat);
         var expires = StrictJwtClaims.NumericDate(jwt, JwtRegisteredClaimNames.Exp);
         return issued is not null && expires is not null &&
+            IsNotBeforeSatisfied(jwt, expires.Value, appendedAt) &&
             expires > issued && expires - issued <= TimeSpan.FromSeconds(maximumLifetimeSeconds) &&
             issued <= appendedAt + _clockSkew && appendedAt < expires + _clockSkew &&
             appendedAt <= now + _clockSkew;
+    }
+
+    static bool IsNotBeforeSatisfied(JsonWebToken jwt, DateTimeOffset expires, DateTimeOffset appendedAt)
+    {
+        if (!jwt.Claims.Any(claim => claim.Type == JwtRegisteredClaimNames.Nbf)) return true;
+        var notBefore = StrictJwtClaims.NumericDate(jwt, JwtRegisteredClaimNames.Nbf);
+        return notBefore is not null && notBefore < expires && notBefore <= appendedAt + _clockSkew;
     }
 }

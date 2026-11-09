@@ -33,6 +33,7 @@ Each event carries `Proof`: a compact JWS that you sign with a private RSA key (
 | `reason_code` | The event's `ReasonCode`; present only for `failed` and `requires-new-invitation` |
 | `jti` | A fresh proof id: 32 random bytes, base64url without padding (43 characters) |
 | `iat`, `exp` | Numeric dates; `exp - iat` at most `Ante:HostOutcomes:MaximumLifetimeSeconds` |
+| `nbf` | Optional single numeric date, before `exp` and no later than the outbox append time plus the 5-second skew |
 
 Ante checks the lifetime against the time the event was appended to your outbox, with a 5-second clock skew, so an outcome that Chronicle delivers late still verifies; sign the proof just before the append. Ante refuses, without recording anything, an outcome with an invalid, unknown or expired proof, a key pinned to another host, a claim that does not match the event, a reason code that is not generic, or an operation Ante did not accept from your host store. Refusals are logged and counted (`Cratis.Ante.HostProvisioning` meter) by reason only.
 
