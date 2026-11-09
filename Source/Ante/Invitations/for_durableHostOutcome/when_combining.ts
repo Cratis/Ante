@@ -28,6 +28,19 @@ describe('when combining the advisory and the durable host outcome', () => {
     it('should stay pending for a host that has not answered, however long it takes', () =>
         combineHostOutcomes({ ...advisory, status: HostOutcomeStatus.failed }, durable(HostProvisioningStatus.pending)).status.should.equal(HostOutcomeStatus.pending));
 
+    it('should not expose advisory success while the mode is unknown', () => {
+        const combined = combineHostOutcomes(advisory, { ...durable(HostProvisioningStatus.unknown), isRead: false, isRequired: undefined });
+        combined.isConfigured.should.be.true;
+        combined.isRead.should.be.false;
+        combined.status.should.equal(HostOutcomeStatus.pending);
+    });
+
+    it('should retain the required gate when a later lookup fails', () => {
+        const combined = combineHostOutcomes(advisory, { ...durable(HostProvisioningStatus.succeeded), isRead: false });
+        combined.isConfigured.should.be.true;
+        combined.status.should.equal(HostOutcomeStatus.pending);
+    });
+
     it('should report a durable success', () =>
         combineHostOutcomes({ ...advisory, status: HostOutcomeStatus.unknown }, durable(HostProvisioningStatus.succeeded)).status.should.equal(HostOutcomeStatus.succeeded));
 
@@ -50,8 +63,12 @@ describe('when checking whether the durable host outcome has been read', () => {
 
     it('should not count the result Arc starts the query with', () =>
         hasReadHostProvisioning(QueryResultWithState.initial<HostProvisioningView>(new ForOperation().defaultValue), operation).should.be.false);
+    it('should not count a successful response without an explicit mode', () =>
+        hasReadHostProvisioning({ ...settled(operation), data: { operationId: operation } }, operation).should.be.false);
     it('should not count a previous operation', () => hasReadHostProvisioning(settled(Guid.empty), operation).should.be.false);
     it('should count the lookup for the operation', () => hasReadHostProvisioning(settled(operation), operation).should.be.true);
-    it('should count a failed lookup, which reads as not required', () =>
-        hasReadHostProvisioning({ hasData: true, isSuccess: false, isPerforming: false, data: {} }, operation).should.be.true);
+    it('should not count a failed lookup as explicitly disabled', () =>
+        hasReadHostProvisioning({ hasData: true, isSuccess: false, isPerforming: false, data: {} }, operation).should.be.false);
+    it('should not trust cached success after a lookup error', () =>
+        hasReadHostProvisioning({ ...settled(operation), isSuccess: false }, operation).should.be.false);
 });

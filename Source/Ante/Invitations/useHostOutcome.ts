@@ -22,7 +22,7 @@ export type HostOutcomeState = {
     /**
      * Whether the lookup for this attempt has settled, so `isConfigured` can be trusted. Not until the
      * lookup has answered for this very attempt - Arc starts with its default value and keeps the previous
-     * attempt's result while re-running (Cratis/Ante#146) - unless it failed, which reads as not configured.
+     * attempt's result while re-running (Cratis/Ante#146). A failed durable lookup leaves the mode unknown.
      */
     isRead: boolean;
     /** The host-reported outcome, defaulted to unknown until the first read arrives. */
@@ -64,15 +64,16 @@ export const useHostOutcome = (attemptId: Guid): HostOutcomeState => {
         },
         {
             isRead: hasReadHostProvisioning(durableResult, attemptId),
-            isRequired: durableResult.data?.isRequired ?? false,
+            isRequired: durableResult.data?.isRequired,
             status: durableResult.data?.status ?? HostProvisioningStatus.unknown,
             reasonCode: durableResult.data?.reasonCode ?? ''
         });
     const isLookingUp = attemptId.toString() !== Guid.empty.toString();
-    const isAwaitingHost = isLookingUp && isRead && isConfigured && status !== HostOutcomeStatus.succeeded && status !== HostOutcomeStatus.failed;
+    const isAwaitingHost = isLookingUp && (!isRead || (isConfigured && status !== HostOutcomeStatus.succeeded && status !== HostOutcomeStatus.failed));
 
     // A host reports its outcome some moments after onboarding publishes, so keep asking rather than
-    // leaving the person to - and give up only after a bounded time, when the manual actions are shown.
+    // leaving the person to - and give up only after a bounded time, when the retry action is shown.
+    // An unknown mode or a failed durable lookup must also be retried, never treated as disabled.
     useEffect(() => {
         if (!isAwaitingHost || hasGivenUp) return;
         const poll = globalThis.setInterval(() => { void checkAgain(); }, HOST_OUTCOME_POLL_INTERVAL_MS);

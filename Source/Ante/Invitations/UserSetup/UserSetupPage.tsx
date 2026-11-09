@@ -87,6 +87,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     });
 
     const navigateToHost = useCallback(() => {
+        if (hostOutcomeGate !== 'redirectAutomatically') return;
         if (!hostUrlResult.isSuccess) {
             setErrorMessages([strings.userSetup.hostAppUrlUnavailable]);
             return;
@@ -105,7 +106,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
             // crashed page - acceptance already published, so the person's information was not lost.
             setErrorMessages([strings.userSetup.hostAppUrlUnavailable]);
         }
-    }, [hostUrlResult]);
+    }, [hostOutcomeGate, hostUrlResult]);
 
     useEffect(() => {
         // Unchanged automatic redirect when the optional host-outcome screen was never configured -
@@ -180,7 +181,9 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
                             </p>
                         )}
                         <div className='user-setup-host-outcome__actions'>
+                            {hostOutcome.status === HostOutcomeStatus.succeeded && (
                             <Button label={strings.onboarding.continueToHost} onClick={navigateToHost} />
+                        )}
                             {hostOutcome.status !== HostOutcomeStatus.succeeded && (
                                 <Button label={strings.onboarding.checkAgain} variant='ghost' onClick={hostOutcome.checkAgain} />
                             )}

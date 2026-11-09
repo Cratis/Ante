@@ -29,7 +29,7 @@ export type HostOutcomeGateDecision = 'redirectAutomatically' | 'showHostOutcome
  * that was never configured - the person is simply taken on - and one still pending keeps the person on a
  * spinner while the lookup is repeated, instead of asking them to check by hand.
  * @param hasGivenUpWaiting Whether the lookup has been repeated for as long as it reasonably should be.
- * Only then does a still-pending host outcome fall back to the screen with the manual actions.
+ * Only then does a still-pending or unread host outcome fall back to the screen with a retry action.
  * @returns The decision the wizard should render from.
  */
 export const resolveHostOutcomeGate = (
@@ -38,7 +38,8 @@ export const resolveHostOutcomeGate = (
     isHostOutcomeRead: boolean,
     hostOutcomeStatus: HostOutcomeStatus = HostOutcomeStatus.unknown,
     hasGivenUpWaiting = false): HostOutcomeGateDecision => {
-    if (!isAccepted || !isHostOutcomeRead) return 'keepWaiting';
+    if (!isAccepted) return 'keepWaiting';
+    if (!isHostOutcomeRead) return hasGivenUpWaiting ? 'showHostOutcome' : 'keepWaiting';
     if (!isHostOutcomeConfigured || hostOutcomeStatus === HostOutcomeStatus.succeeded) return 'redirectAutomatically';
     if (hostOutcomeStatus === HostOutcomeStatus.failed || hasGivenUpWaiting) return 'showHostOutcome';
     return 'keepWaiting';

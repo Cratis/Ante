@@ -25,7 +25,7 @@ export type AdvisoryHostOutcome = {
 /** The durable host provisioning status Ante recorded from host-signed outcomes. */
 export type DurableHostOutcome = {
     isRead: boolean;
-    isRequired: boolean;
+    isRequired: boolean | undefined;
     status: HostProvisioningStatus;
     reasonCode: string;
 };
@@ -39,14 +39,13 @@ export type CombinedHostOutcome = AdvisoryHostOutcome & {
 /**
  * Whether the durable host provisioning lookup has settled for the operation it was made for. Mirrors
  * {@link hasReadHostOutcome}: Arc's default value and a previous operation's result do not count, and a
- * failed lookup has settled and reads as not required.
+ * failed lookup leaves the mode unknown, never implicitly disabled.
  * @param result The durable host provisioning query result.
  * @param operationId The operation the lookup was made for.
- * @returns True once the lookup has answered for that operation, or failed.
+ * @returns True only once a successful lookup has answered explicitly for that operation.
  */
 export const hasReadHostProvisioning = (result: HostProvisioningResult, operationId: Guid): boolean =>
-    (!result.isPerforming && !result.isSuccess) ||
-    (result.hasData && typeof result.data?.isRequired === 'boolean' && isResultFor(result.data?.operationId, operationId));
+    result.isSuccess && result.hasData && typeof result.data?.isRequired === 'boolean' && isResultFor(result.data?.operationId, operationId);
 
 /**
  * Combines the advisory host outcome with the durable, host-signed one. When the deployment does not require
@@ -58,8 +57,10 @@ export const hasReadHostProvisioning = (result: HostProvisioningResult, operatio
  * @returns The outcome to render from.
  */
 export const combineHostOutcomes = (advisory: AdvisoryHostOutcome, durable: DurableHostOutcome): CombinedHostOutcome => {
-    if (!durable.isRead) return { ...advisory, isRead: false, requiresNewInvitation: false };
-    if (!durable.isRequired) return { ...advisory, requiresNewInvitation: false };
+    if (!durable.isRead || durable.isRequired === undefined) {
+        return { isConfigured: true, isRead: false, status: HostOutcomeStatus.pending, reasonCode: '', requiresNewInvitation: false };
+    }
+    if (durable.isRequired === false) return { ...advisory, requiresNewInvitation: false };
 
     const durableOutcome = (status: HostOutcomeStatus, reasonCode = '', requiresNewInvitation = false): CombinedHostOutcome =>
         ({ isConfigured: true, isRead: true, status, reasonCode, requiresNewInvitation });

@@ -169,6 +169,7 @@ for (const journey of journeys) {
             it('should not display the configured completion', () => html.should.not.include(`${journey.name} completion`));
             it('should retain the shipped outcome message', () => html.should.include(renderedText(outcome === 3 ? journey.messages.hostOutcomeFailed : journey.messages.hostOutcomePending)));
             it('should retain the retry action', () => html.should.include(renderedText(strings.onboarding.checkAgain)));
+            it('should not offer manual handoff after failure, timeout or an unknown lookup', () => html.should.not.include(renderedText(strings.onboarding.continueToHost)));
         });
     }
 }
