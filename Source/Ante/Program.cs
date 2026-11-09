@@ -14,6 +14,8 @@ using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Legal.Receiving;
 using Ante.Locale;
+using Ante.Onboarding;
+using Ante.Onboarding.Provisioning;
 using Ante.Organization.Registration;
 using Cratis.Arc;
 using Cratis.Arc.MongoDB;
@@ -21,6 +23,14 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+
+#if DEBUG
+if (args.Length > 0 && args[0] == "--specifications")
+{
+    Environment.ExitCode = await Xunit.Runner.InProc.SystemConsole.ConsoleRunner.Run(args[1..]);
+    return;
+}
+#endif
 
 InvitationMongoSerialization.EnsureConfigured();
 
@@ -31,17 +41,24 @@ var builder = WebApplication.CreateBuilder(args);
 // store and/or namespace purely by setting Ante:EventStore / Ante:Namespace (Ante__EventStore /
 // Ante__Namespace as environment variables) differently - no code change, no rebuild.
 // Validate and freeze the trusted host sources at startup; no routing hot reload.
+// A Screenplay application's onboarding contract (Ante:Onboarding) is mapped onto the Ante:* keys before they are
+// read, so nothing below knows whether it was written by hand or produced by cratis run or Stage Manager.
+OnboardingConfiguration.Apply(builder.Configuration, builder.Environment);
 var anteConfiguration = builder.Configuration.GetSection("Ante");
 var anteOptions = anteConfiguration.Get<AnteOptions>() ?? new AnteOptions();
 AnteRoutingValidator.Validate(anteOptions, anteConfiguration);
 LegalOptions.Validate(anteOptions);
 RegistrationOptionsValidator.Validate(anteOptions);
+BackchannelCredentials.Validate(anteOptions, builder.Environment.IsDevelopment());
+InvitationContentOptionsValidator.Validate(anteOptions, anteConfiguration);
 var localizationOptions = LocaleNegotiation.CreateOptions(anteOptions);
 var invitationTokenOptions = builder.Configuration.GetSection("Ante:Invitations:Token").Get<InvitationTokenConfig>() ?? new InvitationTokenConfig();
 InvitationTokenConfigurationValidator.Validate(invitationTokenOptions);
 InvitationTokenIsolation.ApplyDefaults(invitationTokenOptions, anteOptions);
 var invitationExchangeOptions = builder.Configuration.GetSection("Ante:Invitations:Exchange").Get<InvitationExchangeConfig>() ?? new InvitationExchangeConfig();
 InvitationExchangeConfigurationValidator.Validate(invitationExchangeOptions, invitationTokenOptions);
+var hostOutcomesOptions = builder.Configuration.GetSection(HostOutcomesConfig.Section).Get<HostOutcomesConfig>() ?? new HostOutcomesConfig();
+HostOutcomesConfigurationValidator.Validate(hostOutcomesOptions, anteOptions.HostStores!);
 
 builder.AddCratis(
     options =>
@@ -49,6 +66,11 @@ builder.AddCratis(
         options.GeneratedApis.RoutePrefix = "api";
         options.GeneratedApis.IncludeCommandNameInRoute = false;
         options.GeneratedApis.SegmentsToSkipForRoute = 1;
+
+        // Ante must only be reachable through AuthProxy, which strips client-supplied x-ms-client-principal/-id/-name
+        // headers before setting its own (see IdentityProviders/ForwardedIdentityProvider.cs and Deployment/README.md).
+        // Trusting them restores the behavior Ante shipped with before Arc made trusting forwarded identity headers opt-in.
+        options.TrustForwardedIdentityHeaders = true;
     },
     configureArcBuilder: arcBuilder =>
         arcBuilder.WithMongoDB(configureMongoDB: mongoDBBuilder => mongoDBBuilder.WithCamelCaseNamingPolicy(pluralizeReadModels: true)),
@@ -71,6 +93,7 @@ builder.Services.AddOpenApi();
 builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o => o.SuppressModelStateInvalidFilter = true);
 
 builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(anteOptions));
+builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(hostOutcomesOptions));
 builder.Services.TryAddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IncomingInvitationSubscriptions>();
 builder.Services.AddHostedService<IncomingInvitationRegistration>();
@@ -95,8 +118,8 @@ builder.Services.AddScoped<IAttestedInvitationSessions, AttestedInvitationSessio
 builder.Services.AddScoped<IInvitationAcceptanceFence, InvitationAcceptanceFence>();
 builder.Services.AddScoped<ISignedInIdentity, SignedInIdentity>();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddHttpClient<IIdentityBackchannel, IdentityBackchannel>();
-builder.Services.AddHttpClient<IHostOutcomeBackchannel, HostOutcomeBackchannel>();
+builder.Services.AddHttpClient<IIdentityBackchannel, IdentityBackchannel>().WithoutRedirects();
+builder.Services.AddHttpClient<IHostOutcomeBackchannel, HostOutcomeBackchannel>().WithoutRedirects();
 builder.Services.AddIdentityProvider<InvitationIdentityProvider>();
 builder.Services.AddSingleton<UserSetupStatusSubscriptions>();
 builder.Services.AddSingleton<OrganizationSetupStatusSubscriptions>();
@@ -111,6 +134,10 @@ if (anteOptions.Legal.Source == "Inbox")
 {
     builder.Services.AddScoped<ILegalDocumentSource, InboxLegalDocumentSource>();
 }
+else if (anteOptions.Legal.Source == "Files")
+{
+    builder.Services.AddSingleton<ILegalDocumentSource, FileLegalDocumentSource>();
+}
 else
 {
     builder.Services.TryAddSingleton<ILegalDocumentSource, NoLegalDocumentSource>();
@@ -119,16 +146,21 @@ else
 builder.Services.AddAuthorization();
 builder.Services.AddRegistrationRateLimiting(anteOptions);
 
-// Bounded, dependency-aware readiness, separate from the unconditional /healthz liveness endpoint
-// mapped below - see AnteHealthChecks and Documentation/deployment.md.
+// Bounded dependency readiness and grace-period host-inbox liveness - see AnteHealthChecks
+// and Documentation/deployment.md.
 builder.Services.AddAnteHealthChecks()
-    .AddCheck<IncomingRoutingHealthCheck>("host-routing", tags: [AnteHealthChecks.ReadyTag], timeout: AnteHealthChecks.DependencyTimeout)
+    .AddCheck<IncomingRoutingHealthCheck>("host-routing", tags: [AnteHealthChecks.ReadyTag], timeout: AnteHealthChecks.HostRoutingTimeout)
     .AddCheck<ExchangeIndexesHealthCheck>("exchange-indexes", tags: [AnteHealthChecks.ReadyTag]);
 
 var app = builder.Build();
 InvitationTokenConfigurationValidator.Report(
     invitationTokenOptions,
     app.Services.GetRequiredService<ILogger<InvitationTokenConfigurationValidator>>());
+
+BackchannelCredentials.Report(
+    anteOptions,
+    app.Environment.IsDevelopment(),
+    app.Services.GetRequiredService<ILogger<AnteOptions>>());
 
 IdentityProviderConfigurationWarnings.WarnForUnattributableSignIns(
     app.Services.GetRequiredService<IOptions<IdentityProviderOptions>>().Value,
@@ -152,7 +184,7 @@ app.Use(LocalizedConstraintResponses.Invoke);
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.UseDefaultFiles();
+SpaFallback.UseShell(app);
 app.UseStaticFiles();
 
 // Branch before the legacy exchange middleware so the attested handlers (which depend on Chronicle)
@@ -178,6 +210,8 @@ app.MapIdentityProvider();
 app.MapAnteHealthChecks();
 app.MapGet("/api/locale-config", () => Results.Json(LocaleNegotiation.PublicOptions(anteOptions)))
     .AllowAnonymous();
+
+app.MapInvitationTokenMetadata(invitationTokenOptions);
 
 // Reserved, API-shaped prefixes get a genuine 404 for anything not already matched by a real endpoint
 // above, instead of falling through to the SPA shell below - see ApiRouteGuard.

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Ante.Contracts.Legal;
+using Ante.Legal;
 using Ante.Outbox;
 using MongoDB.Driver;
 
@@ -47,16 +48,22 @@ public class JoinTenantPublicationFacts(
         // about it. Matching is by event type id because the published copy may carry a different
         // generation than the local one.
         var eventSourceId = (EventSourceId)invitationId.Value.ToString("D");
-        EventType[] relevantTypes = [typeof(InvitationToJoinTenantAccepted).GetEventType(), typeof(LegalTermsAccepted).GetEventType()];
+        EventType[] relevantTypes =
+        [
+            typeof(InvitationToJoinTenantAccepted).GetEventType(),
+            typeof(LegalTermsAccepted).GetEventType(),
+            typeof(UserSetupCompleted).GetEventType(),
+            typeof(LegalTermsAcceptanceRecorded).GetEventType(),
+        ];
         var local = await eventStore.EventLog.GetForEventSourceIdAndEventTypes(eventSourceId, relevantTypes);
-        if (!local.Any(entry => entry.Context.EventType.Id == relevantTypes[0].Id))
+        if (!local.Any(entry => entry.Content is InvitationToJoinTenantAccepted or UserSetupCompleted))
         {
             return recorded is not null ? PublicationProgress.Recorded : PublicationProgress.None;
         }
 
         var outbox = await eventStore.GetEventSequence(EventSequenceId.Outbox).GetForEventSourceIdAndEventTypes(eventSourceId, relevantTypes);
         return outbox.Any(entry => entry.Context.EventType.Id == relevantTypes[0].Id) &&
-            (!local.Any(entry => entry.Context.EventType.Id == relevantTypes[1].Id) ||
+            (!local.Any(entry => entry.Content is LegalTermsAccepted or LegalTermsAcceptanceRecorded) ||
              outbox.Any(entry => entry.Context.EventType.Id == relevantTypes[1].Id))
             ? PublicationProgress.Published
             : PublicationProgress.Recorded;

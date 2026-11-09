@@ -3,6 +3,9 @@
 
 using Ante.Invitations.Accepting;
 using Ante.Invitations.Issuing;
+using Ante.Invitations.OrganizationSetup;
+using Ante.Invitations.UserSetup;
+using Ante.Onboarding;
 using Microsoft.Extensions.Options;
 
 namespace Ante.Invitations.Receiving;
@@ -16,12 +19,14 @@ namespace Ante.Invitations.Receiving;
 /// <param name="logger">The reactor's logger.</param>
 /// <param name="exchange">The selected exchange mode.</param>
 /// <param name="token">The signing configuration; when absent, a key is assumed to be configured.</param>
+/// <param name="ante">The deployment options; when absent, no onboarding contract restricts invitations.</param>
 internal sealed class InvitationTokenIssuance(
     IInvitationTokenIssuer tokenIssuer,
     IEventStore eventStore,
     ILogger<InvitationTokenIssuingReactor> logger,
     IOptions<InvitationExchangeConfig>? exchange,
-    IOptions<InvitationTokenConfig>? token)
+    IOptions<InvitationTokenConfig>? token,
+    IOptions<AnteOptions>? ante = null)
 {
     static readonly EventType[] _triggerTypes =
     [
@@ -36,6 +41,8 @@ internal sealed class InvitationTokenIssuance(
         typeof(InvitationReissueReceived).GetEventType(),
         typeof(InvitationTokenIssuanceResumed).GetEventType(),
         typeof(InvitationRevocationReceived).GetEventType(),
+        typeof(UserSetupCompleted).GetEventType(),
+        typeof(OrganizationSetupCompleted).GetEventType(),
         typeof(InvitationToJoinTenantAccepted).GetEventType(),
         typeof(InvitationToCreateTenantAccepted).GetEventType(),
     ];
@@ -98,6 +105,7 @@ internal sealed class InvitationTokenIssuance(
             entry.Content is JoinTenantInvitationReceived or CreateTenantInvitationReceived or InvitationReissueReceived);
         if (trigger is null || history.Any(entry => entry.Context.SequenceNumber > trigger.Context.SequenceNumber &&
             (entry.Content is InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted
+                or UserSetupCompleted or OrganizationSetupCompleted
                 or JoinTenantInvitationReceived or CreateTenantInvitationReceived ||
                 (entry.Content is InvitationTokenIssuanceDeferred later && later.TriggerSequenceNumber > trigger.Context.SequenceNumber))))
         {
@@ -116,10 +124,12 @@ internal sealed class InvitationTokenIssuance(
     /// <param name="trigger">The trigger's sequence number.</param>
     /// <returns>The deliveries.</returns>
     static EventSequenceNumber[] DeliveriesOf(IEnumerable<AppendedEvent> history, EventSequenceNumber trigger) =>
-        [.. history
-            .Where(entry => entry.Content is InvitationTokenIssuanceResumed resumed && resumed.TriggerSequenceNumber == trigger)
-            .Select(entry => entry.Context.SequenceNumber)
-            .Append(trigger)];
+        [
+            .. history
+                .Where(entry => entry.Content is InvitationTokenIssuanceResumed resumed && resumed.TriggerSequenceNumber == trigger)
+                .Select(entry => entry.Context.SequenceNumber)
+                .Append(trigger)
+        ];
 
     // A deferred trigger belongs to its resumption: handling it again - a redelivery, or a replay - must not publish
     // a second token, nor one for an invitation revoked, accepted or superseded while it waited.
@@ -156,9 +166,17 @@ internal sealed class InvitationTokenIssuance(
             return null;
         }
 
+        var restriction = ante is null ? null : OnboardingPolicy.Restriction(ante.Value.Onboarding, receipt);
+        if (restriction is { } reason)
+        {
+            logger.LogInvitationRestricted(reason);
+            await PublishOutcome(trigger, deliveries, () => new InvitationRejected(reason));
+            return null;
+        }
+
         if (exchange?.Value.Mode == InvitationExchangeMode.Attested && !AttestedInvitationRecipient.IsValid(email))
         {
-            await InvitationTokenOutbox.Publish(eventStore, trigger, deliveries, () => new InvitationRejected(InvitationRejectionReason.InvalidRecipient));
+            await PublishOutcome(trigger, deliveries, () => new InvitationRejected(InvitationRejectionReason.InvalidRecipient));
             return null;
         }
 
@@ -169,7 +187,7 @@ internal sealed class InvitationTokenIssuance(
         }
 
         var flowType = receipt is JoinTenantInvitationReceived ? InvitationFlowType.JoinTenant : InvitationFlowType.CreateTenant;
-        await InvitationTokenOutbox.Publish(eventStore, trigger, deliveries, () =>
+        await PublishOutcome(trigger, deliveries, () =>
         {
             var issued = flowType == InvitationFlowType.JoinTenant
                 ? tokenIssuer.IssueJoinTenantInvitation(invitationId, email)
@@ -185,6 +203,9 @@ internal sealed class InvitationTokenIssuance(
 
         // Replay is not excluded, like token issuance: it recovers a lost publication, and the outbox check keeps
         // it from publishing the rejection twice.
-        await InvitationTokenOutbox.Publish(eventStore, trigger, deliveries, () => new InvitationRejected(InvitationRejectionReason.InvalidInvitationId));
+        await PublishOutcome(trigger, deliveries, () => new InvitationRejected(InvitationRejectionReason.InvalidInvitationId));
     }
+
+    Task PublishOutcome(EventContext trigger, IReadOnlyCollection<EventSequenceNumber> deliveries, Func<object> outcome) =>
+        InvitationTokenOutbox.Publish(eventStore, trigger, deliveries, outcome, ante?.Value.OperatorAudience);
 }

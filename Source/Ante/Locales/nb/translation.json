@@ -85,6 +85,8 @@
         "register": "Registrer organisasjon",
         "hostAppUrlUnavailable": "Organisasjonen er registrert, men vi finner ikke ut hvor vi skal sende deg videre. Kontakt brukerstøtte.",
         "startNewRegistration": "Registrer en annen organisasjon",
+        "waitingForReview": "Registreringen din venter på gjennomgang. Vi sender deg en e-post når det foreligger en avgjørelse.",
+        "declined": "Registreringen din ble ikke godkjent. Vi sender deg en e-post med begrunnelsen.",
         "closed": "Registrering er ikke tilgjengelig akkurat nå.",
         "closedLink": "Les mer",
         "pricingLink": "Se priser",
@@ -112,7 +114,8 @@
         "hostAppUrlUnavailable": "Organisasjonen ble opprettet, men vi finner ikke ut hvor vi skal sende deg videre. Kontakt brukerstøtte.",
         "hostOutcomePending": "Organisasjonen er opprettet. Vi fullfører fortsatt oppsettet i tjenesten.",
         "hostOutcomeSucceeded": "Organisasjonen er opprettet, og tjenesten har bekreftet at alt er klart.",
-        "hostOutcomeFailed": "Organisasjonen er opprettet, men tjenesten meldte om et problem under oppsettet."
+        "hostOutcomeFailed": "Organisasjonen er opprettet, men tjenesten meldte om et problem under oppsettet.",
+        "hostOutcomeRequiresNewInvitation": "Organisasjonen er opprettet, men tjenesten kunne ikke fullføre oppsettet med denne invitasjonen. Be om en ny invitasjon."
     },
     "userSetup": {
         "subtitle": "Fullfør profilen din",
@@ -130,6 +133,7 @@
         "acceptanceFailed": "Vi kunne ikke fullføre kontooppsettet. Kontakt brukerstøtte.",
         "hostOutcomePending": "Kontoen din er opprettet. Vi fullfører fortsatt oppsettet i tjenesten.",
         "hostOutcomeSucceeded": "Kontoen din er opprettet, og tjenesten har bekreftet at alt er klart.",
-        "hostOutcomeFailed": "Kontoen din er opprettet, men tjenesten meldte om et problem under oppsettet."
+        "hostOutcomeFailed": "Kontoen din er opprettet, men tjenesten meldte om et problem under oppsettet.",
+        "hostOutcomeRequiresNewInvitation": "Kontoen din er opprettet, men tjenesten kunne ikke fullføre oppsettet med denne invitasjonen. Be om en ny invitasjon."
     }
 }

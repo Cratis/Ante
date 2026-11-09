@@ -181,8 +181,9 @@ public class LegalReceiptFailed(EventSourceId id) : Exception($"Could not record
 /// Acknowledges only activated sets, never quarantined or superseded revisions.
 /// </summary>
 /// <param name="store">The local event store.</param>
+/// <param name="ante">The deployment options; <c language="csharp">OperatorAudience</c> addresses replies whose request named no requester. When absent such replies are unaddressed.</param>
 [Reactor(eventSequence: EventSequenceId.LogId)]
-public class LegalDocumentSetActivationOutbox(IEventStore store) : IReactor
+public class LegalDocumentSetActivationOutbox(IEventStore store, IOptions<AnteOptions>? ante = null) : IReactor
 {
     /// <summary>
     /// Publishes the activation to Ante's outbox, retrying on publication failure.
@@ -191,5 +192,5 @@ public class LegalDocumentSetActivationOutbox(IEventStore store) : IReactor
     /// <param name="context">The local activation context.</param>
     /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
     public Task On(LegalDocumentSetReceived received, EventContext context, ReactorDelivery delivery) =>
-        store.PublishToOutbox(delivery, context, new LegalDocumentSetActivated(received.Revision, received.Version), []);
+        store.PublishToOutbox(delivery, context, new LegalDocumentSetActivated(received.Revision, received.Version), [], operatorAudience: ante?.Value.OperatorAudience);
 }

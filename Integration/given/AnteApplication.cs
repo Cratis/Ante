@@ -210,6 +210,12 @@ public sealed class AnteApplication(
             builder.UseSetting($"Logging:LogLevel:{diagnosticCategory}", "Debug");
         }
 
+        // The Debug build of Ante carries Cratis.Chronicle.Testing, whose in-process kernel commands are authorized with
+        // the Chronicle administrator policy that Arc's startup validation looks for. Chronicle's own host registers it
+        // with AddChronicleAdministratorAuthorization; Ante's test host registers the same policy rather than turning the
+        // validation off. Ante does not host the kernel and Release carries neither, so production authorization is unchanged.
+        builder.ConfigureTestServices(ChronicleAdministratorAuthorization.Register);
+
         if (webRootPath is not null)
         {
             builder.UseWebRoot(webRootPath);
@@ -296,4 +302,22 @@ sealed class RemoteAddressStartupFilter(IPAddress address) : IStartupFilter
         });
         next(app);
     };
+}
+
+/// <summary>
+/// Registers Chronicle's administrator authorization the way its own host does. The extension lives in
+/// <c>Cratis.Chronicle.Core</c>, which Cratis.Chronicle.Testing ships for the runtime but not as a compile reference, so it is
+/// called through reflection.
+/// </summary>
+static class ChronicleAdministratorAuthorization
+{
+    const string Extensions = "Cratis.Chronicle.Security.AdministratorAuthorizationServiceCollectionExtensions, Cratis.Chronicle.Core";
+
+    public static void Register(IServiceCollection services)
+    {
+        var extensions = Type.GetType(Extensions, throwOnError: true)!;
+        var register = extensions.GetMethod("AddChronicleAdministratorAuthorization", [typeof(IServiceCollection)])
+            ?? throw new InvalidOperationException("Chronicle no longer exposes AddChronicleAdministratorAuthorization(IServiceCollection).");
+        register.Invoke(null, [services]);
+    }
 }

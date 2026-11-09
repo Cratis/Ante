@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Guid } from '@cratis/fundamentals';
 import { StatusForInvitation, StatusForRegistration } from './OrganizationSetup';
 import { OrganizationSetupAcceptanceStatus } from './OrganizationSetupAcceptanceStatus';
-import { organizationStatusIds, shouldRecheckRegistrationStatus } from './organizationStatusAccess';
+import { isDecidedByReview, organizationStatusIds, shouldRecheckRegistrationStatus } from './organizationStatusAccess';
 import { startRegistrationStatusPolling } from './registrationStatusPolling';
 import { HostUrl } from '../../Configuration/Configuration';
 import { resolveHostAppRedirectUrl } from '../../Configuration/hostAppRedirect';
@@ -36,7 +36,7 @@ export type OrganizationSetupHandoffOptions = {
 };
 
 /** The phases `OrganizationSetupPage` and `RegistrationPage` render from, once `hasStatus` is true. */
-export type OrganizationSetupHandoffPhase = OnboardingRecoveryPhase | 'hostOutcome';
+export type OrganizationSetupHandoffPhase = OnboardingRecoveryPhase | 'hostOutcome' | 'heldForReview' | 'declined';
 
 export type OrganizationSetupHandoffState = {
     /** Whether the durable status for this operation has been read at least once. */
@@ -55,10 +55,18 @@ export type OrganizationSetupHandoffState = {
     hostOutcomeStatus: HostOutcomeStatus;
     /** A stable, low-cardinality reason code accompanying a terminal host outcome; empty otherwise. */
     hostOutcomeReasonCode: string;
+    /** Whether the host reported, with a signed outcome, that the person needs a new invitation; `hostOutcomeStatus` is then `failed`. */
+    hostOutcomeRequiresNewInvitation: boolean;
     /** Re-runs the host outcome lookup, for a host that has not yet reported a terminal result. */
     checkHostOutcomeAgain: () => void;
-    /** Navigates to the host now - published onboarding never depends on host outcome, so this is always safe to call regardless of what (if anything) the host has reported. */
+    /** Navigates to the host only when the outcome gate permits handoff. */
     continueToHost: () => void;
+};
+
+const reviewPhase = (status?: OrganizationSetupAcceptanceStatus): OrganizationSetupHandoffPhase | undefined => {
+    if (status === OrganizationSetupAcceptanceStatus.held) return 'heldForReview';
+    if (status === OrganizationSetupAcceptanceStatus.declined) return 'declined';
+    return undefined;
 };
 
 /**
@@ -83,6 +91,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     const hasStatus = hasReadStatus(statusResult, invitationId);
     const isRecorded = hasStatus && statusResult.data.status !== OrganizationSetupAcceptanceStatus.pending;
     const isAccepted = hasStatus && statusResult.data.status === OrganizationSetupAcceptanceStatus.accepted;
+    const reviewStatus = hasStatus ? statusResult.data.status : undefined;
     const recovery = useOnboardingRecovery(isRecorded, isAccepted);
     const [submitted, setSubmitted] = useState(false);
     const [pollWindowExpired, setPollWindowExpired] = useState(false);
@@ -100,10 +109,10 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     // A pointer recovered after reload may already have an owner, so recheck its initial snapshot.
     // Stop after the recovery window; Check Again starts a fresh window for a pending operation.
     useEffect(() => {
-        if (!isRegistration || !(submitted || recoveringRegistration) || pollWindowExpired || isAccepted) return;
+        if (!isRegistration || !(submitted || recoveringRegistration) || pollWindowExpired || isAccepted || isDecidedByReview(reviewStatus)) return;
         const timeout = globalThis.setTimeout(() => setPollWindowExpired(true), 20000);
         return () => globalThis.clearTimeout(timeout);
-    }, [isRegistration, submitted, recoveringRegistration, pollWindowExpired, isAccepted]);
+    }, [isRegistration, submitted, recoveringRegistration, pollWindowExpired, isAccepted, reviewStatus]);
 
     useEffect(() => {
         if (!shouldRecheckRegistrationStatus(
@@ -118,9 +127,10 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     // on an attempt it has not been notified of yet - and never looked up at all for a caller that has
     // not opted in.
     const hostOutcome = useHostOutcome(supportsHostOutcome && recovery.isAccepted ? invitationId : Guid.empty);
-    const gate = resolveHostOutcomeGate(recovery.isAccepted, supportsHostOutcome && hostOutcome.isConfigured, !supportsHostOutcome || hostOutcome.isRead);
+    const gate = resolveHostOutcomeGate(recovery.isAccepted, supportsHostOutcome && hostOutcome.isConfigured, !supportsHostOutcome || hostOutcome.isRead, hostOutcome.status, hostOutcome.hasGivenUp);
 
     const navigateToHost = useCallback(() => {
+        if (gate !== 'redirectAutomatically') return;
         if (!hostUrlResult.isSuccess) {
             setErrorMessages([hostAppUnavailableMessage]);
             return;
@@ -137,7 +147,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
             // crashed page - setup already published, so the person's information was not lost.
             setErrorMessages([hostAppUnavailableMessage]);
         }
-    }, [hostUrlResult, statusResult.data.organizationName, hostAppUnavailableMessage]);
+    }, [gate, hostUrlResult, statusResult.data.organizationName, hostAppUnavailableMessage]);
 
     useEffect(() => {
         // Unchanged automatic redirect when the host-outcome screen was never opted into or configured -
@@ -149,13 +159,14 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
 
     return {
         hasStatus,
-        phase: gate === 'showHostOutcome' ? 'hostOutcome' : recovery.phase,
+        phase: reviewPhase(reviewStatus) ?? (gate === 'showHostOutcome' ? 'hostOutcome' : recovery.phase),
         errorMessages,
         captureOrganizationName: (organizationName: string) => { organizationNameRef.current = organizationName; },
         markSubmitted: () => { setPollWindowExpired(false); setSubmitted(true); recovery.checkAgain(); recovery.markSubmitted(); },
         checkAgain: () => { setPollWindowExpired(false); recovery.checkAgain(); },
         hostOutcomeStatus: hostOutcome.status,
         hostOutcomeReasonCode: hostOutcome.reasonCode,
+        hostOutcomeRequiresNewInvitation: hostOutcome.requiresNewInvitation,
         checkHostOutcomeAgain: hostOutcome.checkAgain,
         continueToHost: navigateToHost,
     };

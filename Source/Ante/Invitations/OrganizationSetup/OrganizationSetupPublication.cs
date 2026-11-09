@@ -3,6 +3,7 @@
 
 using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
+using Ante.Legal;
 using Ante.Organization.Registration;
 using Ante.Outbox;
 
@@ -32,15 +33,21 @@ namespace Ante.Invitations.OrganizationSetup;
 /// </remarks>
 [ReadModel]
 [EventLog]
+[FromEvent<OrganizationSetupCompleted>]
+[FromEvent<OrganizationRegistrationRecorded>]
+[FromEvent<LegalTermsAcceptanceRecorded>]
 [FromEvent<InvitationToCreateTenantAccepted>]
 [FromEvent<OrganizationRegistrationCompleted>]
 [FromEvent<RegistrationOwnerRecorded>]
 [FromEvent<LegalTermsAccepted>]
 public record OrganizationSetupProgress(
     InvitationId Id,
+    [SetFrom<OrganizationSetupCompleted>(nameof(OrganizationSetupCompleted.TenantName))]
+    [SetFrom<OrganizationRegistrationRecorded>(nameof(OrganizationRegistrationRecorded.TenantName))]
     [SetFrom<InvitationToCreateTenantAccepted>(nameof(InvitationToCreateTenantAccepted.TenantName))]
     [SetFrom<OrganizationRegistrationCompleted>(nameof(OrganizationRegistrationCompleted.TenantName))]
     TenantName OrganizationName,
+    [SetValue<LegalTermsAcceptanceRecorded>(true)]
     [SetValue<LegalTermsAccepted>(true)] bool LegalRecorded = false)
 {
     /// <summary>

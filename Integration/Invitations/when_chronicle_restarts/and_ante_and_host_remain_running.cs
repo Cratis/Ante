@@ -25,6 +25,7 @@ public class and_ante_and_host_remain_running : a_running_ante
     StatusStream _stream;
     int _firstStatus;
     HttpStatusCode _readinessDuringOutage;
+    HttpStatusCode _livenessAfterRestart;
     InvitationTokenIssued _issuedAfter;
     int _earlierTokens;
     JsonDocument _result;
@@ -43,6 +44,9 @@ public class and_ante_and_host_remain_running : a_running_ante
     async Task Because()
     {
         _readinessDuringOutage = await RestartChronicle();
+        using var client = Ante.CreateClient();
+        using var liveness = await client.GetAsync("/healthz");
+        _livenessAfterRestart = liveness.StatusCode;
 
         await Host.Publish(_laterInvitationId, JoinInvitation(), subject: Guid.NewGuid());
         _issuedAfter = await Host.WaitForFromAnte<InvitationTokenIssued>(_laterInvitationId.ToString());
@@ -85,6 +89,7 @@ public class and_ante_and_host_remain_running : a_running_ante
     static int Status(JsonDocument frame) => frame.RootElement.GetProperty("data").GetProperty("status").GetInt32();
 
     [Fact] void should_lose_readiness_during_the_outage() => _readinessDuringOutage.ShouldEqual(HttpStatusCode.ServiceUnavailable);
+    [Fact] void should_be_live_after_the_inbox_recovers() => _livenessAfterRestart.ShouldEqual(HttpStatusCode.OK);
     [Fact] void should_resume_the_inbox_reactor() => _issuedAfter.Token.ShouldNotBeEmpty();
     [Fact] void should_not_reissue_the_earlier_token() => _earlierTokens.ShouldEqual(1);
     [Fact] void should_show_the_watching_owner_a_pending_status_before_the_restart() => _firstStatus.ShouldEqual(0);

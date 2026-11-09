@@ -30,9 +30,10 @@ public class and_the_conventions_registered_a_singleton_first : Specification
         services.AddSingleton<EventSerializer>();
 
         services.AddScopedEventSerializer();
-        _registrations = services
-            .Where(descriptor => descriptor.ServiceType == typeof(EventSerializer) || descriptor.ServiceType == typeof(IEventSerializer))
-            .ToArray();
+        _registrations =
+        [
+            .. services.Where(descriptor => descriptor.ServiceType == typeof(EventSerializer) || descriptor.ServiceType == typeof(IEventSerializer))
+        ];
 
         _provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
         try

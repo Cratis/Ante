@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
 using Ante.IdentityProviders;
@@ -10,6 +11,7 @@ using Ante.Invitations.Receiving;
 using Ante.Invitations.UserSetup;
 using Ante.Legal;
 using Ante.Organization.Names;
+using Ante.Organization.Registration.Review;
 using Ante.Organization.Registration.Start;
 using Ante.Outbox;
 using Ante.Resources;
@@ -34,6 +36,7 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
     /// <param name="identityProviderResolver">Resolver of the current sign-in provider.</param>
     /// <param name="eventStore">The current namespace's read models for checking prior use of the registration id.</param>
     /// <param name="options">The deployment's options, deciding whether registration is offered and which names are reserved.</param>
+    [SuppressMessage("Arc.Chronicle", "ARCCHR0026:Chronicle model read through a MongoDB collection", Justification = ClaimedOrganizationNames.SearchIsAdvisory)]
     public RegisterOrganizationValidator(
         ILegalDocumentSource legalDocumentSource,
         IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
@@ -136,6 +139,7 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
     /// forwarded to the outbox. <see cref="OrganizationRegistrationOutbox"/> marks it once registration is
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
+    [SuppressMessage("Arc.Chronicle", "ARCCHR0026:Chronicle model read through a MongoDB collection", Justification = ClaimedOrganizationNames.SearchIsAdvisory)]
     public async Task<Result<ValidationResult, EventsWithConcurrencyScopes>> Handle(
         IHttpContextAccessor httpContextAccessor,
         IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
@@ -195,34 +199,41 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
 
         var subject = owner.Subject.Value;
         var identityProviderValue = owner.Provider;
+        var issuer = IdentityIssuerEvidence.FromClaims(
+            user?.Claims.Select(claim => new KeyValuePair<string, string>(claim.Type, claim.Value)) ?? []);
         var legalResolution = await LegalAcceptanceEvidence.ResolveWithScope(
             legalDocumentSource,
             AcceptedLegalTerms,
             AcceptedLegalVersion,
             OrganizationName,
             identityProviderValue,
-            subject);
+            subject,
+            issuer);
         if (!legalResolution.TryGetResult(out var legalEvidence))
         {
             legalResolution.TryGetError(out var legalError);
             return legalError;
         }
 
-        // Clear display cookies issued before Arc 22.46.0; Arc no longer issues or trusts them.
-        httpContext?.Response.Cookies.Delete(".cratis-identity");
-
+        var recorded = new OrganizationRegistrationRecorded(
+            OrganizationName,
+            subject,
+            identityProviderValue,
+            FirstName,
+            MiddleName ?? Contracts.Invitations.MiddleName.NotSet,
+            LastName,
+            email,
+            SignupContextRules.Filter(options.Value.Registration, SignupContext))
+        {
+            IdentityProviderKey = issuer.Key,
+            IdentityIssuer = issuer.IssuerValue,
+        };
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
-            new OrganizationRegistrationCompleted(
-                OrganizationName,
-                subject,
-                identityProviderValue,
-                FirstName,
-                MiddleName ?? Contracts.Invitations.MiddleName.NotSet,
-                LastName,
-                email,
-                SignupContextRules.Filter(options.Value.Registration, SignupContext)),
+
+            // A sign-up held for review is not a registration yet: nothing is published to the host until a reviewer approves it.
+            options.Value.Registration.Review ? recorded.ToHeld() : recorded,
             new RegistrationOwnerRecorded(owner.Subject, owner.Provider),
         };
         events.AddRange(legalEvidence.Events);
@@ -259,6 +270,10 @@ public static class RegistrationSourceAvailability
                 typeof(InvitationToCreateTenantAccepted).GetEventType(),
                 typeof(OnboardingAttemptClaimed).GetEventType(),
                 typeof(OrganizationRegistrationCompleted).GetEventType(),
+                typeof(OrganizationRegistrationRecorded).GetEventType(),
+                typeof(OrganizationRegistrationHeld).GetEventType(),
+                typeof(OrganizationSetupCompleted).GetEventType(),
+                typeof(UserSetupCompleted).GetEventType(),
                 typeof(RegistrationOwnerRecorded).GetEventType(),
             ]);
         return !events.Any();
@@ -276,9 +291,13 @@ public static class RegistrationSourceAvailability
 /// <param name="eventStore">The event store.</param>
 /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>, given a chance to accelerate a live status subscription once this fact is durably published.</param>
 /// <param name="logger">The logger.</param>
+/// <param name="ante">The deployment options; <c language="csharp">OperatorAudience</c> addresses replies whose request named no requester. When absent such replies are unaddressed.</param>
 [Reactor(eventSequence: EventSequenceId.LogId)]
-public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<OrganizationRegistrationOutbox> logger) : IReactor
+public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<OrganizationRegistrationOutbox> logger, IOptions<AnteOptions>? ante = null) : IReactor
 {
+    public Task On(OrganizationRegistrationRecorded @event, EventContext context, ReactorDelivery delivery) =>
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, announceRecorded: true, operatorAudience: ante?.Value.OperatorAudience);
+
     /// <summary>
     /// Forwards the registration completed event to the outbox.
     /// </summary>
@@ -286,5 +305,23 @@ public class OrganizationRegistrationOutbox(IEventStore eventStore, IInstancesOf
     /// <param name="context">The event context.</param>
     /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
     public async Task On(OrganizationRegistrationCompleted @event, EventContext context, ReactorDelivery delivery) =>
-        await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger, announceRecorded: true);
+        await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger, announceRecorded: true, operatorAudience: ante?.Value.OperatorAudience);
+
+    /// <summary>
+    /// Forwards the held registration to the outbox as <see cref="OrganizationRegistrationAwaitingReview"/>, so the host's reviewer can decide.
+    /// </summary>
+    /// <param name="event">The event.</param>
+    /// <param name="context">The event context.</param>
+    /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
+    public Task On(OrganizationRegistrationHeld @event, EventContext context, ReactorDelivery delivery) =>
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, operatorAudience: ante?.Value.OperatorAudience);
+
+    /// <summary>
+    /// Forwards the decision to decline a held registration to the outbox as <see cref="OrganizationRegistrationDeclined"/>.
+    /// </summary>
+    /// <param name="event">The event.</param>
+    /// <param name="context">The event context.</param>
+    /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
+    public Task On(OrganizationRegistrationDeclineRecorded @event, EventContext context, ReactorDelivery delivery) =>
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, operatorAudience: ante?.Value.OperatorAudience);
 }

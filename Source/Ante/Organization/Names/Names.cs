@@ -3,6 +3,8 @@
 
 using System.Text.RegularExpressions;
 using Ante.Contracts.Organization;
+using Ante.Invitations.OrganizationSetup;
+using Ante.Organization.Registration;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -43,6 +45,8 @@ public record OrganizationNameReleaseReceived(TenantName TenantName);
 [EventLog]
 [FromEvent<InvitationToCreateTenantAccepted>]
 [FromEvent<OrganizationRegistrationCompleted>]
+[FromEvent<OrganizationSetupCompleted>]
+[FromEvent<OrganizationRegistrationRecorded>]
 [FromEvent<OrganizationNameReservationReceived>]
 [RemovedWith<OrganizationNameReleaseReceived>]
 public record OrganizationNameClaim(
@@ -50,6 +54,8 @@ public record OrganizationNameClaim(
     [NoAutoMap]
     [SetFrom<InvitationToCreateTenantAccepted>(nameof(InvitationToCreateTenantAccepted.TenantName))]
     [SetFrom<OrganizationRegistrationCompleted>(nameof(OrganizationRegistrationCompleted.TenantName))]
+    [SetFrom<OrganizationSetupCompleted>(nameof(OrganizationSetupCompleted.TenantName))]
+    [SetFrom<OrganizationRegistrationRecorded>(nameof(OrganizationRegistrationRecorded.TenantName))]
     [SetFrom<OrganizationNameReservationReceived>(nameof(OrganizationNameReservationReceived.TenantName))]
     TenantName TenantName);
 
@@ -63,10 +69,22 @@ public record OrganizationNameClaim(
 /// </remarks>
 public static class ClaimedOrganizationNames
 {
+    /// <summary>
+    /// Why a command may search the claims through their MongoDB collection without read protection.
+    /// </summary>
+    /// <remarks>
+    /// The search matches a name across every claim, so it is not a keyed read a read-model parameter could make.
+    /// It only attributes a friendly message to the organization name field; the uniqueness rule itself is the
+    /// append-time <c language="csharp">UniqueOrganizationNameConstraint</c>.
+    /// </remarks>
+    public const string SearchIsAdvisory = "A case-insensitive search across every claim, not a keyed read; it only attributes a friendly message to the field, and UniqueOrganizationNameConstraint enforces uniqueness at append time.";
+
     static readonly EventType[] _claimEventTypes =
     [
         typeof(InvitationToCreateTenantAccepted).GetEventType(),
         typeof(OrganizationRegistrationCompleted).GetEventType(),
+        typeof(OrganizationSetupCompleted).GetEventType(),
+        typeof(OrganizationRegistrationRecorded).GetEventType(),
         typeof(OrganizationNameReservationReceived).GetEventType(),
     ];
 
@@ -120,6 +138,8 @@ public static class ClaimedOrganizationNames
         return history
             .Select(entry => entry.Content switch
             {
+                OrganizationSetupCompleted accepted => accepted.TenantName,
+                OrganizationRegistrationRecorded registered => registered.TenantName,
                 InvitationToCreateTenantAccepted accepted => accepted.TenantName,
                 OrganizationRegistrationCompleted registered => registered.TenantName,
                 OrganizationNameReservationReceived reserved => reserved.TenantName,

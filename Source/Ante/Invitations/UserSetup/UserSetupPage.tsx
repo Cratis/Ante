@@ -18,6 +18,8 @@ import { HostOutcomeStatus } from '../HostOutcome/HostOutcomeStatus';
 import { HostUrl } from '../../Configuration/Configuration';
 import { useFreshLegalDocuments } from '../../Legal/useFreshLegalDocuments';
 import { UserSetupFrame } from './UserSetupFrame';
+import { useInvitationContent } from '../useInvitationContent';
+import { invitationCompletionMessage } from '../invitationCompletionMessage';
 import { InvitationIdentityDetails } from '../Accepting/Accepting';
 import { getInvitationIdFromToken } from '../Accepting/invitationToken';
 import { LegalAcceptanceField } from '../../Legal/LegalAcceptanceField';
@@ -39,6 +41,7 @@ type UserSetupPageProps = {
 };
 
 export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
+    const content = useInvitationContent('userSetup');
     const identity = useIdentity(InvitationIdentityDetails);
     const invitationIdentityDetails = identity.details as unknown as InvitationIdentityDetails | undefined;
     const invitationId = useMemo(() => {
@@ -67,7 +70,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     // Never looked up before Ante's own onboarding has actually published - a host has nothing to report
     // on an invitation it has not been notified of accepting yet.
     const hostOutcome = useHostOutcome(recovery.isAccepted ? resolvedInvitationId : Guid.empty);
-    const hostOutcomeGate = resolveHostOutcomeGate(recovery.isAccepted, hostOutcome.isConfigured, hostOutcome.isRead);
+    const hostOutcomeGate = resolveHostOutcomeGate(recovery.isAccepted, hostOutcome.isConfigured, hostOutcome.isRead, hostOutcome.status, hostOutcome.hasGivenUp);
 
     // Static form defaults apply once per command; legal document updates must not replay names.
     const legalDocumentsConfigured = displayedDocuments?.isConfigured ?? false;
@@ -84,6 +87,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     });
 
     const navigateToHost = useCallback(() => {
+        if (hostOutcomeGate !== 'redirectAutomatically') return;
         if (!hostUrlResult.isSuccess) {
             setErrorMessages([strings.userSetup.hostAppUrlUnavailable]);
             return;
@@ -102,7 +106,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
             // crashed page - acceptance already published, so the person's information was not lost.
             setErrorMessages([strings.userSetup.hostAppUrlUnavailable]);
         }
-    }, [hostUrlResult]);
+    }, [hostOutcomeGate, hostUrlResult]);
 
     useEffect(() => {
         // Unchanged automatic redirect when the optional host-outcome screen was never configured -
@@ -114,7 +118,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
 
     if (errorMessages.length > 0) {
         return (
-            <UserSetupFrame>
+            <UserSetupFrame content={content}>
                 <div className='user-setup-card__content'>
                     <ErrorSummary messages={errorMessages} className='user-setup-errors' itemClassName='user-setup-errors__item' />
                 </div>
@@ -127,7 +131,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     // would let a recovered, already-submitted acceptance flash a form it must never resubmit.
     if ((!invitationId && !identity.isSet) || !hasStatus) {
         return (
-            <UserSetupFrame>
+            <UserSetupFrame content={content}>
                 <div className='user-setup-card__content'>
                     <div className='user-setup-waiting'>
                         <ProgressSpinner className='user-setup-waiting__spinner' />
@@ -139,7 +143,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
 
     if (recovery.phase === 'timedOut') {
         return (
-            <UserSetupFrame>
+            <UserSetupFrame content={content}>
                 <div className='user-setup-card__content'>
                     <div className='user-setup-waiting' role='status' aria-live='polite'>
                         <p className='user-setup-waiting__message'>{strings.onboarding.notYetConfirmed}</p>
@@ -159,13 +163,15 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     // never blocks the Continue action.
     if (hostOutcomeGate === 'showHostOutcome') {
         const message = hostOutcome.status === HostOutcomeStatus.succeeded
-            ? strings.userSetup.hostOutcomeSucceeded
-            : hostOutcome.status === HostOutcomeStatus.failed
-                ? strings.userSetup.hostOutcomeFailed
-                : strings.userSetup.hostOutcomePending;
+            ? invitationCompletionMessage(content, strings.userSetup.hostOutcomeSucceeded)
+            : hostOutcome.requiresNewInvitation
+                ? strings.userSetup.hostOutcomeRequiresNewInvitation
+                : hostOutcome.status === HostOutcomeStatus.failed
+                    ? strings.userSetup.hostOutcomeFailed
+                    : strings.userSetup.hostOutcomePending;
 
         return (
-            <UserSetupFrame>
+            <UserSetupFrame content={content}>
                 <div className='user-setup-card__content'>
                     <div className='user-setup-waiting' role='status' aria-live='polite'>
                         <p className='user-setup-waiting__message'>{message}</p>
@@ -175,7 +181,9 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
                             </p>
                         )}
                         <div className='user-setup-host-outcome__actions'>
+                            {hostOutcome.status === HostOutcomeStatus.succeeded && (
                             <Button label={strings.onboarding.continueToHost} onClick={navigateToHost} />
+                        )}
                             {hostOutcome.status !== HostOutcomeStatus.succeeded && (
                                 <Button label={strings.onboarding.checkAgain} variant='ghost' onClick={hostOutcome.checkAgain} />
                             )}
@@ -188,7 +196,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
 
     if (recovery.phase === 'waiting') {
         return (
-            <UserSetupFrame>
+            <UserSetupFrame content={content}>
                 <div className='user-setup-card__content'>
                     <div className='user-setup-waiting'>
                         <ProgressSpinner className='user-setup-waiting__spinner' aria-label={strings.userSetup.setting} />
@@ -201,7 +209,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
 
     if (checkingLegalDocuments && !displayedDocuments) {
         return (
-            <UserSetupFrame>
+            <UserSetupFrame content={content}>
                 <div className='user-setup-card__content'>
                     <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
                 </div>
@@ -211,7 +219,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
 
     if (!displayedDocuments) {
         return (
-            <UserSetupFrame>
+            <UserSetupFrame content={content}>
                 <div className='user-setup-card__content'>
                     <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />
                 </div>
@@ -244,7 +252,7 @@ export const UserSetupPage = ({ invitationToken }: UserSetupPageProps) => {
     );
 
     return (
-        <UserSetupFrame>
+        <UserSetupFrame content={content}>
             <div className='user-setup-card__content user-setup-card__content--stepper' ref={stepperContainerRef}>
                 {validationMessages.length > 0 && (
                     <ErrorSummary messages={validationMessages} className='user-setup-errors' itemClassName='user-setup-errors__item' />

@@ -1,8 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Ante.Contracts.Legal;
 using Ante.Contracts.Organization;
+using Ante.IdentityProviders;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.Receiving;
 using Ante.Invitations.UserSetup;
@@ -10,6 +12,7 @@ using Ante.Legal;
 using Ante.Organization;
 using Ante.Organization.Names;
 using Ante.Organization.Registration;
+using Ante.Organization.Registration.Review;
 using Ante.Outbox;
 using Ante.Resources;
 using Cratis.Chronicle.EventSequences.Concurrency;
@@ -42,6 +45,17 @@ public enum OrganizationSetupAcceptanceStatus
     /// to hand off to the host.
     /// </summary>
     Accepted,
+
+    /// <summary>
+    /// A self-service registration is held for review: nothing is published to the host and the person
+    /// has to wait for a reviewer's decision. Not a failure and not safe to resubmit.
+    /// </summary>
+    Held,
+
+    /// <summary>
+    /// A reviewer declined a self-service registration held for review. The host tells the person why.
+    /// </summary>
+    Declined,
 }
 
 /// <summary>
@@ -73,6 +87,7 @@ public class SetupOrganizationValidator : CommandValidator<SetupOrganization>
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
     /// <param name="signedInIdentity">The identity the user is signed in with for this request.</param>
     /// <param name="options">The deployment's options, holding the reserved organization names.</param>
+    [SuppressMessage("Arc.Chronicle", "ARCCHR0026:Chronicle model read through a MongoDB collection", Justification = ClaimedOrganizationNames.SearchIsAdvisory)]
     public SetupOrganizationValidator(
         ILegalDocumentSource legalDocumentSource,
         IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
@@ -145,6 +160,8 @@ public class UniqueOrganizationNameConstraint : IConstraint
             .WithName(OrganizationSetupConstraintNames.UniqueOrganizationName)
             .On<InvitationToCreateTenantAccepted>(@event => @event.TenantName)
             .On<OrganizationRegistrationCompleted>(@event => @event.TenantName)
+            .On<OrganizationSetupCompleted>(@event => @event.TenantName)
+            .On<OrganizationRegistrationRecorded>(@event => @event.TenantName)
             .On<OrganizationNameReservationReceived>(@event => @event.TenantName)
             .RemovedWith<OrganizationNameReleaseReceived>()
             .IgnoreCasing()
@@ -170,7 +187,10 @@ public class OneUseCreateTenantInvitationConstraint : IConstraint
         .ForEventLog()
         .Unique<InvitationToCreateTenantAccepted>(
             "This invitation has already been accepted.",
-            OrganizationSetupConstraintNames.OneUseInvitation);
+            OrganizationSetupConstraintNames.OneUseInvitation)
+        .Unique<OrganizationSetupCompleted>(
+            "This invitation has already been accepted.",
+            OrganizationSetupConstraintNames.OneUseInvitation + "Completed");
 }
 
 /// <summary>
@@ -191,7 +211,6 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// when the host has a legal document source configured, the <see cref="LegalTermsAccepted"/>
     /// record of what the onboarding user agreed to.
     /// </summary>
-    /// <param name="httpContextAccessor">Accessor for the current request, used to clear the stale identity cookie.</param>
     /// <param name="pendingInvitation">Read model for validating the command.</param>
     /// <param name="existingSetup">Durable evidence that this stream was already used before the shared claim event existed.</param>
     /// <param name="existingJoin">Durable join acceptance on a reused id predating the shared claim event.</param>
@@ -210,14 +229,12 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// forwarded to the outbox. <see cref="OrganizationSetupOutbox"/> marks it once the acceptance is
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
-    // Projected inputs are advisory. The returned batch carries authoritative invitation/legal
-    // revision scopes; one-use, onboarding-attempt and organization-name constraints arbitrate append.
-    // Arc documents parameter-level Unprotected for these intentional legacy reads.
+    [SuppressMessage("Arc.Chronicle", "ARCCHR0011:Plain read model in event-producing command is unprotected", Justification = "Advisory reads: they only reject early. The acceptance fence guards the invitation stream's revision at append time, and the one-use invitation and onboarding attempt constraints reject a second acceptance.")]
+    [SuppressMessage("Arc.Chronicle", "ARCCHR0026:Chronicle model read through a MongoDB collection", Justification = ClaimedOrganizationNames.SearchIsAdvisory)]
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
-        IHttpContextAccessor httpContextAccessor,
-        [Cratis.Arc.Chronicle.ReadModels.Unprotected] PendingInvitationToCreateOrganization? pendingInvitation,
-        [Cratis.Arc.Chronicle.ReadModels.Unprotected] OrganizationSetupProgress? existingSetup,
-        [Cratis.Arc.Chronicle.ReadModels.Unprotected] UserSetupProgress? existingJoin,
+        PendingInvitationToCreateOrganization? pendingInvitation,
+        OrganizationSetupProgress? existingSetup,
+        UserSetupProgress? existingJoin,
         IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
         ISignedInIdentity signedInIdentity,
         ILegalDocumentSource legalDocumentSource,
@@ -245,13 +262,15 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
             return ValidationResult.Error(Messages.Get("SetupIdentityRequired"));
         }
 
+        var issuer = signedInIdentity.ResolveIssuer(InvitationId);
         var legalResolution = await LegalAcceptanceEvidence.ResolveWithScope(
             legalDocumentSource,
             AcceptedLegalTerms,
             AcceptedLegalVersion,
             OrganizationName,
             identityProviderValue,
-            complianceSubject.ToString());
+            complianceSubject.ToString(),
+            issuer);
         if (!legalResolution.TryGetResult(out var legalEvidence))
         {
             legalResolution.TryGetError(out var legalError);
@@ -272,7 +291,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
-            new InvitationToCreateTenantAccepted(
+            new OrganizationSetupCompleted(
                 OrganizationName,
                 identityProviderValue,
                 complianceSubject.ToString(),
@@ -280,7 +299,11 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
                 MiddleName ?? Contracts.Invitations.MiddleName.NotSet,
                 LastName,
                 pendingInvitation.Email,
-                pendingInvitation.Roles),
+                pendingInvitation.Roles)
+            {
+                IdentityProviderKey = issuer.Key,
+                IdentityIssuer = issuer.IssuerValue,
+            },
         };
         if (owner is not null)
         {
@@ -294,9 +317,6 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         {
             return ValidationResult.Error(Messages.Get("SetupNotPending"));
         }
-
-        // Clear display cookies issued before Arc 22.46.0; Arc no longer issues or trusts them.
-        httpContextAccessor.HttpContext?.Response.Cookies.Delete(".cratis-identity");
 
         return (complianceSubject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence, scope));
     }
@@ -385,6 +405,14 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
             return unknown;
         }
 
+        // A registration held for review has not been set up and must not read as recorded: the person is
+        // waiting for a reviewer, not for publication.
+        var review = await RegistrationReview.Read(eventStore, registrationId);
+        if (review.State != RegistrationReviewState.NotHeld && review.OrganizationName is { } requested)
+        {
+            return new(registrationId, review.State == RegistrationReviewState.Held ? OrganizationSetupAcceptanceStatus.Held : OrganizationSetupAcceptanceStatus.Declined, requested);
+        }
+
         // The owner check above is the only authorization; the facts only decide how far along the setup is.
         var resolved = await facts.Resolve(registrationId, recorded);
         return ((BehaviorSubject<OrganizationSetupAcceptanceStatusView>)subscriptions.GetStatus(
@@ -406,9 +434,13 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
 /// <param name="eventStore">The event store.</param>
 /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>, given a chance to accelerate a live status subscription once this fact is durably published.</param>
 /// <param name="logger">The logger.</param>
+/// <param name="ante">The deployment options; <c language="csharp">OperatorAudience</c> addresses replies whose request named no requester. When absent such replies are unaddressed.</param>
 [Reactor(eventSequence: EventSequenceId.LogId)]
-public class OrganizationSetupOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<OrganizationSetupOutbox> logger) : IReactor
+public class OrganizationSetupOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<OrganizationSetupOutbox> logger, IOptions<AnteOptions>? ante = null) : IReactor
 {
+    public Task On(OrganizationSetupCompleted @event, EventContext context, ReactorDelivery delivery) =>
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, announceRecorded: true, operatorAudience: ante?.Value.OperatorAudience);
+
     /// <summary>
     /// Forwards the create-tenant accepted event to the outbox.
     /// </summary>
@@ -416,5 +448,5 @@ public class OrganizationSetupOutbox(IEventStore eventStore, IInstancesOf<IPubli
     /// <param name="context">The event context.</param>
     /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
     public async Task On(InvitationToCreateTenantAccepted @event, EventContext context, ReactorDelivery delivery) =>
-        await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger, announceRecorded: true);
+        await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger, announceRecorded: true, operatorAudience: ante?.Value.OperatorAudience);
 }

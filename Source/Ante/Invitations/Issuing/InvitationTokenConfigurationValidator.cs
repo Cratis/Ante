@@ -17,6 +17,8 @@ public sealed class InvitationTokenConfigurationValidator
     /// <exception cref="InvitationTokenConfigurationInvalid">Thrown for an unusable key configuration.</exception>
     public static void Validate(InvitationTokenConfig config)
     {
+        ValidatePublicBaseUrl(config.PublicBaseUrl);
+
         if (!string.IsNullOrWhiteSpace(config.PrivateKeyPem))
         {
             ValidateKey(config.PrivateKeyPem, nameof(config.PrivateKeyPem), requiresPrivateKey: true);
@@ -47,6 +49,24 @@ public sealed class InvitationTokenConfigurationValidator
         logger.LogTokenIsolation(config.Issuer, config.Audience);
     }
 
+    static void ValidatePublicBaseUrl(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+            !(uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback)) ||
+            string.IsNullOrEmpty(uri.Host) || !string.IsNullOrEmpty(uri.UserInfo) ||
+            !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
+        {
+            throw new InvitationTokenConfigurationInvalid(
+                nameof(InvitationTokenConfig.PublicBaseUrl),
+                "must be an absolute HTTPS base URL (HTTP is allowed only on loopback), without credentials, query or fragment");
+        }
+    }
+
     static void ValidateKey(string pem, string name, bool requiresPrivateKey)
     {
         if (string.IsNullOrWhiteSpace(pem))
@@ -58,6 +78,11 @@ public sealed class InvitationTokenConfigurationValidator
         {
             using var rsa = RSA.Create();
             rsa.ImportFromPem(pem);
+            if (rsa.KeySize < 2048)
+            {
+                throw new InvitationTokenConfigurationInvalid(name, "must contain an RSA key of at least 2048 bits");
+            }
+
             _ = rsa.ExportParameters(requiresPrivateKey);
         }
         catch (Exception error) when (error is CryptographicException or ArgumentException)

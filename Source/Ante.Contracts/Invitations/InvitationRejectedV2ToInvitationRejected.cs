@@ -9,13 +9,13 @@ namespace Ante.Contracts.Invitations;
 /// Migrates generation-2 rejections to generation 3; every released reason keeps its numeric value and
 /// generation 3 only adds <see cref="InvitationRejectionReason.InvitationNotPending"/>.
 /// </summary>
-public class InvitationRejectedV2ToInvitationRejected : EventTypeMigration<InvitationRejected, InvitationRejectedV2>
+public class InvitationRejectedV2ToInvitationRejected : EventTypeMigration<InvitationRejectedV3, InvitationRejectedV2>
 {
     /// <inheritdoc/>
-    public override void Upcast(IEventMigrationBuilder<InvitationRejected, InvitationRejectedV2> builder) =>
+    public override void Upcast(IEventMigrationBuilder<InvitationRejectedV3, InvitationRejectedV2> builder) =>
         builder.Properties(properties => { });
 
     /// <inheritdoc/>
-    public override void Downcast(IEventMigrationBuilder<InvitationRejectedV2, InvitationRejected> builder) =>
+    public override void Downcast(IEventMigrationBuilder<InvitationRejectedV2, InvitationRejectedV3> builder) =>
         builder.Properties(properties => { });
 }

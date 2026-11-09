@@ -278,13 +278,13 @@ public class a_running_ante : Specification
     /// <summary>
     /// Whether Ante has recorded an acceptance in its event log without its outbox reactor having published it yet.
     /// </summary>
-    protected async Task<bool> AcceptanceRecordedButNotPublished<TAccepted>(Guid invitationId)
+    protected async Task<bool> AcceptanceRecordedButNotPublished<TAccepted, TContract>(Guid invitationId)
     {
         await using var scope = Ante.Services.CreateAsyncScope();
         var store = scope.ServiceProvider.GetRequiredService<IEventStore>();
         var type = typeof(TAccepted).GetEventType();
         var recorded = await store.EventLog.GetForEventSourceIdAndEventTypes(invitationId.ToString("D"), [type]);
-        var published = await store.GetEventSequence(EventSequenceId.Outbox).GetForEventSourceIdAndEventTypes(invitationId.ToString("D"), [type]);
+        var published = await store.GetEventSequence(EventSequenceId.Outbox).GetForEventSourceIdAndEventTypes(invitationId.ToString("D"), [typeof(TContract).GetEventType()]);
         return recorded.Count == 1 && published.Count == 0;
     }
 

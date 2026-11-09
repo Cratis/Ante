@@ -58,7 +58,7 @@ public class and_revocation_races_an_invitee_acceptance : a_running_ante
             new { invitationId = _invitationId, firstName = "Jane", lastName = "Doe", acceptedLegalTerms = true, acceptedLegalVersion = "2026-01" },
             _subject);
         var facts = await store.EventLog.GetForEventSourceIdAndEventTypes(_invitationId.ToString("D"),
-            [typeof(OnboardingAttemptClaimed).GetEventType(), typeof(InvitationToJoinTenantAccepted).GetEventType(), typeof(LegalTermsAccepted).GetEventType()]);
+            [typeof(OnboardingAttemptClaimed).GetEventType(), typeof(Ante.Invitations.UserSetup.UserSetupCompleted).GetEventType(), typeof(LegalTermsAcceptanceRecorded).GetEventType()]);
         _acceptanceFactsCount = facts.Count;
     }
 

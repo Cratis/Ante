@@ -14,6 +14,8 @@ namespace Ante.Integration.Invitations.when_two_ante_instances_share_a_store;
 [Collection(ChronicleCollection.Name)]
 public class and_the_forwarding_instance_stops_mid_forward : an_outbox_forward_held_after_its_append<JoinTenantAcceptanceOutbox, InvitationToJoinTenantAccepted>
 {
+    protected override Type RecordedFact => typeof(Ante.Invitations.UserSetup.UserSetupCompleted);
+
     readonly Guid _invitationId = NewInvitationId();
     readonly string _owner = $"owner-{Guid.NewGuid():N}";
 

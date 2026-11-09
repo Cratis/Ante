@@ -20,6 +20,35 @@ public enum InvitationRejectionReason
     /// received, or it has already been revoked or accepted. Create a new invitation instead.
     /// </summary>
     InvitationNotPending = 3,
+
+    /// <summary>
+    /// The invitation grants a role or persona the application does not declare grantable. Published only
+    /// when the deployment configures a persona list (<c language="csharp">Ante:Onboarding:Personas</c>); mint a new
+    /// invitation id with declared personas.
+    /// </summary>
+    PersonaNotGrantable = 4,
+
+    /// <summary>
+    /// The invitation's type (join or create tenant) is not allowed by the deployment's onboarding
+    /// configuration (<c language="csharp">Ante:Onboarding:Invitations:Types</c>). Published only when that list is configured.
+    /// </summary>
+    InvitationTypeNotAllowed = 5,
+}
+
+/// <summary>The rejection reasons released with generation 3, retained for historical events.</summary>
+public enum InvitationRejectionReasonV3
+{
+    /// <summary>The host used a non-GUID event source id for an invitation.</summary>
+    InvalidInvitationId = 0,
+
+    /// <summary>The invitation id was already revoked or accepted and cannot be used again.</summary>
+    InvitationIdReused = 1,
+
+    /// <summary>The host recipient cannot be bound to an attested invitation capability.</summary>
+    InvalidRecipient = 2,
+
+    /// <summary>The host asked to reissue a token for an invitation that is not pending.</summary>
+    InvitationNotPending = 3,
 }
 
 /// <summary>The rejection reasons released with generation 2, retained for historical events.</summary>
@@ -49,9 +78,20 @@ public enum InvitationRejectionReasonV1
 /// Published to Ante's outbox on the host's original event source id when an inbound invitation
 /// cannot be accepted. No token is minted for a rejected invitation.
 /// </summary>
+/// <remarks>
+/// A rejection says the invitation did not match what the host allows: a mistake in the invitation or in the
+/// host's configuration, not a decision about the person. Hosts should treat it as a configuration problem for
+/// whoever issued the invitation and must not answer it with a message to the invitee. A sign-up that a reviewer
+/// declines is published as <c language="csharp">OrganizationRegistrationDeclined</c> instead.
+/// </remarks>
 /// <param name="Reason">Why the invitation was rejected.</param>
-[EventType(generation: 3)]
+[EventType(generation: 4)]
 public record InvitationRejected(InvitationRejectionReason Reason);
+
+/// <summary>The immutable, released third generation of the rejection contract.</summary>
+/// <param name="Reason">The rejection reason as released with generation 3.</param>
+[EventTypeGenerationFor<InvitationRejected>(3)]
+public record InvitationRejectedV3(InvitationRejectionReasonV3 Reason);
 
 /// <summary>The immutable, released second generation of the rejection contract.</summary>
 /// <param name="Reason">The rejection reason as released with generation 2.</param>

@@ -40,7 +40,7 @@ public class and_a_source_is_configured_and_accepted_with_the_current_version : 
     void should_carry_the_current_version()
     {
         _result.TryGetResult(out var events);
-        var accepted = (LegalTermsAccepted)events.Single();
+        var accepted = (LegalTermsAcceptanceRecorded)events.Single();
         Assert.Equal(_current.Version, accepted.Version);
     }
 
@@ -48,7 +48,7 @@ public class and_a_source_is_configured_and_accepted_with_the_current_version : 
     void should_carry_the_tenant_identity_provider_and_subject()
     {
         _result.TryGetResult(out var events);
-        var accepted = (LegalTermsAccepted)events.Single();
+        var accepted = (LegalTermsAcceptanceRecorded)events.Single();
         Assert.Equal("Acme", (string)accepted.TenantName);
         Assert.Equal("github", (string)accepted.IdentityProvider);
         Assert.Equal("subject-1", accepted.IdentityProviderSubject);

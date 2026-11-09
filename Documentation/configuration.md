@@ -13,36 +13,95 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 | `Ante:Namespace` | string | `Default` | unset / unset | Fixed for this instance; nonempty at startup. No automatic history migration on change. |
 | `Ante:HostStores` | list of strings | `["Direct"]` | unset / unset | Trusted host outbox stores to receive from. Each has a separate `inbox-{store}` reactor and subscription. Cannot be empty, contain blank/duplicate entries, or include `Ante:EventStore` (ordinal comparisons). Restart after changing. |
 | `Ante:InboxSourceStore` | string | unset | unset / unset | Deprecated single-store alias. Used only if `HostStores` is absent; both settings may coexist only if the list has exactly the same one source. An explicitly empty value fails startup. |
-| `Ante:Legal:Source` | `InProcess` or `Inbox` | `InProcess` | unset / unset | InProcess preserves registered `ILegalDocumentSource` behavior, including no-step when it returns null. Inbox blocks onboarding until the first activated host set. Invalid values fail startup. |
+| `Ante:Audience` | string | unset | unset / unset | This lobby's audience identity. When set, every host-store subscription only carries events the host tagged `audience=<value>`, so one host can serve several lobbies from one store. Unset keeps the whole outbox (the behavior before audiences). Empty counts as unset; blank or padded values fail startup. Not the token `Audience` below. See [Audience routing](host-integration.md#audience-routing). |
+| `Ante:OperatorAudience` | string | unset | unset / unset | Audience Ante addresses a reply to when the request that caused it carried no `from` tag. Unset leaves such replies unaddressed. Same validation as `Ante:Audience`. |
+| `Ante:Legal:Source` | `InProcess`, `Files` or `Inbox` | `InProcess` | unset / unset | InProcess preserves registered `ILegalDocumentSource` behavior, including no-step when it returns null. Files reads the set from `Ante:Legal:Files` and versions it by content. Inbox blocks onboarding until the first activated host set. Invalid values fail startup. |
+| `Ante:Legal:Files:Folder`, `TermsAndConditions`, `PrivacyPolicy` | string paths | unset | unset / unset | Files mode only. Either set both document paths, or a `Folder` holding `terms.md` and `privacy.md` (`.html` and `.txt` also read; `terms-and-conditions` and `privacy-policy` are accepted names). Explicit paths win over the folder. A document that does not exist fails startup; one that becomes unreadable later blocks onboarding as unavailable instead of skipping the legal step. |
 | `Ante:Legal:PublisherStore` | string | unset | unset / unset | Required only in Inbox mode; must match one `Ante:HostStores` entry exactly. |
 | `Ante:Legal:DocumentSetId` | string | unset | unset / unset | Required only in Inbox mode; stable nonempty non-GUID outbox event-source id for the one document set, shared with the publisher. Do not change it without migrating the local legal history. |
+| `Ante:Health:HostInboxRecoveryGracePeriod` | `TimeSpan` | `00:03:00` | unset / unset | Continuous host-inbox unavailability tolerated by `/healthz` before returning 503 so the orchestrator can restart the instance. Positive `TimeSpan`, at most one day. `/healthz/ready` fails immediately; recovery resets the timer. |
 | `Ante:HostAppUrl` | string | empty | `https://{tenant}.example.com/` / `http://{tenant}.localhost:8090/` | Set a **real reachable host URL** before onboarding. `{tenant}` is substituted for organization-creation flows only; **join redirects use the literal configured URL**, so the base `{tenant}.example.com` template breaks join handoff. Use a concrete join destination or plan separate routing. The base value is not a usable production destination. |
 | `Ante:LogoUrl` | string | empty | empty / empty | Optional image URL; failed image loads fall back to wordmark. |
+| `Ante:Invitations:UserSetup:Content:{locale}:{field}` | string | empty | unset / unset | User-invitation presentation only. Fields: `Title`, `Intro`, `CompletionMessage`, `SupportUrl`. Independent of registration and organization invitations; see [Invitation copy](./customization.md#describe-invitation-setup). |
+| `Ante:Invitations:OrganizationSetup:Content:{locale}:{field}` | string | empty | unset / unset | Organization-invitation presentation only; same four fields and locale fallback. Text is literal (maximum 10000 characters per text field); support URL must be empty or absolute HTTPS. Unknown content keys fail startup. |
 | `Ante:CustomCssUrl` | string | empty | empty / empty | Optional CSS URL; same-origin HTTP(S) or cross-origin HTTPS only. See [Customization](./customization.md). |
+| `Ante:PageTitle` | string | `Ante` | `Ante` / `Ante` | Browser tab title, written into the page before any script runs. |
+| `Ante:SplashMessage` | string | `Loading` | `Loading` / `Loading` | Accessible name announced by the screen shown while the application loads. |
+| `Ante:SplashHtml` | string | empty | empty / empty | Trusted markup that replaces the default loading screen. Style it with `Ante:CustomCssUrl`. See [Customization](./customization.md#brand-the-loading-screen). |
 | `Ante:IdentityBackchannelUrl` | string | empty | empty / unset | Optional host base URL for join-invitation `/in-use` GET. |
+| `Ante:IdentityBackchannelCredential` | string | empty | empty / unset | Optional per-host bearer secret (at least 32 characters) sent as `Authorization: Bearer` on `IdentityBackchannelUrl` calls. When set, the URL must be https outside Development or startup fails. Store it in a secret store; it is never logged. With a URL but no credential, startup logs a warning outside Development. |
 | `Ante:HostOutcomeUrl` | string | empty | unset / unset | Optional host base URL for the `/outcome` GET after invited creation, join and self-service registration. |
+| `Ante:HostOutcomeCredential` | string | empty | unset / unset | Optional per-host bearer secret (at least 32 characters) sent as `Authorization: Bearer` on `HostOutcomeUrl` calls, with the same https, secret-store and warning rules as `Ante:IdentityBackchannelCredential`. Use a different value per backchannel. |
 | `Ante:Registration:Enabled` | bool | `true` | unset / unset | `false` closes `/register`: the page shows a notice and the server rejects registration commands. |
 | `Ante:Registration:ClosedUrl` | string | empty | unset / unset | Optional https (or same-origin path) link shown when registration is closed. |
 | `Ante:Registration:MaxPerIdentity` | int | `0` (unlimited) | unset / unset | Most organizations one sign-in (provider + subject) may register within `Window`. Negative fails startup. |
 | `Ante:Registration:Window` | TimeSpan | `30.00:00:00` | unset / unset | Sliding window for `MaxPerIdentity`; must be positive when a limit is set. |
 | `Ante:Registration:RequestsPerMinutePerClient` | int | `0` (off) | unset / unset | Fixed-window rate limit per client address on `/api/organization/registration*`. |
-| `Ante:Registration:TrustForwardedFor` | bool | `false` | unset / unset | Use the first `X-Forwarded-For` entry as the client address. Enable only behind a proxy that overwrites the header. |
+| `Ante:Registration:TrustForwardedFor` | bool | `false` | unset / unset | Use the first `X-Forwarded-For` entry as the client address, for both the registration and the invitation rate limits. Enable only behind a proxy that overwrites the header. |
+| `Ante:Invitations:RequestsPerMinutePerClient` | int | `0` (off) | unset / unset | Fixed-window rate limit per client address on `/_invite/*` (stage and exchange) and `/api/invitations/*` (setup, status and pending reads), plus the Arc observable-query hubs `/.cratis/queries/ws` and `/.cratis/queries/sse` that carry the live invitation status queries (so other live queries from the same client share this budget). A separate budget from `Ante:Registration:RequestsPerMinutePerClient`; rejected requests get HTTP 429. Stage and exchange come from the host, so with a shared host address set it high enough for your volume. Negative fails startup. Uses `Ante:Registration:TrustForwardedFor` to resolve the address; keep your proxy's own limits too. |
+| `Ante:Registration:Review` | bool | `false` | unset / unset | `true` holds a completed sign-up for review instead of completing it: nothing is published until the host appends `OrganizationRegistrationApproved` (Ante then publishes `OrganizationRegistrationCompleted`) or `OrganizationRegistrationDeclineRequested` (Ante publishes `OrganizationRegistrationDeclined`). See [Review sign-ups](./host-integration.md#review-sign-ups-before-they-complete). |
 | `Ante:Registration:ContextKeys` | string array | empty | unset / unset | Query-string keys carried from `/register` into `OrganizationRegistrationCompleted.SignupContext`. At most 16, letters/digits/`_-.` only. |
 | `Ante:Registration:Content:{locale}:*` | object | none | unset / unset | `Title`, `Intro`, `Highlights` (array), `PricingUrl`, `LoginUrl`, `CompletionMessage`. Resolved by exact locale, then language, then `en`. Links must be https or same-origin paths. |
 | `Ante:Organization:ReservedNames` | string array | empty | unset / unset | Names nobody can claim, compared ignoring case (for example `admin`, `app`, `api`). |
 | `Ante:DefaultLocale` | string | `en` | unset / unset | Default when no stored preference, allowed link hint, or browser language matches. `en`, `nb-NO` (also `nb` or `no` aliases); must be in the allowlist. |
 | `Ante:SupportedLocales` | string array | `en`, `nb-NO` when unset | unset / unset | Deployment allowlist, restricted to the bundled languages; nonempty, distinct. Set only `Ante__SupportedLocales__0=en` for an English-only deployment; configured entries replace the fallback rather than extending it. Unknown entries or a default outside the list fail startup. See [Customization](./customization.md#choose-the-lobby-language). |
 
+## Onboarding contract (Screenplay applications)
+
+A Screenplay application with an `onboarding` block gets onboarding as a service: **one Ante per application**. `cratis run` and Stage Manager produce the contract below from the model and a Cratis environment, so nobody writes the equivalent `Ante:*` keys by hand. Set `Ante:Onboarding:Enabled=true` to apply it. While it is `false` or absent, every `Ante:Onboarding:*` key is ignored and the settings above work exactly as before. When it is enabled, each value it carries is mapped onto the existing key and **wins over it**, including values from `appsettings.json`; keys it does not carry keep their normal source.
+
+| Key | Type | Maps to | Notes |
+| --- | --- | --- | --- |
+| `Ante:Onboarding:Enabled` | bool | none | Applies the contract. Default `false`. |
+| `HostStore` | string | `Ante:HostStores` (one entry) | The application's own Chronicle store, the only host store Ante observes. Required unless development mode is on (then it defaults to `Application`). |
+| `EventStore`, `Namespace` | string | `Ante:EventStore`, `Ante:Namespace` | Optional. Ante's own store and fixed namespace. |
+| `PublicBaseUrl` | absolute URL | `Ante:Invitations:Token:PublicBaseUrl` | Where users reach this Ante. HTTPS, or HTTP on loopback. |
+| `ApplicationUrl` | URL | `Ante:HostAppUrl` | Where people are sent when onboarding completes. |
+| `SignUp` | `CreateTenant` or `JoinTenant` | `Ante:Registration:Enabled` | `CreateTenant` (default) lets self-service registration create a tenant. `JoinTenant` closes `/register`: people only join existing tenants by invitation. |
+| `RegistrationEnabled` | bool, default `true` | `Ante:Registration:Enabled` | Registration on or off. Always off when `SignUp` is `JoinTenant`. |
+| `RegistrationReview` | bool, default `false` | `Ante:Registration:Review` | Holds a completed sign-up for the application's review; see [Review sign-ups](./host-integration.md#review-sign-ups-before-they-complete). |
+| `InvitationTypes` | list of `JoinTenant`, `CreateTenant` | none (runtime check) | Invitation types the application allows; unset allows both. An invitation of another type is rejected with `InvitationTypeNotAllowed` and no token. |
+| `Personas` | list of persona names | none (runtime check) | Personas an invitation may grant. An invitation whose `Roles` include a name outside the list is rejected with `PersonaNotGrantable` and no token; unset or empty accepts any role. Names compare ordinally. |
+| `DefaultLocale`, `AllowedLocales` | string, list | `Ante:DefaultLocale`, `Ante:SupportedLocales` | Same rules as those keys. |
+| `Legal:Folder`, `Legal:TermsAndConditions`, `Legal:PrivacyPolicy` | paths | `Ante:Legal:Source=Files`, `Ante:Legal:Files:*` | Legal terms are files in a mounted folder. Omit `Legal` for no legal step. |
+| `Secrets:Path` | folder | any key | A mounted folder, one file per setting, named after the key with `__` for `:` (`Ante__Invitations__Token__PrivateKeyPem`), as a Kubernetes secret volume provides. The file content is the value; a trailing newline is removed. Files whose name starts with `.` are skipped. |
+| `Secrets:SigningKeyFile` | file path | `Ante:Invitations:Token:PrivateKeyPem` | PEM RSA private key (at least 2048 bits) used to sign invitations. |
+| `Secrets:VerificationKeyFile` | file path | `Ante:Invitations:Token:PublicKeyPem` | Optional additional trusted public key. |
+| `Development:Enabled`, `Development:DataPath` | bool, folder | none | See [Development mode](#development-mode). |
+
+**Secrets** are the signing private key and, in Attested exchange, the attestation public keys (`Ante:Invitations:Exchange:Attestation:PublicKeys`, which are public but must be pinned from a trusted source). Provide them only through the mounted files above or standard configuration (environment variables, a secret volume or a secret manager provider). Ante accepts no secret on the command line and logs none of their values: configuration errors name the setting, never its content.
+
+The legal, signing and exchange keys that the contract does not carry (for example the Attested exchange settings, `Issuer`, `Audience` and `Expiry`) are still configured under `Ante:Invitations`. The same instance still needs `Cratis:Chronicle:ConnectionString` and `Cratis:MongoDB`, normally supplied by the Cratis environment.
+
+### Legal terms from files
+
+`Ante:Legal:Source=Files` presents the two documents from files. The version of the set is `sha256-` followed by the first 16 hex characters of a SHA-256 over both bodies, so identical content always has the same version and editing either file publishes a new one that everyone who is onboarding afterwards must accept. The set is read on every request, so a change to a mounted file takes effect without a restart. Acceptance is required before onboarding completes and is recorded and published as `LegalTermsAccepted` carrying that version; the bodies live in your files, so archive each version for consent audit. Unlike Inbox mode, Ante does not publish `LegalDocumentSetActivated` for a file set.
+
+### Development mode
+
+`Ante:Onboarding:Development:Enabled=true` (with `Ante:Onboarding:Enabled=true`) is for `cratis run`: nothing needs configuring and no secret is committed.
+
+- A 2048-bit RSA signing key is generated on first start and persisted as `invitation-signing-key.pem` in `Development:DataPath` (default `.ante-development` in the content root, ignored by Git), so it is per data volume and stable between runs. Delete the folder to rotate it.
+- HTTP on loopback is allowed for `PublicBaseUrl`, which Ante already permits.
+- One host store, `Application` unless `HostStore` is set. No deployment fixture is needed.
+
+Ante refuses to start in development mode when the environment looks like production: the environment name is `Production`, `Prod`, `Live`, `Staging`, `Stage` or `Preprod`, a Kubernetes pod is detected (`KUBERNETES_SERVICE_HOST`), or `PublicBaseUrl` or `ApplicationUrl` is not a loopback or `*.localhost` address. Never copy a development key to another environment. An explicit `Secrets:SigningKeyFile` is overridden by the generated key in development mode, so leave it out there.
+
 ## Signing options (`Ante:Invitations:Token`)
 
 | Suffix | Type | Code default | Base / Development setting | When needed |
 | --- | --- | --- | --- | --- |
-| `PrivateKeyPem` | string (PEM) | empty | empty / committed throwaway RSA key | Required to issue invitations and accept exchanges, but empty is allowed at startup for existing deployments: startup warns and all exchanges are rejected, even if `PublicKeyPem` is set. A configured key must parse as an RSA private key. Empty is deliberate for registration-only deployments, which need no key; health reports invitations unavailable. Never reuse the Development key elsewhere. |
+| `PrivateKeyPem` | string (PEM) | empty | empty / committed throwaway RSA key | Required to issue invitations and accept exchanges, but empty is allowed at startup for existing deployments: startup warns and all exchanges are rejected, even if `PublicKeyPem` is set. A configured key must parse as an RSA private key of at least 2048 bits. Empty is deliberate for registration-only deployments, which need no key; health reports invitations unavailable. Never reuse the Development key elsewhere. |
 | `PublicKeyPem` | string (PEM) | empty | empty / committed throwaway public key | **Additional** trusted exchange-verification key, for overlap during rotation. The public key derived from `PrivateKeyPem` is always trusted; this value does not change which key signs tokens. |
 | `PreviousPublicKeyPems` | string array (PEM) | empty | unset / unset | Further trusted verification keys, for example the keys of earlier rotations whose links are still outstanding. Every issued token carries the `kid` (RFC 7638 thumbprint) of the key that signed it. |
 | `Issuer` | string | derived | derived / derived | Written as `iss` on every token and required at exchange. Setting it (or `Audience`) explicitly also turns off the upgrade window below. Empty derives `urn:cratis:ante:{EventStore}:{Namespace}` with each name percent-encoded: names made only of letters, digits, `-`, `.`, `_` and `~` are unchanged, and any other character, including spaces and non-ASCII letters, is encoded (`Prod:Blue` becomes `Prod%3ABlue`), so deployments never accept each other's tokens, even when they share a key. The effective value is logged at startup; configure the fronting proxy to require it. |
 | `Audience` | string | derived | derived / derived | Written as `aud` on every token and required at exchange. Setting it (or `Issuer`) explicitly also turns off the upgrade window below. Empty derives `{derived issuer}:lobby`. |
+| `PublicBaseUrl` | string (absolute URL) | empty | unset / unset | Enables anonymous invitation-token metadata and JWKS. HTTPS is required, except HTTP on loopback for development. May include a deployment path prefix; credentials, query strings and fragments are refused at startup. Empty disables both endpoints with HTTP 404. Never derived from request headers. |
 | `Expiry` | `TimeSpan` | 7 days | `7.00:00:00` / `7.00:00:00` | Issued token lifetime; exchange requires `exp` and validates it with up to 30 seconds of clock skew, but the accepted session expires at the signed `exp`. |
+
+All configured signing, additional public and previous public RSA keys must be at least **2048 bits**; a smaller key prevents startup.
+
+With `PublicBaseUrl` configured, `GET /.well-known/ante/invitation-token` publishes the effective `issuer`, a single-string `audience`, the absolute `jwks_uri` under that base URL and `token_signing_alg_values_supported: ["RS256"]`. `GET /.well-known/ante/jwks.json` publishes the deduplicated trusted public keys (current signing key, `PublicKeyPem`, `PreviousPublicKeyPems`), with RFC 7638 thumbprint `kid` values and only `kty`, `use`, `alg`, `kid`, `n`, `e`. Neither response contains private key material. Both endpoints are anonymous JSON with `Cache-Control: public, max-age=300`; allow them through the fronting proxy without sign-in. When the base URL is absent, both return 404 rather than the SPA shell. Host and forwarded headers never determine the advertised URL. See [Host integration](./host-integration.md#discover-invitation-verification-keys).
 
 **Upgrade warning:** `PublicKeyPem` was previously ignored by Ante at exchange and is now trusted to verify invitation signatures. Remove any non-Ante key from this setting before upgrading. Supply a second key only when tokens signed with that key should be accepted (for example the outgoing Ante signing key during a rotation). An invalid configured public key prevents startup. Without a private key, an additional public key cannot enable exchange.
 
@@ -64,6 +123,19 @@ ASP.NET Core reads `appsettings.json`, then environment-specific settings and en
 | `Attestation:Providers` | list `{Key, Issuer, AcceptableAssurances}` | empty | At least one provider in Attested mode. Pin canonical provider key, exact authority and approved provider-derived assurance values for completion; no guessed issuer or arbitrary nonempty assurance. |
 
 `Mode=Attested` fails startup unless `Ante:Invitations:Token:PrivateKeyPem`, `Issuer` and `Audience` and the separate attestation trust settings are populated and valid. The configured lobby scope is an **authentication scope**, not an organization membership id. AuthProxy's `Invite:TenantClaim` must read the `tenant_id` claim issued from this scope; `Invite:EmailClaim` must read `email`. `MaximumLifetimeSeconds` bounds the assertion, whereas `MaximumAuthenticationAgeSeconds` bounds the sign-in and the staged transaction expires within 15 minutes (or sooner with the capability). The completed attested session retains the capability's original expiry, never the shorter stage-window expiry and never a retry-derived expiry. In Legacy mode the attestation settings do not authorize an upgrade of legacy sessions.
+
+## Host provisioning outcomes (`Ante:HostOutcomes`)
+
+`Mode` defaults to `Disabled`, which keeps the released behavior: the host confirms provisioning with the unsigned `OnboardingProvisioningCompleted` and Ante does not subscribe to the signed outcome events. `DurableRequired` makes the host-signed events described in [Signed host provisioning outcomes](./host-integration.md#signed-host-provisioning-outcomes) the only way to confirm provisioning, ignores `OnboardingProvisioningCompleted`, and shows the recorded outcome on the completion screens. Switch it on only after every configured host store signs its outcomes.
+
+| Suffix | Type | Code default | When needed |
+| --- | --- | --- | --- |
+| `Mode` | `Disabled` or `DurableRequired` | `Disabled` | Select whether provisioning outcomes must be host-signed. |
+| `Audience` | string | empty | Exact `aud` every proof must carry; required for `DurableRequired`. Use a value that names this Ante deployment. |
+| `MaximumLifetimeSeconds` | integer | `60` | Maximum proof lifetime (`exp` minus `iat`), 10–300. |
+| `Keys` | list `{KeyId, Host, PublicKeyPem}` | empty | At least one key in `DurableRequired`. Pins an RS256 `kid` and **public** RSA key, ≥ 2048 bits, to one store in `Ante:HostStores`. Key ids are unique; a key signs only for its own host. |
+
+`Mode=DurableRequired` fails startup when no key is pinned, the audience is blank, the lifetime is outside 10–300 seconds, a key names a host that is not in `Ante:HostStores`, a key id repeats, or a key is not a public RSA key of at least 2048 bits. An undefined mode also fails startup.
 
 ## Identity and infrastructure
 

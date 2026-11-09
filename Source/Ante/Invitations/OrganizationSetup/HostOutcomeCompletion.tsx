@@ -16,16 +16,18 @@ export type HostOutcomeCompletionProps = {
 /**
  * The completion screen shown once onboarding has published and the deployment has a host outcome
  * backchannel configured. Onboarding already published by this point regardless of what (if anything) is
- * shown here; a failed or still-pending host outcome never blocks the Continue action.
+ * shown here; only a successful host outcome permits the Continue action.
  * @param props The hand-off state and optional success message.
  * @returns The completion content.
  */
 export const HostOutcomeCompletion = ({ handoff, succeededMessage }: HostOutcomeCompletionProps) => {
     const message = handoff.hostOutcomeStatus === HostOutcomeStatus.succeeded
         ? (succeededMessage || strings.organizationSetup.hostOutcomeSucceeded)
-        : handoff.hostOutcomeStatus === HostOutcomeStatus.failed
-            ? strings.organizationSetup.hostOutcomeFailed
-            : strings.organizationSetup.hostOutcomePending;
+        : handoff.hostOutcomeRequiresNewInvitation
+            ? strings.organizationSetup.hostOutcomeRequiresNewInvitation
+            : handoff.hostOutcomeStatus === HostOutcomeStatus.failed
+                ? strings.organizationSetup.hostOutcomeFailed
+                : strings.organizationSetup.hostOutcomePending;
 
     return (
         <div className='organization-setup-waiting' role='status' aria-live='polite'>
@@ -36,7 +38,9 @@ export const HostOutcomeCompletion = ({ handoff, succeededMessage }: HostOutcome
                 </p>
             )}
             <div className='organization-setup-host-outcome__actions'>
-                <Button label={strings.onboarding.continueToHost} onClick={handoff.continueToHost} />
+                {handoff.hostOutcomeStatus === HostOutcomeStatus.succeeded && (
+                    <Button label={strings.onboarding.continueToHost} onClick={handoff.continueToHost} />
+                )}
                 {handoff.hostOutcomeStatus !== HostOutcomeStatus.succeeded && (
                     <Button label={strings.onboarding.checkAgain} variant='ghost' onClick={handoff.checkHostOutcomeAgain} />
                 )}

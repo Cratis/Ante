@@ -20,6 +20,8 @@ import { useLocale } from '../../Locale/LocaleContext';
 import { HostOutcomeCompletion } from './HostOutcomeCompletion';
 import { useFreshLegalDocuments } from '../../Legal/useFreshLegalDocuments';
 import { OrganizationSetupFrame } from './OrganizationSetupFrame';
+import { useInvitationContent } from '../useInvitationContent';
+import { invitationCompletionMessage } from '../invitationCompletionMessage';
 import { InvitationIdentityDetails } from '../Accepting/Accepting';
 import { getInvitationIdFromToken } from '../Accepting/invitationToken';
 import { LegalAcceptanceField } from '../../Legal/LegalAcceptanceField';
@@ -37,6 +39,7 @@ type OrganizationSetupPageProps = {
 };
 
 export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPageProps) => {
+    const content = useInvitationContent('organizationSetup');
     const identity = useIdentity(InvitationIdentityDetails);
     const invitationIdentityDetails = identity.details as unknown as InvitationIdentityDetails | undefined;
     const invitationId = useMemo(() => {
@@ -89,7 +92,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
 
     if (handoff.errorMessages.length > 0) {
         return (
-            <OrganizationSetupFrame>
+            <OrganizationSetupFrame content={content}>
                 <div className='organization-setup-card__content'>
                     <ErrorSummary
                         messages={handoff.errorMessages}
@@ -106,7 +109,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
     // would let a recovered, already-submitted operation flash a form it must never resubmit.
     if ((!invitationId && !identity.isSet) || !handoff.hasStatus) {
         return (
-            <OrganizationSetupFrame>
+            <OrganizationSetupFrame content={content}>
                 <div className='organization-setup-card__content'>
                     <div className='organization-setup-waiting'>
                         <ProgressSpinner className='organization-setup-waiting__spinner' />
@@ -118,7 +121,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
 
     if (handoff.phase === 'timedOut') {
         return (
-            <OrganizationSetupFrame>
+            <OrganizationSetupFrame content={content}>
                 <div className='organization-setup-card__content'>
                     <div className='organization-setup-waiting' role='status' aria-live='polite'>
                         <p className='organization-setup-waiting__message'>{strings.onboarding.notYetConfirmed}</p>
@@ -132,7 +135,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
 
     if (handoff.phase === 'waiting') {
         return (
-            <OrganizationSetupFrame>
+            <OrganizationSetupFrame content={content}>
                 <div className='organization-setup-card__content'>
                     <div className='organization-setup-waiting'>
                         <ProgressSpinner className='organization-setup-waiting__spinner' aria-label={strings.organizationSetup.settingUp} />
@@ -149,9 +152,9 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
     // never blocks the Continue action below.
     if (handoff.phase === 'hostOutcome') {
         return (
-            <OrganizationSetupFrame>
+            <OrganizationSetupFrame content={content}>
                 <div className='organization-setup-card__content'>
-                    <HostOutcomeCompletion handoff={handoff} />
+                    <HostOutcomeCompletion handoff={handoff} succeededMessage={invitationCompletionMessage(content, strings.organizationSetup.hostOutcomeSucceeded)} />
                 </div>
             </OrganizationSetupFrame>
         );
@@ -159,7 +162,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
 
     if (checkingLegalDocuments && !displayedDocuments) {
         return (
-            <OrganizationSetupFrame>
+            <OrganizationSetupFrame content={content}>
                 <div className='organization-setup-card__content'>
                     <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
                 </div>
@@ -169,7 +172,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
 
     if (!displayedDocuments) {
         return (
-            <OrganizationSetupFrame>
+            <OrganizationSetupFrame content={content}>
                 <div className='organization-setup-card__content'>
                     <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />
                 </div>
@@ -178,7 +181,7 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
     }
 
     return (
-        <OrganizationSetupFrame>
+        <OrganizationSetupFrame content={content}>
             <div className='organization-setup-card__content organization-setup-card__content--stepper' ref={stepperContainerRef}>
                 {!availableDocuments && (checkingLegalDocuments
                     ? <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />

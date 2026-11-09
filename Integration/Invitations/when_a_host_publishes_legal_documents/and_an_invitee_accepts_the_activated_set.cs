@@ -91,7 +91,7 @@ public class and_an_invitee_accepts_the_activated_set : a_running_ante
             new { invitationId = otherInvitation, firstName = "Jane", lastName = "Doe", acceptedLegalTerms = true, acceptedLegalVersion = "2026-02" },
             otherSubject);
         var raceFacts = await store.EventLog.GetForEventSourceIdAndEventTypes(otherInvitation.ToString("D"),
-            [typeof(OnboardingAttemptClaimed).GetEventType(), typeof(InvitationToJoinTenantAccepted).GetEventType(), typeof(LegalTermsAccepted).GetEventType()]);
+            [typeof(OnboardingAttemptClaimed).GetEventType(), typeof(Ante.Invitations.UserSetup.UserSetupCompleted).GetEventType(), typeof(LegalTermsAcceptanceRecorded).GetEventType()]);
         _raceFactsCount = raceFacts.Count;
     }
 

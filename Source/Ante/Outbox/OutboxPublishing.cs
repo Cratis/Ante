@@ -90,6 +90,8 @@ public static class OutboxForwarder
     /// Whether to first tell every notifier the acceptance was recorded, before the append. Isolated like the
     /// notification after it: a notifier failing here must neither fail the reactor nor stop the append.
     /// </param>
+    /// <param name="operatorAudience">The configured audience to address the fact to when neither the trigger nor the history
+    /// of its event source names the requester (<c language="csharp">Ante:OperatorAudience</c>); <see langword="null"/> leaves it unaddressed.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     /// <exception cref="OutboxPublicationFailed">Thrown when the fact is not published for this delivery and the append does not succeed.</exception>
     public static async Task PublishToOutbox(
@@ -99,7 +101,8 @@ public static class OutboxForwarder
         object @event,
         IEnumerable<IPublicationStatusNotifier> notifiers,
         ILogger? logger = null,
-        bool announceRecorded = false)
+        bool announceRecorded = false,
+        string? operatorAudience = null)
     {
         if (announceRecorded)
         {
@@ -111,7 +114,14 @@ public static class OutboxForwarder
                 notifier => notifier.NotifyRecorded(context.EventSourceId, @event));
         }
 
-        if (!await Forward(eventStore.GetEventSequence(EventSequenceId.Outbox), delivery, context, @event))
+        var audience = await ReplyAudience.Resolve(eventStore, context, operatorAudience);
+        bool forwarded;
+        using (ReplyAudience.Address(audience))
+        {
+            forwarded = await Forward(eventStore.GetEventSequence(EventSequenceId.Outbox), delivery, context, @event);
+        }
+
+        if (!forwarded)
         {
             TryLogAlreadyPublished(logger, @event.GetType(), delivery);
         }

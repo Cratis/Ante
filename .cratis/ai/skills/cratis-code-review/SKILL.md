@@ -1,6 +1,6 @@
 ---
 name: cratis-code-review
-description: Review changed code in a Cratis application against the architecture, style, and specification-coverage criteria that the compiler cannot check, and produce a structured report with blocking issues separated from suggestions. Use when asked to review, check, or validate a change. Do not substitute it for a focused security audit and do not restate specialist performance findings.
+description: Use when reviewing changed Cratis application code for architecture, style and specification coverage beyond compiler checks. Not for a focused security or scalability audit, or for scheduling review rounds.
 license: MIT
 ---
 <!-- cratis-ai-managed: skills/cratis-code-review/SKILL.md -->
@@ -17,13 +17,19 @@ change did not touch is a note, never a blocker.
 
 ## Verified product sources
 
-| Package | Version | Purpose |
-| --- | --- | --- |
-| `Cratis.Arc.Core` | `22.16.0` | Command, query, validation and analyzer surface (`ARC0001`–`ARC0015` in `DiagnosticDescriptors`, plus `ARC0016`–`ARC0018` from the command-operation analyzer) |
-| `Cratis.Chronicle` | `18.3.0` | Event, projection, read-model and constraint surface |
-| `Cratis.Fundamentals` | `7.19.2` | `ConceptAs<T>`, `IInstancesOf<T>`, the DI conventions |
+| Package | Purpose |
+| --- | --- |
+| `Cratis.Arc.Core` | Command, query, validation and analyzer surface (`ARC0001`–`ARC0026`, including operations, authorization, generated values and explicit query selection) |
+| `Cratis.Chronicle` | Event, projection, read-model and constraint surface |
+| `Cratis.Fundamentals` | `ConceptAs<T>`, `IInstancesOf<T>`, the DI conventions |
 
-> Re-verified at the versions above by **symbol and signature**: every type, attribute and member this skill names exists at that tag, and the public surface it describes is unchanged since the previous verification (Chronicle 16.45.x / Arc 22.10.4 — the Chronicle 16→18 client diff is converters, options and doc comments; no type was removed or renamed). Behavior claims were verified at the earlier tag unless a section says otherwise.
+Fundamentals:
+[`ConceptAs<T>`](https://github.com/Cratis/Fundamentals/blob/main/Source/DotNET/Fundamentals/Concepts/ConceptAs.cs)
+is the typed-value record;
+[`InstancesOf<T>`](https://github.com/Cratis/Fundamentals/blob/main/Source/DotNET/Fundamentals/Types/InstancesOf.cs)
+discovers implementations and resolves them when enumerated;
+[DI conventions](https://github.com/Cratis/Fundamentals/blob/main/Source/DotNET/Fundamentals/DependencyInjection/ServiceCollectionExtensions.cs)
+honor `[Singleton]` and `[Scoped]`, defaulting to transient.
 
 Reverify against the owning product repository before asserting a framework
 contract this file does not already state.
@@ -76,6 +82,24 @@ there is nothing to review under a red build.
 - Logging lives in a `*Logging.cs` partial with `[LoggerMessage]`, not inline in
   domain code.
 - No shared mutable state between commands.
+- Read protection is `Off` by default; new code sets `<CratisReadProtection>On</CratisReadProtection>`.
+  Under `Off` an injected model or validator read is advisory, not a concurrency guard.
+  Under `On`, review that state rules sit in validators or handlers with the model as
+  a parameter and `[Unprotected("why")]` carries a real reason. Apply
+  [specs.scenarios.csharp.md](../../rules/specs.scenarios.csharp.md): business
+  decisions use direct `Handle()`/validator calls with supplied state. Require
+  one cheap assembly-level admission spec for the application's own shapes,
+  not per-decision concurrency/conflict/isolation tests; Arc/Chronicle own that matrix.
+- Use `Cratis.Arc.Core.CodeAnalysis` and `Cratis.Arc.Chronicle.CodeAnalysis`.
+  ARCCHR0011 (Info, `Off` only) and 0012 flag unprotected reads/immediate
+  bypasses; 0013 (Info) recommends definitions; 0014 checks declared observer
+  streams; 0015 warns on nullable events; 0016 flags ignored concurrency flags;
+  0017/0018 check stream-id templates; 0019 warns on folds exposed as queries.
+  ARC0015 checks concept query inputs, ARC0016–18 operations, ARC0019–21
+  authorization, ARC0022–25 generated values and ARC0026 explicit/ambiguous queries.
+  A clean build cannot prove the Info-level decision advisories were addressed.
+  Sources: Arc `Source/DotNET/Arc.Core.CodeAnalysis/DiagnosticDescriptors.cs`
+  and `Source/DotNET/Chronicle.CodeAnalysis/DiagnosticDescriptors.cs`.
 
 ## Step 3 — C# style
 
@@ -116,11 +140,12 @@ degradations a reviewer can see without measuring:
 
 - A projection joining on a read model; a reactor re-querying the event log
   inside a handler instead of using the event data.
-- A new projection that could not replay all historical events; events carrying
+- A new projection that could not replay all earlier events; events carrying
   large blobs.
 - A query that does not filter on an indexed field; a growable list that does
-  not return `IQueryable<T>` for server-side paging; hydrating a collection only
-  to count it.
+  not return a shape Arc pages (`IQueryable<T>`, or MongoDB `Observe`); a query
+  that pages or sorts itself or uses MongoDB `AsQueryable()`; hydrating a
+  collection only to count it.
 - An N+1 pattern; a response payload with fields no client reads.
 - React: a growable list rendering every row; an inline object or array literal
   passed as a prop, changing identity every render; wrong `useEffect`
@@ -130,41 +155,36 @@ degradations a reviewer can see without measuring:
 
 ## Step 6 — Specification coverage
 
+- Pure command, validator, reducer and reactor decisions have plain-call specs
+  with supplied read-model state; scenarios cover exactly the obligations in the
+  per-artifact decision table of `specs.scenarios.csharp.md` (pipeline and
+  authorization, constraints, projection and reducer dispatch, reactor dispatch
+  and routing) plus application-owned race-policy proof.
 - Every State Change command has a happy-path specification.
-- Every validation rule has a failure specification asserting **both**
-  `ShouldNotBeSuccessful()` and `ShouldHaveValidationErrors()`.
+- Every validation rule has a direct-call failure spec. Pipeline validation
+  specs assert **both** `ShouldNotBeSuccessful()` and `ShouldHaveValidationErrors()`.
 - Every business-rule rejection has a specification.
 - Every constraint has an `EventScenario` specification asserting the constraint
-  **name**, not its message.
-- No specification asserts on a presentation message string.
+  **name** by default.
+- Presentation message strings are not asserted by default. Exact wording is
+  asserted only when it is the specified behavior, and the fact names that
+  requirement.
 - Nothing trivial is specified — a property getter, a constructor pass-through,
   a delegation.
 - No specification sleeps to let the system catch up.
 
 ## Step 7 — Report
 
-Open with one line:
+Read and use `.cratis/ai/rules/review-reports.md` when writing the report.
 
-> **Review result: Approved / Approved with comments / Changes requested**
+Correctness regressions, broken contracts, and missing specification coverage
+that leaves changed behavior unverified belong in Blockers when they require
+correction before merge. Style preferences and maintainability improvements
+without such a consequence belong in Suggestions. Apply the shared verdict
+vocabulary to those findings.
 
-Then, per file:
-
-```
-### <file path>
-
-**[BLOCKING]** Line N: `problematic code`
-Because: <the consequence, not the rule number>
-Fix:
-<corrected code>
-```
-
-Close with what passed and what must change. Two rules make the report usable:
-
-- **A blocking finding names a consequence.** "Violates the style guide" is not
-  a reason. "Throws on a recoverable path, so the caller sees a 500 instead of a
-  validation error" is.
-- **Say what you did not review.** A report listing only findings reads as if
-  everything was checked. Name the files, the paths, and the axes you skipped.
+For a follow-up round after blockers were fixed, review only the delta and carry prior
+findings forward; see `cratis-engineering-review-rounds`.
 
 ## What breaks
 

@@ -60,6 +60,32 @@ public record BrandingConfiguration(string LogoUrl, string CustomCssUrl)
         new(options.Value.LogoUrl, options.Value.CustomCssUrl);
 }
 
+/// <summary>Allowlisted invitation presentation copy resolved for the visitor's locale.</summary>
+/// <param name="Title">The subtitle; empty retains Ante's localized default.</param>
+/// <param name="Intro">Optional plain-text introduction.</param>
+/// <param name="CompletionMessage">Optional successful host-outcome message.</param>
+/// <param name="SupportUrl">Optional absolute HTTPS support link.</param>
+public record InvitationPageContent(string Title, string Intro, string CompletionMessage, string SupportUrl);
+
+/// <summary>Independent presentation copy for both invitation setup journeys.</summary>
+/// <param name="UserSetup">Copy for accepting a user invitation.</param>
+/// <param name="OrganizationSetup">Copy for accepting an organization invitation.</param>
+[ReadModel]
+public record InvitationConfiguration(InvitationPageContent UserSetup, InvitationPageContent OrganizationSetup)
+{
+    /// <summary>Resolves invitation copy without exposing registration or token configuration.</summary>
+    /// <param name="options">The Ante options.</param>
+    /// <returns>Presentation-only content for the negotiated request culture.</returns>
+    public static InvitationConfiguration GetInvitationContent(IOptions<AnteOptions> options)
+    {
+        var invitations = options.Value.Invitations;
+        var culture = System.Globalization.CultureInfo.CurrentUICulture;
+        return new(
+            Invitations.InvitationContentResolver.For(invitations.UserSetup, culture),
+            Invitations.InvitationContentResolver.For(invitations.OrganizationSetup, culture));
+    }
+}
+
 /// <summary>
 /// The host-authored copy for the registration page, resolved for the visitor's locale.
 /// </summary>

@@ -11,12 +11,12 @@ public class and_the_name_is_already_claimed : Specification
 
     async Task Establish() =>
         await _scenario.Given.ForEventSource(InvitationId.New()).Events(
-            new InvitationToCreateTenantAccepted("Acme", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Owner"]));
+            new OrganizationSetupCompleted("Acme", "github", "sub-1", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", ["Owner"]));
 
     async Task Because() =>
         _result = await _scenario.EventLog.Append(
             InvitationId.New(),
-            new InvitationToCreateTenantAccepted("Acme", "github", "sub-2", "John", MiddleName.NotSet, "Smith", "john@example.com", ["Owner"]));
+            new OrganizationSetupCompleted("Acme", "github", "sub-2", "John", MiddleName.NotSet, "Smith", "john@example.com", ["Owner"]));
 
     [Fact] void should_be_failed() => _result.ShouldBeFailed();
 

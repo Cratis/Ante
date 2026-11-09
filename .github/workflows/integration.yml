@@ -1,4 +1,5 @@
 name: Integration
+run-name: "Integration Specs${{ github.event_name == 'pull_request' && format(' - PR #{0} @ {1}', github.event.pull_request.number, github.event.pull_request.head.sha) || '' }}"
 
 # Container-backed specifications against a real Chronicle kernel, and the lobby's journeys in a real browser against
 # the same kernel (E2E/). They take long enough that they do not run on every push: on demand, nightly, or on a pull
@@ -13,14 +14,14 @@ on:
   schedule:
     - cron: '37 4 * * *'
   pull_request:
-    types: [labeled, synchronize]
+    types: [labeled, synchronize, reopened]
 
 permissions:
   contents: read
 
 jobs:
   integration:
-    name: Integration
+    name: Integration${{ github.event.action == 'labeled' && github.event.label.name != 'run-integration' && format(' - {0}', github.event.label.name) || '' }}
     # On pull requests: only when labelled `run-integration`, and not when some other label is added.
     if: >-
       github.event_name != 'pull_request' ||
@@ -47,14 +48,19 @@ jobs:
         with:
           node-version: 22.x
 
+      - name: Build container-backed specifications
+        run: dotnet build Integration/Ante.Integration.Specs.csproj --configuration Debug
+
       - name: Run container-backed specifications
         env:
           # Empty on pull requests: the fixture then uses the server release matching the pinned client.
           ANTE_CHRONICLE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.chronicle-image || github.event_name == 'schedule' && 'cratis/chronicle:latest-development' || '' }}
-        run: dotnet test Integration/Ante.Integration.Specs.csproj --configuration Debug --logger "console;verbosity=minimal"
+        run: ./Integration/bin/Debug/net10.0/Ante.Integration.Specs
 
   browser:
-    name: Browser end-to-end
+    name: Browser end-to-end${{ github.event.action == 'labeled' && github.event.label.name != 'run-integration' && format(' - {0}', github.event.label.name) || '' }}
+    outputs:
+      ran: ${{ steps.license.outputs.available }}
     # The lobby's journeys in a real browser against a real Chronicle kernel (E2E/). Same triggers as the
     # container-backed specifications above.
     if: >-
@@ -160,3 +166,130 @@ jobs:
             E2E/playwright-report/
             E2E/test-results/
           retention-days: 7
+
+  fixture:
+    name: Fixture first invitation${{ github.event.action == 'labeled' && github.event.label.name != 'run-integration' && format(' - {0}', github.event.label.name) || '' }}
+    if: >-
+      github.event_name != 'pull_request' ||
+      (contains(github.event.pull_request.labels.*.name, 'run-integration') &&
+       (github.event.action != 'labeled' || github.event.label.name == 'run-integration'))
+    concurrency:
+      group: ${{ github.workflow }}-fixture-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      # Portable publishes match publish.yml; the API journey does not need the licensed SPA.
+      - name: Publish Ante
+        run: >-
+          dotnet publish Source/Ante/Ante.csproj --configuration Release
+          --self-contained false -p:UseAppHost=false -p:CratisProxiesOutputPath= -o Source/Ante/out
+
+      - name: Publish fixture host
+        run: >-
+          dotnet publish Fixture/Host/Ante.Fixture.Host.csproj --configuration Release
+          --self-contained false -p:UseAppHost=false -p:CratisProxiesOutputPath= -o Fixture/Host/out
+
+      - name: Publish fixture proxy
+        run: >-
+          dotnet publish Fixture/Proxy/Ante.Fixture.Proxy.csproj --configuration Release
+          --self-contained false -p:UseAppHost=false -p:CratisProxiesOutputPath= -o Fixture/Proxy/out
+
+      - name: Check compose policy
+        run: node Fixture/compose-policy.mjs
+
+      - name: Prepare images online
+        run: |
+          docker compose -f Fixture/compose.yml pull --ignore-buildable
+          docker compose -f Fixture/compose.yml build
+          for image in $(docker compose -f Fixture/compose.yml config --images | sort -u); do
+            docker image inspect --format '{{json .RepoTags}} {{json .RepoDigests}} {{.Id}}' "$image"
+          done
+
+      - name: Start offline fixture
+        timeout-minutes: 10
+        run: docker compose -f Fixture/compose.yml up -d --wait --pull never --no-build
+
+      - name: Prove backend cannot reach the internet
+        run: |
+          test "$(docker network inspect --format '{{.Internal}}' ante-fixture_backend)" = true
+          if docker run --rm --network ante-fixture_backend --entrypoint bash mongo:8.2 -c 'timeout 5 bash -c "exec 3<>/dev/tcp/1.1.1.1/443"'; then
+            echo "::error::the fixture backend network reached the internet"
+            exit 1
+          else
+            result=$?
+            if [ "$result" -ne 1 ] && [ "$result" -ne 124 ]; then
+              echo "::error::the egress probe could not run (exit $result)"
+              exit "$result"
+            fi
+            echo "Backend egress blocked as expected."
+          fi
+
+      - name: Run first invitation
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          node Fixture/first-invitation.mjs --timeout 300 | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect fixture logs
+        if: failure()
+        run: docker compose -f Fixture/compose.yml logs --no-color > fixture-logs.txt
+
+      - name: Upload fixture logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixture-logs
+          path: fixture-logs.txt
+          retention-days: 7
+
+      - name: Tear down fixture
+        if: always()
+        run: docker compose -f Fixture/compose.yml down -v
+
+  coverage:
+    name: Integration coverage${{ github.event.action == 'labeled' && github.event.label.name != 'run-integration' && format(' - {0}', github.event.label.name) || '' }}
+    needs: [integration, browser, fixture]
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && (github.event.action != 'labeled' || github.event.label.name == 'run-integration') }}
+    permissions:
+      contents: read
+      pull-requests: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout coverage policy and workflow
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/scripts
+            .github/workflows/integration.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Test integration coverage policy
+        run: node --test .github/scripts/integration-coverage.test.cjs
+
+      - name: Check integration coverage
+        uses: actions/github-script@v7
+        env:
+          INTEGRATION: ${{ needs.integration.result }}
+          BROWSER: ${{ needs.browser.result }}
+          BROWSER_RAN: ${{ needs.browser.outputs.ran }}
+          FIXTURE: ${{ needs.fixture.result }}
+        with:
+          script: |
+            await require('./.github/scripts/integration-coverage.cjs').run({github, context, core});

@@ -38,7 +38,7 @@ public class and_an_organization_setup_was_recorded_but_not_published : a_runnin
             new { invitationId = _invitationId, organizationName = _organizationName, firstName = "Jane", lastName = "Doe", acceptedLegalTerms = false, acceptedLegalVersion = "" },
             _owner);
         IsSuccess(result).ShouldBeTrue();
-        _recordedBeforePublication = await AcceptanceRecordedButNotPublished<InvitationToCreateTenantAccepted>(_invitationId);
+        _recordedBeforePublication = await AcceptanceRecordedButNotPublished<OrganizationSetupCompleted, InvitationToCreateTenantAccepted>(_invitationId);
     }
 
     async Task Because()

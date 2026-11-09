@@ -27,6 +27,10 @@ public class a_started_registration : Specification
     async Task Establish()
     {
         await Scenario.EventScenario.Given.ForEventSource(RegistrationId).Events(new RegistrationStarted((RegistrationOwnerSubject)"sub-1", "github"));
+
+        // The scenario appends seeded events against its own deterministic clock, not the real one. Resolving
+        // Provide()'s TimeProvider to that same clock keeps "now" consistent with what was just seeded.
+        Scenario.Services.AddSingleton<TimeProvider>(Scenario.EventScenario.Time);
         var names = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
         names.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
         Scenario.Services.AddSingleton(names);

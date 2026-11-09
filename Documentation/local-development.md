@@ -3,7 +3,7 @@ title: Work on Ante locally
 description: Run the repository's exact backend and frontend checks and understand local runtime prerequisites.
 ---
 
-The repository includes an end-to-end fixture with a real Chronicle kernel, MongoDB and a minimal host store (see [Run the end-to-end specifications](#run-the-end-to-end-specifications)), but no verifying proxy. You can build and test the source without it; to exercise a complete journey through a proxy, provision one and use [Host integration](./host-integration.md). The committed Development RSA keypair is throwaway and must never be reused outside local development.
+The repository includes container-backed [end-to-end specifications](#run-the-end-to-end-specifications) and a [standalone first-invitation fixture](#run-the-first-invitation-fixture) with a real Ante, Chronicle, MongoDB, a host stub and a stub signing/validating proxy. You can build and test the source without containers; use [Host integration](./host-integration.md) when connecting a real host and proxy. The committed Development RSA keypair is throwaway and must never be reused outside local development.
 
 ## Check backend and frontend
 
@@ -84,6 +84,69 @@ yarn e2e
 axe violations of serious or critical impact fail the run, except the ones listed in `E2E/support/accessibility.ts`, each tied to an open issue by rule and element. Every violation, listed or not, is attached to its test in the HTML report. Add to the list only with an issue, and remove an entry together with its fix.
 
 The `Browser end-to-end` job in `.github/workflows/integration.yml` runs the suite on the same triggers as the container-backed specifications, with the `PRIMEUI_LICENSE` secret. A pull request from a fork or from Dependabot does not receive the secret, so the job is skipped there with a notice. A failed run uploads the Playwright report and traces as the `browser-e2e-report` artifact.
+
+## Run the first-invitation fixture
+
+`Fixture/compose.yml` runs Ante built from this revision with Chronicle, a MongoDB replica set, a host stub and a stub signing/validating proxy. The proxy includes a stub sign-in form: it is **not** AuthProxy or a real identity provider/proxy, and this is not a production topology. Connecting a real provider remains separate work ([#123](https://github.com/Cratis/Ante/issues/123)). The `Fixture first invitation` CI job runs the API journey without the licensed SPA, alongside the integration and browser jobs.
+
+Prepare artifacts and images while online, from the repository root with .NET 10, Node 22 and Docker Compose available:
+
+```bash
+dotnet publish Source/Ante/Ante.csproj --configuration Release --self-contained false -p:UseAppHost=false -p:CratisProxiesOutputPath= -o Source/Ante/out
+dotnet publish Fixture/Host/Ante.Fixture.Host.csproj --configuration Release --self-contained false -p:UseAppHost=false -p:CratisProxiesOutputPath= -o Fixture/Host/out
+dotnet publish Fixture/Proxy/Ante.Fixture.Proxy.csproj --configuration Release --self-contained false -p:UseAppHost=false -p:CratisProxiesOutputPath= -o Fixture/Proxy/out
+node Fixture/compose-policy.mjs
+docker compose -f Fixture/compose.yml pull --ignore-buildable
+docker compose -f Fixture/compose.yml build
+```
+
+Start without pulling or building anything, then run the first invitation:
+
+```bash
+docker compose -f Fixture/compose.yml up -d --wait --pull never --no-build
+node Fixture/first-invitation.mjs --timeout 300
+```
+
+The backend network is `internal: true`: Ante, Chronicle, MongoDB and the host have no outbound internet access and publish no ports. Only the proxy joins the edge network and publishes `127.0.0.1:8080`. CI also probes backend egress. The one-shot `keys` service generates the attestation key into a named volume and mounts only its public half into Ante; no private keys are committed. Ante creates its own development signing key in another volume.
+
+The script waits for readiness, invites a member through the host outbox, waits for Ante's token, validates and stages it through the proxy, signs in the stub identity, completes the attested exchange, submits user setup and verifies both acceptance and provisioning confirmation in the host inbox. It prints eight passing steps or the first failure with the host's received event types. A health check alone is not this verification.
+
+For a manual walkthrough, create an invitation through the proxy:
+
+```bash
+curl --fail-with-body http://localhost:8080/host/invitations \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"invitee@example.com","tenant":"Acme","roles":["Member"]}'
+curl --fail-with-body http://localhost:8080/host/invitations/INVITATION_ID
+```
+
+Replace `INVITATION_ID` with the returned id and poll until `tokenIssued` is true. Open the returned `link` in a browser and sign in with the same email. The lobby UI requires the SPA to be built (`yarn build` in `Source/Ante`, with a valid PrimeUI license) before publishing, or a released image selected with `ANTE_IMAGE=ghcr.io/cratis/ante:<tag>`. Use `docker compose -f Fixture/compose.yml up -d --wait --pull never --no-build` after preparing that image online. The API script needs no SPA or license.
+
+Set `ANTE_FIXTURE_PORT` before preparation/start to choose another loopback port; the script uses the same variable, or accepts `--base-url http://localhost:PORT`. Changing it after starting requires recreating the services. The fixture uses the same development-mode Ante environment keys as `cratis run`, planned in [RunStackPlanner.Ante.cs](https://github.com/Cratis/cli/blob/main/Source/Cli/Commands/Run/RunStackPlanner.Ante.cs), with fixture-specific host store, namespace and provider values.
+
+The replacement seam for a real identity provider/proxy is the `proxy` and `keys` services and the stub sign-in. Replace them with AuthProxy and real authentication while preserving the attestation contract and updating Ante's public trust key, issuer, audience and provider pins to match. No account or client schema is assumed here. This is the path for [`cratis stage run`](https://github.com/Cratis/cli/issues/555) and the [offline suite](https://github.com/Cratis/Stage/issues/988), not an implementation of either.
+
+Remove all fixture containers and persisted invitation/key state when finished:
+
+```bash
+docker compose -f Fixture/compose.yml down -v
+```
+
+## Run Ante as a Screenplay application's onboarding service
+
+`cratis run` starts one Ante for a Screenplay application with no `Ante:*` configuration and no secrets. With MongoDB and Chronicle running, the equivalent by hand is:
+
+```bash
+cd Source/Ante
+Ante__Onboarding__Enabled=true \
+Ante__Onboarding__Development__Enabled=true \
+Ante__Onboarding__HostStore=Application \
+Ante__Onboarding__PublicBaseUrl=http://localhost:5002 \
+ASPNETCORE_ENVIRONMENT=Development \
+dotnet run --urls http://localhost:5002
+```
+
+Ante generates a signing key into `Source/Ante/.ante-development/` on first start and reuses it afterwards; the folder is ignored by Git. Add `Ante__Onboarding__Legal__Folder=<folder>` to present `terms.md` and `privacy.md` from a folder, and `Ante__Onboarding__Personas__0=Owner` to restrict grantable personas. Development mode is refused when the environment name is production-like, in Kubernetes, or when a configured URL is not loopback. See [Configuration](./configuration.md#onboarding-contract-screenplay-applications).
 
 ## Run a development server
 

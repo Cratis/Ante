@@ -1,6 +1,6 @@
 ---
 name: cratis-chronicle-event-specifications
-description: Specify event-append behavior with EventScenario from Cratis.Chronicle.Testing — seeding prior events through Given, appending through When or the event log, and asserting on the append result including constraint violations. Use when the behavior under specification is what reaches the event store. Do not use for command handling or for read-model projection behavior.
+description: Use when specifying Chronicle event appends or constraint violations through the in-process append path. Not for command handling or how events become read-model state.
 license: MIT
 ---
 <!-- cratis-ai-managed: skills/cratis-chronicle-event-specifications/SKILL.md -->
@@ -11,14 +11,20 @@ license: MIT
 database, no network — an empty event log at sequence number zero, with the
 application's constraints discovered and active.
 
+Specify every constraint with an `EventScenario`: one class for the violation
+and one for the nearest non-violation. A constraint is enforced at append, so no
+plain call or substituted event store proves it. Pure decisions around it are
+plain calls; see the [decision table](../../rules/specs.scenarios.csharp.md).
+
 ## Verified product sources
 
-| Package | Version | Purpose |
-| --- | --- | --- |
-| `Cratis.Chronicle.Testing` | `18.3.0` | `EventScenario`, its `Given`/`When` builders, the `IAppendResult` `Should*` assertions |
-| `Cratis.Chronicle` | `18.3.0` | `IEventSequence.Append`/`AppendMany`, `IAppendResult`, `ConstraintViolation` |
+| Package | Purpose |
+| --- | --- |
+| `Cratis.Chronicle.Testing` | `EventScenario`, its `Given`/`When` builders, the `IAppendResult` `Should*` assertions |
+| `Cratis.Chronicle` | `IEventSequence.Append`/`AppendMany`, `IAppendResult`, `ConstraintViolation` |
 
-> Re-verified at the versions above by **symbol and signature**: every type, attribute and member this skill names exists at that tag, and the public surface it describes is unchanged since the previous verification (Chronicle 16.45.x / Arc 22.10.4 — the Chronicle 16→18 client diff is converters, options and doc comments; no type was removed or renamed). Behavior claims were verified at the earlier tag unless a section says otherwise.
+Sources: `Source/Clients/Testing/EventSequences/`, `TestingEventStore.cs`,
+and `Source/Clients/DotNET/EventSequences/`.
 
 ```bash
 dotnet add package Cratis.Chronicle.Testing
@@ -52,10 +58,11 @@ version. Never translate an assertion name from memory.
   (`When`, or `EventLog.Append` without a `concurrencyScope`) can never report
   `HasConcurrencyViolations`. Only an append that passes an explicit scope on
   `scenario.EventLog.Append(...)` reaches the in-process validator at all — and
-  that is a spec of the scope you hand-built, not of the application's strategy. Specify concurrency against
-  the real kernel with an out-of-process integration specification, and do not
-  write a scenario specification that looks like it covers it — it would pass
-  vacuously, which is worse than not having one.
+  that is a spec of the scope you hand-built, not of the application's strategy. The platform concurrency/guard matrix belongs only in Arc/Chronicle specs,
+  with real-kernel integration where required. Application decisions use direct
+  `Handle()`/validator calls with supplied state plus the one cheap assembly-level
+  shape-admission spec in [specs.scenarios.csharp.md](../../rules/specs.scenarios.csharp.md).
+  A default scenario must not claim concurrency coverage — it would pass vacuously.
 
 ## Step 1 — Create the scenario
 
@@ -70,6 +77,23 @@ store, the `default` namespace, and **auto-discovers the constraints** declared
 in the loaded assemblies — which is what makes a constraint specification work
 without wiring. Pass an `ICanProvideConstraints` to the single-argument
 constructor when the specification needs a narrower set.
+
+It implements `IDisposable`: dispose in `Destroy()`.
+`new EventScenario(sequenceId, eventStore, @namespace)` selects identifiers;
+constructors also accept per-run `Defaults`. One scenario shares production
+in-memory storage across its sequences and uses the kernel append grain,
+serialization, migrations and compliance. Older-generation appends migrate;
+undiscovered schemas fail with `EventSchemaNotDiscovered`. Appends to one
+sequence serialize, so racing claims of the same unique value cannot both win.
+Seeding can specify source/stream routing through the `ForEventSource`,
+`For<TEvent>` and `ForEvents` overloads.
+
+Requires Chronicle 19.59.0 for `scenario.ReadModels` to read and observe
+projections (including children and joins) and reducers from the scenario's own
+events, not a shared default store. Check the testing package version; on older
+packages use a dedicated `ReadModelScenario` rather than assuming shared storage.
+Requires Chronicle 19.52.0 for per-run `Defaults` to honor marker-free
+`ExplicitArtifacts`; see the .NET client's discovery reference.
 
 ## Step 2 — Seed prior state through `Given`
 
@@ -148,12 +172,14 @@ scenario and the second passes vacuously.
 The constraint name parameter is a `ConstraintName`, which converts implicitly
 from `string`, so a literal compiles. Prefer a shared constant
 (`<Module>ConstraintNames.UniqueX`) so a rename moves both sides at once.
-**Assert the name, never the message.**
+**Assert the name by default.** Assert exact message text only when that wording
+is the specified behavior, and name that behavior in the fact.
 
 ## Step 5 — Write the specification
 
-Specification files live in the slice folder, wrapped in `#if DEBUG … #endif` so
-specification code ships only in Debug.
+Specification files live in the slice folder. Wrap them in `#if DEBUG … #endif`
+only when they compile into the application assembly, so specification code
+ships only in Debug. Dedicated spec projects need no wrapper.
 
 ```csharp
 #if DEBUG
@@ -194,14 +220,16 @@ assert the value can be claimed again.
 - **`ShouldHaveConstraintViolationFor` fails with an empty violation list on a
   batch append.** `When…Events` short-circuits, so the conflict may be on an
   event the append never reached.
-- **A concurrency specification is always green.** It is vacuous — the scenario
-  disables the check. Delete it or move it out-of-process.
+- **A concurrency specification is always green.** Without an explicit checked
+  scope, the default client strategy answers `ConcurrencyScope.None` and proves
+  nothing. The kernel validator is present; explicit-scope violations have not
+  been proven end to end here. Prove the application's strategy with integration.
 - **The specification passes alone and fails in the suite.** A hard-coded unique
   value collided with another specification's claim.
 
 ## How it is proven
 
 `dotnet build` in Debug (which compiles the `#if DEBUG` specification code) and
-`dotnet test`, both clean. A constraint specification is only meaningful if it
+the owning project's built spec executable (see [specs.csharp](../../rules/specs.csharp.md)), both clean. A constraint specification is only meaningful if it
 has been seen to fail: remove the seeding `Given` once and confirm the
 specification goes red before trusting it green.

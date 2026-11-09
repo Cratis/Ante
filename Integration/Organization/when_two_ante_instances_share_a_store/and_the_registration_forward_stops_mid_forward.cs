@@ -16,6 +16,8 @@ namespace Ante.Integration.Organization.when_two_ante_instances_share_a_store;
 [Collection(ChronicleCollection.Name)]
 public class and_the_registration_forward_stops_mid_forward : an_outbox_forward_held_after_its_append<OrganizationRegistrationOutbox, OrganizationRegistrationCompleted>
 {
+    protected override Type RecordedFact => typeof(OrganizationRegistrationRecorded);
+
     readonly Guid _registrationId = Guid.NewGuid();
     readonly string _subject = $"visitor-{Guid.NewGuid():N}";
     readonly string _email = $"{Guid.NewGuid():N}@example.com";

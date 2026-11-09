@@ -51,7 +51,7 @@ public class and_both_accept_the_same_invitation : two_running_antes
             Other.Execute("/api/invitations/user-setup", command, _owner));
 
         await Host.WaitForFromAnte<InvitationToJoinTenantAccepted>(Id);
-        _recorded = await EventsFor(Ante, Id, EventSequenceId.Log, typeof(InvitationToJoinTenantAccepted));
+        _recorded = await EventsFor(Ante, Id, EventSequenceId.Log, typeof(Ante.Invitations.UserSetup.UserSetupCompleted));
         _published = await EventsFor(Ante, Id, EventSequenceId.Outbox, typeof(InvitationToJoinTenantAccepted));
         _receivedByHost = (await Host.ReceivedFromAnte(Id)).Count(entry => entry.Content is InvitationToJoinTenantAccepted);
     }

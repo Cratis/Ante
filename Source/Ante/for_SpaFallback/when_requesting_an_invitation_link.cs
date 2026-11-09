@@ -38,37 +38,56 @@ public class when_requesting_an_invitation_link : Specification
     [Fact]
     async Task should_serve_the_shell_for_a_jwt_shaped_invitation_path()
     {
-        var response = await _client.GetAsync(new Uri($"/invite/{DottedToken}", UriKind.Relative));
+        var response = await _client.GetAsync(new Uri($"/invite/{DottedToken}", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(ShellBody, await response.Content.ReadAsStringAsync());
+        Assert.Equal(ShellBody, await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
     async Task should_still_serve_the_shell_for_an_ordinary_route()
     {
-        var response = await _client.GetAsync(new Uri("/register", UriKind.Relative));
+        var response = await _client.GetAsync(new Uri("/register", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
     async Task should_not_serve_the_shell_for_a_missing_file_outside_the_invitation_path()
     {
-        var response = await _client.GetAsync(new Uri("/assets/missing.js", UriKind.Relative));
+        var response = await _client.GetAsync(new Uri("/assets/missing.js", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
     async Task should_not_serve_the_shell_for_a_missing_file_under_the_invitation_path()
     {
-        var response = await _client.GetAsync(new Uri("/invite/missing.js", UriKind.Relative));
+        var response = await _client.GetAsync(new Uri("/invite/missing.js", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
     async Task should_not_serve_the_shell_for_a_missing_three_part_file_under_the_invitation_path()
     {
-        var response = await _client.GetAsync(new Uri("/invite/app.min.js", UriKind.Relative));
+        var response = await _client.GetAsync(new Uri("/invite/app.min.js", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("OPTIONS", "/.cratis/me")]
+    [InlineData("POST", "/register")]
+    [InlineData("PUT", "/register")]
+    [InlineData("DELETE", "/register")]
+    [InlineData("POST", "/invite/eyJhbGciOiJSUzI1NiJ9.eyJqdGkiOiJhYmMifQ.c2lnbmF0dXJl")]
+    async Task should_not_serve_the_shell_for_a_method_other_than_get_or_head(string method, string path)
+    {
+        var response = await _client.SendAsync(new HttpRequestMessage(new HttpMethod(method), new Uri(path, UriKind.Relative)), TestContext.Current.CancellationToken);
+        Assert.Contains(response.StatusCode, new[] { HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed });
+    }
+
+    [Fact]
+    async Task should_serve_the_shell_for_head()
+    {
+        var response = await _client.SendAsync(new HttpRequestMessage(HttpMethod.Head, new Uri("/register", UriKind.Relative)), TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     async Task Destroy()

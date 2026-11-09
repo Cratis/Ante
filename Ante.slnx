@@ -2,5 +2,6 @@
   <Folder Name="/Source/">
     <Project Path="Source/Ante.Contracts/Ante.Contracts.csproj" />
     <Project Path="Source/Ante/Ante.csproj" />
+    <Project Path="Source/Ante.Contracts.Specs/Ante.Contracts.Specs.csproj" />
   </Folder>
 </Solution>

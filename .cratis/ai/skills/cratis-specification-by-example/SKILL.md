@@ -1,6 +1,6 @@
 ---
 name: cratis-specification-by-example
-description: Structure and name executable specifications the Cratis way — one behavior per specification, a for_/when_/and_ path that reads as an English sentence, layered given/ contexts, and an explicit decision about what is not worth specifying. Use when deciding how to organize, name, or scope specifications in any language. Do not use for language mechanics; route to the C# or TypeScript specification skill for those.
+description: Use when deciding how to name, organize or scope Cratis executable specifications in any language. Not for C# or TypeScript fixture and assertion mechanics; use the language-specific sibling.
 license: MIT
 ---
 <!-- cratis-ai-managed: skills/cratis-specification-by-example/SKILL.md -->
@@ -40,6 +40,13 @@ In a language without those analyzers the same rules hold; the reviewer enforces
 them instead of the compiler. Reverify against the owning product repository
 before claiming behavior for another version.
 
+The `Cratis.Synopsis.Tool` dotnet tool (verified) reads these
+names statically, never running code, and writes one HTML or JSON behavior
+document from C#, TypeScript, Gherkin and Screenplay specifications:
+`dotnet tool install --global Cratis.Synopsis.Tool`, then `synopsis . --open`
+(or `synopsis . --format both --output Artifacts/synopsis.html`). Good names are
+the documentation it produces.
+
 ## Route near misses
 
 - Writing the C# mechanics — the `Specification` base, `Establish`/`Because`,
@@ -55,9 +62,7 @@ before claiming behavior for another version.
   model). Decide this with the decision rule in
   `cratis-screenplay-modeling-lifecycle`: model-first only when an accepted
   model under the model root covers this scope, or the repository is opted in
-  (the root holds a committed `.play` file (`git ls-tree -r --name-only HEAD -- <root>` lists it), or the project set `mcpServers.screenplay.root`
-  in `.cratis/ai.json`); an empty directory, install output, a `.play` file
-  outside the root or an uncommitted draft does not count, and framework, infrastructure, client, adapter and not-opted-in
+  (opted in per `general.md` "Model first"; where `cratis-screenplay-modeling-lifecycle` is installed, run its `scripts/model-first-status.mjs`); framework, infrastructure, client, adapter and not-opted-in
   brownfield work stays code-first. Opted in but no model for this scope: model
   it first (`cratis-screenplay-discovery`, then `cratis-screenplay-slice-design`)
   before writing specifications. If those Screenplay skills are not installed,
@@ -170,16 +175,21 @@ getter, not a behavior. Delete it rather than maintaining it.
 
 A specification is only as good as the signal it reads.
 
-- **Assert on the outcome, not the message.** A presentation string is copy;
+- **Assert on the outcome by default.** A presentation string is copy;
   it changes for reasons that have nothing to do with the behavior. Assert on
   the identity of what failed — an error code, a constraint name, a typed
-  result — never on the sentence shown to a user.
-  - **In code (C#, TypeScript):** never assert a message string.
+  result — rather than the sentence shown to a user, unless exact wording is
+  the specified behavior.
+  - **In code (C#, TypeScript):** do not assert message strings by default;
+    assert exact text only when that wording is the specified behavior, and
+    name that behavior in the fact.
   - **In a `.play` model:** a rejection specification pins the message, or
     its localization key, with `then error "<message>"` or
     `then error "$strings.<key>"`, because the model has no reason codes. Bare
-    `then error` leaves the reason to the specification's name. The model pins
-    the message; the code specification pins the kind. They do not conflict.
+    `then error` leaves the reason to the specification's name. The code
+    specification pins the kind by default; assert the model's exact message
+    too only when its wording is
+    the specified behavior, and name that behavior in the fact.
 
 ```screenplay
 concept InvoiceId : Uuid
@@ -194,6 +204,8 @@ module Invoicing
           invoiceNumber not empty message "Invoice number is required"
         produces event InvoiceRegistered
           invoiceNumber InvoiceNumber = invoiceNumber
+      screen RegisterInvoice
+        action RegisterInvoice for screen
       specification RejectingAnEmptyInvoiceNumber
         when RegisterInvoice
           invoiceId     = "9c858901-8a57-4791-81fe-4c455b099bc9"
@@ -226,7 +238,8 @@ edge someone chose is a different thing from one nobody saw.
 - One specification per file; one outcome per specification.
 - No action and no assertion sits on a `given/` context.
 - Nothing trivial, delegated, or compiler-verified is specified.
-- No code assertion reads a presentation message string; a `.play` rejection
-  pins its message or key deliberately.
+- Code assertions do not pin presentation messages by default. Exact wording
+  is asserted only when it is the specified behavior, named in the fact; a
+  `.play` rejection pins its message or key deliberately.
 - No sleep, bare delay, or poll loop stands in for a completion signal.
 - The suite runs green, and the report names what was not covered.

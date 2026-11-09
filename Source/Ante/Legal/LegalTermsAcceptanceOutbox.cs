@@ -41,9 +41,13 @@ namespace Ante.Legal;
 /// <param name="eventStore">The event store.</param>
 /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>.</param>
 /// <param name="logger">The logger.</param>
+/// <param name="ante">The deployment options; <c language="csharp">OperatorAudience</c> addresses replies whose request named no requester. When absent such replies are unaddressed.</param>
 [Reactor(eventSequence: EventSequenceId.LogId)]
-public class LegalTermsAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<LegalTermsAcceptanceOutbox> logger) : IReactor
+public class LegalTermsAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<LegalTermsAcceptanceOutbox> logger, IOptions<AnteOptions>? ante = null) : IReactor
 {
+    public Task On(LegalTermsAcceptanceRecorded @event, EventContext context, ReactorDelivery delivery) =>
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, operatorAudience: ante?.Value.OperatorAudience);
+
     /// <summary>
     /// Forwards the acceptance to the outbox.
     /// </summary>
@@ -52,5 +56,5 @@ public class LegalTermsAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPu
     /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     public async Task On(LegalTermsAccepted @event, EventContext context, ReactorDelivery delivery) =>
-        await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger);
+        await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger, operatorAudience: ante?.Value.OperatorAudience);
 }

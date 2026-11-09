@@ -41,15 +41,39 @@ public class AnteOptions
     public string? InboxSourceStore { get; set; }
 
     /// <summary>
+    /// Gets or sets this lobby's audience identity. When set, every host-store inbox subscription is filtered to events
+    /// the host addressed to this audience (<c language="csharp">audience=&lt;value&gt;</c>), so one host can run several lobbies against
+    /// the same store without each receiving the others' invitations. Unset (the default) keeps the unfiltered behavior.
+    /// </summary>
+    public string? Audience { get; set; }
+
+    /// <summary>
+    /// Gets or sets the audience Ante addresses its replies to when the request that caused them carried no
+    /// <c language="csharp">from</c> tag. Unset (the default) leaves such replies unaddressed, exactly as before audiences existed.
+    /// </summary>
+    public string? OperatorAudience { get; set; }
+
+    /// <summary>
     /// Gets the legal document source and the host publication route. InProcess preserves the
     /// existing ILegalDocumentSource integration; Inbox requires both publisher and set id.
     /// </summary>
     public LegalOptions Legal { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets the onboarding contract of a Screenplay application. Inert unless
+    /// <c language="csharp">Ante:Onboarding:Enabled</c> is true; see <see cref="Onboarding.OnboardingConfiguration"/>.
+    /// </summary>
+    public Onboarding.OnboardingOptions Onboarding { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets how self-service registration behaves for this deployment.
     /// </summary>
     public RegistrationOptions Registration { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets presentation-only copy for user and organization invitation setup.
+    /// </summary>
+    public Invitations.InvitationOptions Invitations { get; set; } = new();
 
     /// <summary>
     /// Gets or sets the organization-name rules for this deployment.
@@ -79,6 +103,27 @@ public class AnteOptions
     public string CustomCssUrl { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the title of the browser tab. It is written into the page before any script runs, so it is
+    /// right from the first paint rather than after the application has loaded.
+    /// </summary>
+    public string PageTitle { get; set; } = "Ante";
+
+    /// <summary>
+    /// Gets or sets the accessible name announced for the screen shown while the application loads
+    /// (for example <c language="csharp">Loading Studio</c>).
+    /// </summary>
+    public string SplashMessage { get; set; } = "Loading";
+
+    /// <summary>
+    /// Gets or sets the markup of the screen shown from the first byte until the application has loaded,
+    /// replacing the default one - the logo above a spinner. It is trusted markup from deployment
+    /// configuration and is written into the page as it is; style it with <see cref="CustomCssUrl"/>.
+    /// When empty, the default screen is used, which already follows <see cref="LogoUrl"/>,
+    /// <see cref="CustomCssUrl"/> and the <c language="csharp">--ante-splash-*</c> custom properties.
+    /// </summary>
+    public string SplashHtml { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the base URL of the identity backchannel Ante calls to check whether the identity a
     /// user signed in with is already associated with a user in the organization they are joining
     /// (for example <c language="csharp">https://host.example.com/api/internal/identity-providers</c>).
@@ -97,6 +142,20 @@ public class AnteOptions
     /// <see href="https://github.com/Cratis/Ante/issues/22">Cratis/Ante#22</see>.
     /// </summary>
     public string HostOutcomeUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the per-host bearer secret Ante sends as <c language="csharp">Authorization: Bearer</c>
+    /// on its calls to <see cref="IdentityBackchannelUrl"/>. At least 32 characters, and the URL must be https
+    /// outside Development. When empty, no credential is sent. Keep it in a secret store, never in a URL.
+    /// </summary>
+    public string IdentityBackchannelCredential { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the per-host bearer secret Ante sends as <c language="csharp">Authorization: Bearer</c>
+    /// on its calls to <see cref="HostOutcomeUrl"/>. At least 32 characters, and the URL must be https
+    /// outside Development. When empty, no credential is sent. Keep it in a secret store, never in a URL.
+    /// </summary>
+    public string HostOutcomeCredential { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the default language for visitors without a recognized preference.

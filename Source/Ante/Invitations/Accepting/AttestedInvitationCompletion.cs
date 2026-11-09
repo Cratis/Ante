@@ -1,7 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.Receiving;
+using Ante.Invitations.UserSetup;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
@@ -333,6 +335,8 @@ public class AttestedInvitationCompletion(
         typeof(JoinTenantInvitationReceived).GetEventType(),
         typeof(CreateTenantInvitationReceived).GetEventType(),
         typeof(InvitationRevocationReceived).GetEventType(),
+        typeof(UserSetupCompleted).GetEventType(),
+        typeof(OrganizationSetupCompleted).GetEventType(),
         typeof(InvitationToJoinTenantAccepted).GetEventType(),
         typeof(InvitationToCreateTenantAccepted).GetEventType(),
     ];
@@ -372,7 +376,8 @@ public class AttestedInvitationCompletion(
         var receipts = history.Select(entry => entry.Content).Where(content =>
             content is JoinTenantInvitationReceived or CreateTenantInvitationReceived).ToArray();
         if (receipts.Length != 1 || history.Any(entry => entry.Content is
-            InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted) ||
+            InvitationRevocationReceived or InvitationToJoinTenantAccepted or InvitationToCreateTenantAccepted or
+            UserSetupCompleted or OrganizationSetupCompleted) ||
             !AttestedInvitationStaging.ReceiptMatches(receipts[0], stage.FlowType, stage.RecipientEmail))
         {
             return false;

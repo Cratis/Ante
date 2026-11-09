@@ -2,7 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using Ante.Contracts.Legal;
+using Ante.IdentityProviders;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.Receiving;
@@ -106,7 +108,10 @@ public class OneUseJoinTenantInvitationConstraint : IConstraint
         .ForEventLog()
         .Unique<InvitationToJoinTenantAccepted>(
             "This invitation has already been accepted.",
-            UserSetupConstraintNames.OneUseInvitation);
+            UserSetupConstraintNames.OneUseInvitation)
+        .Unique<UserSetupCompleted>(
+            "This invitation has already been accepted.",
+            UserSetupConstraintNames.OneUseInvitation + "Completed");
 }
 
 /// <summary>
@@ -137,12 +142,10 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// <returns>
     /// A <see cref="Result{T0, T1}"/> containing either the resolved identity or a failed <see cref="ValidationResult"/>.
     /// </returns>
-    // Projected inputs are advisory. Handle rechecks ownership and returns the authoritative
-    // invitation/legal revision scopes; one-use and onboarding-attempt constraints arbitrate append.
-    // Arc documents parameter-level Unprotected for these intentional legacy reads.
+    [SuppressMessage("Arc.Chronicle", "ARCCHR0011:Plain read model in event-producing command is unprotected", Justification = "Advisory read: it resolves the identity and asks the organization about it before Handle, which reads the invitation again and appends behind the acceptance fence.")]
     public async Task<Result<AcceptingUserIdentity, ValidationResult>> Provide(
         ISignedInIdentity signedInIdentity,
-        [Cratis.Arc.Chronicle.ReadModels.Unprotected] PendingInvitationToJoin? pendingInvitation,
+        PendingInvitationToJoin? pendingInvitation,
         IIdentityBackchannel identityBackchannel)
     {
         if (pendingInvitation is null)
@@ -187,10 +190,11 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     /// forwarded to the outbox. <see cref="JoinTenantAcceptanceOutbox"/> marks it once the acceptance is
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
+    [SuppressMessage("Arc.Chronicle", "ARCCHR0011:Plain read model in event-producing command is unprotected", Justification = "Advisory reads: they only reject early. The acceptance fence guards the invitation stream's revision at append time, and the one-use invitation and onboarding attempt constraints reject a second acceptance.")]
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
         AcceptingUserIdentity identity,
-        [Cratis.Arc.Chronicle.ReadModels.Unprotected] PendingInvitationToJoin? pendingInvitation,
-        [Cratis.Arc.Chronicle.ReadModels.Unprotected] OrganizationSetupProgress? existingSetup,
+        PendingInvitationToJoin? pendingInvitation,
+        OrganizationSetupProgress? existingSetup,
         ILegalDocumentSource legalDocumentSource,
         IInvitationAcceptanceFence acceptanceFence,
         ISignedInIdentity signedInIdentity,
@@ -201,6 +205,8 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
             return ValidationResult.Error(Messages.Get("AcceptNotPending"));
         }
 
+        var issuer = signedInIdentity.ResolveIssuer(InvitationId);
+
         // Resolved once, authoritatively, from the host's document source as it reads right now - not
         // trusted from the command payload - so the version recorded as evidence is always the version
         // this very check just confirmed was accepted.
@@ -210,7 +216,8 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
             AcceptedLegalVersion,
             pendingInvitation.TenantName,
             identity.Provider,
-            identity.Subject.ToString());
+            identity.Subject.ToString(),
+            issuer);
         if (!legalResolution.TryGetResult(out var legalEvidence))
         {
             legalResolution.TryGetError(out var legalError);
@@ -231,7 +238,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
-            new InvitationToJoinTenantAccepted(
+            new UserSetupCompleted(
                 pendingInvitation.TenantName,
                 identity.Provider,
                 identity.Subject.ToString(),
@@ -239,7 +246,11 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
                 MiddleName ?? Contracts.Invitations.MiddleName.NotSet,
                 LastName,
                 pendingInvitation.Email,
-                pendingInvitation.Roles),
+                pendingInvitation.Roles)
+            {
+                IdentityProviderKey = issuer.Key,
+                IdentityIssuer = issuer.IssuerValue,
+            },
         };
         if (owner is not null)
         {
@@ -326,9 +337,13 @@ public record UserSetupAcceptanceStatusView(InvitationId InvitationId, UserSetup
 /// <param name="eventStore">The event store.</param>
 /// <param name="notifiers">Every registered <see cref="IPublicationStatusNotifier"/>, given a chance to accelerate a live status subscription once this fact is durably published.</param>
 /// <param name="logger">The logger.</param>
+/// <param name="ante">The deployment options; <c language="csharp">OperatorAudience</c> addresses replies whose request named no requester. When absent such replies are unaddressed.</param>
 [Reactor(eventSequence: EventSequenceId.LogId)]
-public class JoinTenantAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<JoinTenantAcceptanceOutbox> logger) : IReactor
+public class JoinTenantAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPublicationStatusNotifier> notifiers, ILogger<JoinTenantAcceptanceOutbox> logger, IOptions<AnteOptions>? ante = null) : IReactor
 {
+    public Task On(UserSetupCompleted @event, EventContext context, ReactorDelivery delivery) =>
+        eventStore.PublishToOutbox(delivery, context, @event.ToContract(), notifiers, logger, announceRecorded: true, operatorAudience: ante?.Value.OperatorAudience);
+
     /// <summary>
     /// Forwards the join-tenant accepted event to the outbox.
     /// </summary>
@@ -336,7 +351,7 @@ public class JoinTenantAcceptanceOutbox(IEventStore eventStore, IInstancesOf<IPu
     /// <param name="context">The event context.</param>
     /// <param name="delivery">The delivery being handled; a redelivery of it does not publish the fact again.</param>
     public async Task On(InvitationToJoinTenantAccepted @event, EventContext context, ReactorDelivery delivery) =>
-        await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger, announceRecorded: true);
+        await eventStore.PublishToOutbox(delivery, context, @event, notifiers, logger, announceRecorded: true, operatorAudience: ante?.Value.OperatorAudience);
 }
 
 /// <summary>

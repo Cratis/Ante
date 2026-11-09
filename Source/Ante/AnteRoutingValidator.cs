@@ -32,6 +32,9 @@ public static class AnteRoutingValidator
             throw new AnteNamespaceNotConfigured();
         }
 
+        ValidateAudience(options.Audience, nameof(AnteOptions.Audience));
+        ValidateAudience(options.OperatorAudience, nameof(AnteOptions.OperatorAudience));
+
         var legacyPresent = options.InboxSourceStore is not null;
         var listPresent = options.HostStores is not null;
         if (configuration is not null)
@@ -69,6 +72,15 @@ public static class AnteRoutingValidator
 
         options.HostStores = [.. stores];
     }
+
+    static void ValidateAudience(string? value, string setting)
+    {
+        // Empty means unset (an empty environment variable is how a deployment clears it); whitespace is a mistake.
+        if (!string.IsNullOrEmpty(value) && (string.IsNullOrWhiteSpace(value) || value.Trim() != value))
+        {
+            throw new AnteAudienceInvalid($"Ante:{setting} must be a nonempty audience name without surrounding whitespace; leave it out or empty to disable audience routing.");
+        }
+    }
 }
 
 /// <summary>The exception thrown when Ante:EventStore is empty.</summary>
@@ -86,3 +98,9 @@ public class AnteNamespaceNotConfigured() : Exception(
 /// <summary>The exception thrown when the host source store configuration is invalid.</summary>
 /// <param name="message">A diagnostic identifying the invalid setting.</param>
 public class AnteHostStoresInvalid(string message) : Exception(message);
+
+/// <summary>
+/// Thrown when <c language="csharp">Ante:Audience</c> or <c language="csharp">Ante:OperatorAudience</c> is not a usable audience name.
+/// </summary>
+/// <param name="message">The message.</param>
+public class AnteAudienceInvalid(string message) : Exception(message);

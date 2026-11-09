@@ -17,7 +17,7 @@ public class and_signup_context_is_supplied : a_started_registration
 
     [Fact]
     async Task should_publish_only_the_allowed_context() =>
-        await Scenario.ShouldHaveAppendedEvent<RegisterOrganization, OrganizationRegistrationCompleted>(
+        await Scenario.ShouldHaveAppendedEvent<RegisterOrganization, OrganizationRegistrationRecorded>(
             RegistrationId,
             e => e.SignupContext.Count == 1 && e.SignupContext[0] == new SignupContextEntry("offer", "trial"));
 

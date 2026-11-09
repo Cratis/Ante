@@ -2,9 +2,12 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Ante.Contracts.Legal;
+using Ante.Contracts.Onboarding;
 using Ante.Contracts.Organization;
 using Ante.Invitations.Accepting;
 using Ante.Legal.Receiving;
+using Ante.Onboarding.Provisioning;
+using Ante.Organization.Registration.Review;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventStoreSubscriptions;
 using Cratis.Chronicle.Reactors;
@@ -23,19 +26,23 @@ namespace Ante.Invitations.Receiving;
 /// <param name="scopeFactory">Creates a scope per delivery for Chronicle's event serializer.</param>
 /// <param name="logger">The incoming handler's logger.</param>
 /// <param name="exchange">The selected invitation exchange mode.</param>
+/// <param name="hostOutcomes">The durable host outcome configuration; absent means disabled.</param>
 public class IncomingInvitationSubscriptions(
     IChronicleClient client,
     IServiceScopeFactory scopeFactory,
     ILogger<IncomingInvitationReactor> logger,
-    IOptions<InvitationExchangeConfig> exchange)
+    IOptions<InvitationExchangeConfig> exchange,
+    IOptions<HostOutcomesConfig>? hostOutcomes = null)
 {
     const string LegacyReactorId = "Ante.Invitations.Receiving.IncomingInvitationReactor";
+    readonly bool _durableOutcomesRequired = hostOutcomes?.Value.Mode == HostOutcomesMode.DurableRequired;
     readonly HashSet<string> _registeredReactors = new(StringComparer.Ordinal);
     readonly HashSet<string> _subscribed = new(StringComparer.Ordinal);
     readonly Lock _readinessLock = new();
     IEventStore? _registeredStore;
     bool _initialized;
-    Task<bool>? _readinessProbe;
+    Task<string?>? _readinessProbe;
+    (Task<string?>? Source, Task<bool>? Result) _booleanProbe;
 
     /// <summary>Gets the stable cursor identity for a configured source store.</summary>
     /// <param name="source">The source store.</param>
@@ -53,6 +60,13 @@ public class IncomingInvitationSubscriptions(
     /// <param name="source">The source store.</param>
     /// <returns>The subscription id.</returns>
     public static EventStoreSubscriptionId SubscriptionIdFor(string source) => new(source);
+
+    /// <summary>Describes the configured inboxes without including dependency error details.</summary>
+    /// <param name="options">Validated startup routing options.</param>
+    /// <param name="reason">The safe reason for unavailability.</param>
+    /// <returns>The configured store and reactor identities.</returns>
+    public static string UnavailableInboxes(AnteOptions options, string reason = "handler missing or registration incomplete") =>
+        string.Join("; ", options.HostStores!.Select(source => Describe(source, reason)));
 
     /// <summary>Registers all source routes once for the client store instance.</summary>
     /// <param name="options">Validated startup routing options.</param>
@@ -93,7 +107,11 @@ public class IncomingInvitationSubscriptions(
                     logger,
                     exchange,
                     source,
-                    new LegalDocumentSetReceiver(store, Options.Create(options)));
+                    new LegalDocumentSetReceiver(store, Options.Create(options)),
+                    options.Registration.Review ? new RegistrationReviewReceiver(store, logger) : null,
+                    new ProvisioningCompletionReceiver(store, logger, source, _durableOutcomesRequired),
+                    options.OperatorAudience,
+                    _durableOutcomesRequired ? new HostProvisioningOutcomeReceiver(store, logger, source, new HostProvisioningProofVerifier(hostOutcomes!)) : null);
                 var receivesLegal = options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore;
                 await store.Reactors.Register(
                     ReactorIdFor(source),
@@ -105,10 +123,25 @@ public class IncomingInvitationSubscriptions(
                             .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationRevoked)))
                             .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationReissueRequested)))
                             .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReserved)))
-                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReleased)));
+                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReleased)))
+                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OnboardingProvisioningCompleted)));
+                        if (_durableOutcomesRequired)
+                        {
+                            configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningAttemptStarted)))
+                                .WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningSucceeded)))
+                                .WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningFailed)))
+                                .WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningRequiresNewInvitation)));
+                        }
+
                         if (receivesLegal)
                         {
                             configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(LegalDocumentSetPublished)));
+                        }
+
+                        if (options.Registration.Review)
+                        {
+                            configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationRegistrationApproved)))
+                                .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationRegistrationDeclineRequested)));
                         }
                     },
                     async (delivery, _) =>
@@ -135,15 +168,36 @@ public class IncomingInvitationSubscriptions(
                 source,
                 definition =>
                 {
+                    // Audience routing: only what the host addressed to this lobby crosses; unset keeps the whole outbox.
+                    if (!string.IsNullOrEmpty(options.Audience))
+                    {
+                        definition.ForAudience(options.Audience);
+                    }
+
                     definition.WithEventType<UserInvitedToJoinTenant>()
                         .WithEventType<UserInvitedToCreateTenant>()
                         .WithEventType<InvitationRevoked>()
                         .WithEventType<InvitationReissueRequested>()
                         .WithEventType<OrganizationNameReserved>()
-                        .WithEventType<OrganizationNameReleased>();
+                        .WithEventType<OrganizationNameReleased>()
+                        .WithEventType<OnboardingProvisioningCompleted>();
+                    if (_durableOutcomesRequired)
+                    {
+                        definition.WithEventType<HostProvisioningAttemptStarted>()
+                            .WithEventType<HostProvisioningSucceeded>()
+                            .WithEventType<HostProvisioningFailed>()
+                            .WithEventType<HostProvisioningRequiresNewInvitation>();
+                    }
+
                     if (options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore)
                     {
                         definition.WithEventType<LegalDocumentSetPublished>();
+                    }
+
+                    if (options.Registration.Review)
+                    {
+                        definition.WithEventType<OrganizationRegistrationApproved>()
+                            .WithEventType<OrganizationRegistrationDeclineRequested>();
                     }
                 }).WaitAsync(cancellationToken);
             lock (_readinessLock)
@@ -163,13 +217,30 @@ public class IncomingInvitationSubscriptions(
     /// <returns>Whether all inboxes have a subscribed reactor.</returns>
     public Task<bool> IsReady(AnteOptions options)
     {
+        lock (_readinessLock)
+        {
+            var probe = GetReadinessFailure(options);
+            if (!ReferenceEquals(_booleanProbe.Source, probe))
+            {
+                _booleanProbe = (probe, IsHealthy(probe));
+            }
+
+            return _booleanProbe.Result;
+        }
+    }
+
+    /// <summary>Gets a safe description of the unavailable host inbox, or null when ready.</summary>
+    /// <param name="options">Validated startup routing options.</param>
+    /// <returns>The host store, reactor and reason for unavailability.</returns>
+    public Task<string?> GetReadinessFailure(AnteOptions options)
+    {
         // A cancelled health request must not start another kernel state RPC while a prior one
         // remains blocked: the Chronicle handler's GetState API has no cancellation argument.
         lock (_readinessLock)
         {
             if (!_initialized)
             {
-                return Task.FromResult(false);
+                return Task.FromResult<string?>(UnavailableInboxes(options));
             }
 
             if (_readinessProbe?.IsCompleted != false)
@@ -181,14 +252,39 @@ public class IncomingInvitationSubscriptions(
         }
     }
 
-    async Task<bool> CheckReadiness(AnteOptions options)
+    static async Task<bool> IsHealthy(Task<string?> probe) => await probe is null;
+
+    static async Task<string?> CheckInbox(IEventStore store, string source)
+    {
+        try
+        {
+            var handler = store.Reactors.GetHandlerById(ReactorIdFor(source));
+            var state = await handler.GetState();
+            return state.IsSubscribed && state.RunningState is ObserverRunningState.Active or ObserverRunningState.Replaying
+                ? null
+                : Describe(source, $"handler not running (subscribed: {state.IsSubscribed}, state: {state.RunningState})");
+        }
+        catch (UnknownReactorId)
+        {
+            return Describe(source, "handler missing");
+        }
+        catch (Exception)
+        {
+            // Dependency exception text may contain connection details. Report only the route identity.
+            return Describe(source, "handler state unavailable");
+        }
+    }
+
+    static string Describe(EventStoreName source, string reason) => $"Host event store '{source}', reactor '{ReactorIdFor(source)}': {reason}.";
+
+    async Task<string?> CheckReadiness(AnteOptions options)
     {
         IEventStore store;
         lock (_readinessLock)
         {
             if (!_initialized || _registeredReactors.Count != options.HostStores?.Count)
             {
-                return false;
+                return UnavailableInboxes(options);
             }
 
             store = _registeredStore!;
@@ -198,23 +294,13 @@ public class IncomingInvitationSubscriptions(
         {
             // Chronicle replaces registered handlers on reconnect while keeping the client store instance.
             // Resolve the current handler instead of retaining a reference to one that may be disposed.
-            IReactorHandler handler;
-            try
+            var failure = await CheckInbox(store, source);
+            if (failure is not null)
             {
-                handler = store.Reactors.GetHandlerById(ReactorIdFor(source));
-            }
-            catch (UnknownReactorId)
-            {
-                return false;
-            }
-
-            var state = await handler.GetState();
-            if (!state.IsSubscribed || state.RunningState is not (ObserverRunningState.Active or ObserverRunningState.Replaying))
-            {
-                return false;
+                return failure;
             }
         }
 
-        return true;
+        return null;
     }
 }

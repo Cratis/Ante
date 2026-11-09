@@ -51,7 +51,7 @@ public class and_legal_terms_are_accepted_with_the_current_version : Specificati
 
     [Fact]
     async Task should_have_appended_the_legal_terms_accepted_event() =>
-        await _scenario.ShouldHaveAppendedEvent<AcceptInvitation, LegalTermsAccepted>(
+        await _scenario.ShouldHaveAppendedEvent<AcceptInvitation, LegalTermsAcceptanceRecorded>(
             _invitationId,
             e => e.TenantName == "Acme" && e.Version == _currentDocuments.Version && e.IdentityProviderSubject == _subject.ToString());
 }

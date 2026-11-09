@@ -90,7 +90,7 @@ public record HostOutcomeAnswer(string Status, string? ReasonCode);
 /// ever queried.
 /// </remarks>
 /// <param name="httpClient">The HTTP client used to reach the host.</param>
-/// <param name="options">The Ante options carrying the configured host outcome URL.</param>
+/// <param name="options">The Ante options carrying the configured host outcome URL and credential.</param>
 /// <param name="logger">The logger.</param>
 public class HostOutcomeBackchannel(
     HttpClient httpClient,
@@ -111,7 +111,10 @@ public class HostOutcomeBackchannel(
 
         try
         {
-            var answer = await httpClient.GetFromJsonAsync<HostOutcomeAnswer>(url);
+            using var request = BackchannelCredentials.CreateRequest(url, options.Value.HostOutcomeCredential);
+            using var response = await httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            var answer = await response.Content.ReadFromJsonAsync<HostOutcomeAnswer>();
             return ParseAnswer(answer);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or NotSupportedException or System.Text.Json.JsonException)
@@ -196,7 +199,7 @@ public record HostOutcomeView(InvitationId AttemptId, bool IsConfigured, HostOut
 
     // An invited attempt is owned through its verified invitation session; a self-service registration
     // through the owner recorded with it. Either way only that exact sign-in may see the host's answer.
-    static async Task<bool> IsOwner(InvitationId attemptId, ISignedInIdentity signedInIdentity, IEventStore eventStore)
+    internal static async Task<bool> IsOwner(InvitationId attemptId, ISignedInIdentity signedInIdentity, IEventStore eventStore)
     {
         if (signedInIdentity.IsVerifiedRecoveryOwnerOf(attemptId, eventStore))
         {
