@@ -30,7 +30,7 @@ export default defineConfig({
         { name: 'chromium', use: { ...devices['Desktop Chrome'] } }
     ],
     webServer: {
-        command: 'dotnet run --project Host/Ante.E2E.Host.csproj',
+        command: 'dotnet run --project Host/Ante.E2E.Host.csproj -p:CratisProxiesOutputPath=',
         url: `${controlUrl}/ready`,
         reuseExistingServer: !isCI,
         timeout: 300_000,
