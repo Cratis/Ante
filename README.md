@@ -9,7 +9,7 @@ Ante is Cratis's invitation and onboarding lobby: it signs tokens for host-issue
 
 Start with [Documentation](https://github.com/Cratis/Ante/blob/main/Documentation/index.md) for host integration, operations, architecture and configuration. Configure incoming host outbox stores with `Ante:HostStores` (defaults to `["Direct"]`); changing the list requires a restart, not a rebuild. [Local development](https://github.com/Cratis/Ante/blob/main/Documentation/local-development.md) lists the full CI checks.
 
-To build the .NET solution with the .NET 10 SDK:
+To build the .NET solution with the .NET 11 SDK:
 
 ```bash
 dotnet build Ante.slnx --configuration Debug

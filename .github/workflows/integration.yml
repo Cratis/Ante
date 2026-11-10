@@ -41,7 +41,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "11.0.x"
 
       - name: Setup Node (proxy generation runs during the Debug build)
         uses: actions/setup-node@v4
@@ -55,7 +55,7 @@ jobs:
         env:
           # Empty on pull requests: the fixture then uses the server release matching the pinned client.
           ANTE_CHRONICLE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.chronicle-image || github.event_name == 'schedule' && 'cratis/chronicle:latest-development' || '' }}
-        run: ./Integration/bin/Debug/net10.0/Ante.Integration.Specs
+        run: ./Integration/bin/Debug/net11.0/Ante.Integration.Specs
 
   browser:
     name: Browser end-to-end${{ github.event.action == 'labeled' && github.event.label.name != 'run-integration' && format(' - {0}', github.event.label.name) || '' }}
@@ -103,7 +103,7 @@ jobs:
         if: steps.license.outputs.available == 'true'
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "11.0.x"
 
       - name: Setup Node
         if: steps.license.outputs.available == 'true'
@@ -187,7 +187,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "11.0.x"
 
       - name: Setup Node
         uses: actions/setup-node@v4
