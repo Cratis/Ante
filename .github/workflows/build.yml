@@ -48,11 +48,11 @@ jobs:
       # inline specs and the Contracts runner, and Release is a build-only check.
       - name: Build (Debug)
         if: matrix.configuration == 'Debug'
-        run: dotnet build Ante.slnx --configuration Debug -p:DisableProxyGenerator=true
+        run: dotnet build Ante.slnx --configuration Debug -p:CratisProxiesOutputPath=
 
       - name: Build (Release)
         if: matrix.configuration == 'Release'
-        run: dotnet build Ante.slnx --configuration Release -p:DisableProxyGenerator=true
+        run: dotnet build Ante.slnx --configuration Release -p:CratisProxiesOutputPath=
 
       - name: Test
         if: matrix.configuration == 'Debug'
@@ -82,7 +82,7 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Build backend (proxy generation off, no test execution needed here)
-        run: dotnet build Ante.slnx --configuration Debug -p:DisableProxyGenerator=true
+        run: dotnet build Ante.slnx --configuration Debug -p:CratisProxiesOutputPath=
 
       - name: Corepack enable
         run: corepack enable
