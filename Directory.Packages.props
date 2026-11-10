@@ -15,9 +15,6 @@
     <!-- Keep Chronicle clients and testing support on the same release. -->
     <PackageVersion Include="Cratis.Chronicle" Version="19.153.0" />
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.153.0" />
-    <!-- Compiler toolset — pinned to match the Roslyn version Cratis.Arc.Core's and Cratis.Chronicle's
-         analyzers were built against (CS9057 otherwise). -->
-    <PackageVersion Include="Microsoft.Net.Compilers.Toolset" Version="5.9.0" />
     <!-- Referenced directly (Debug-only, see Source/Directory.Build.props) so the version lands in the
          test output directory: Cratis's generated type-discovery provider loads
          Microsoft.CodeAnalysis.CSharp at runtime, and without a direct reference it is absent from

@@ -79,7 +79,15 @@ public class an_outbox_forward_held_after_its_append<TReactor, TFact> : two_runn
 
         // Stop the forwarding instance while its handler is still inside the forward, then let the abandoned handler go.
         var stopping = forwarding.DisposeAsync().AsTask();
-        StoppedWithinTimeout = await Task.WhenAny(stopping, Task.Delay(Eventually.DefaultTimeout)) == stopping;
+        try
+        {
+            await stopping.WaitAsync(Eventually.DefaultTimeout);
+            StoppedWithinTimeout = true;
+        }
+        catch (TimeoutException)
+        {
+            StoppedWithinTimeout = false;
+        }
         _hold.Release();
         await stopping;
 
