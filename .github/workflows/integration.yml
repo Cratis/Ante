@@ -49,7 +49,7 @@ jobs:
           node-version: 22.x
 
       - name: Build container-backed specifications
-        run: dotnet build Integration/Ante.Integration.Specs.csproj --configuration Debug
+        run: dotnet build Integration/Ante.Integration.Specs.csproj --configuration Debug -p:CratisProxiesOutputPath=
 
       - name: Run container-backed specifications
         env:
@@ -138,7 +138,7 @@ jobs:
 
       - name: Build the E2E host
         if: steps.license.outputs.available == 'true'
-        run: dotnet build E2E/Host/Ante.E2E.Host.csproj --configuration Debug
+        run: dotnet build E2E/Host/Ante.E2E.Host.csproj --configuration Debug -p:CratisProxiesOutputPath=
 
       # Pulled up front so the download does not count against Playwright's wait for the E2E host to start. The
       # fallback is the fixture's default image (ChronicleInfrastructure.DefaultImage).
