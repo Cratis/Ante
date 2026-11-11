@@ -36,23 +36,18 @@ export type RegistrationStatusPollingOptions = {
     recoveryPhase: string;
 };
 
-/**
- * Keeps a self-service registration's durable status fresh: bounds the polling window and refreshes the
- * status query until a decision, acceptance or the window's end.
- * @param options The registration being tracked and the state the polling decisions depend on.
- * @returns Whether the polling window expired, and the action that starts a fresh window.
- */
-export const useRegistrationStatusPolling = ({ invitationId, isRegistration, submitted, recoveringRegistration, registrationStatus, refreshRegistration, isAccepted, reviewStatus, recoveryPhase }: RegistrationStatusPollingOptions) => {
-    const [pollWindowExpired, setPollWindowExpired] = useState(false);
+const useInitialQueryPending = (invitationId: Guid, registrationStatus: RegistrationStatusResult) => {
     const firstRegistrationResultRef = useRef({ id: invitationId.toString(), result: registrationStatus });
     if (firstRegistrationResultRef.current.id !== invitationId.toString()) {
         firstRegistrationResultRef.current = { id: invitationId.toString(), result: registrationStatus };
     }
     // A cached snapshot starts with isPerforming=false even while Arc's automatic initial fetch is
     // in flight. Wait for that fetch to settle into a new result before starting any refresh.
-    const initialQueryPending = registrationStatus === firstRegistrationResultRef.current.result || registrationStatus.isPerforming;
-    const pollRef = useRef({ refreshRegistration, initialQueryPending });
-    pollRef.current = { refreshRegistration, initialQueryPending };
+    return registrationStatus === firstRegistrationResultRef.current.result || registrationStatus.isPerforming;
+};
+
+const usePollingWindow = ({ isRegistration, submitted, recoveringRegistration, isAccepted, reviewStatus }: RegistrationStatusPollingOptions) => {
+    const [pollWindowExpired, setPollWindowExpired] = useState(false);
     const isOperation = submitted || recoveringRegistration;
 
     // A fresh registration id is not an operation yet: never poll it until the command succeeds.
@@ -65,6 +60,24 @@ export const useRegistrationStatusPolling = ({ invitationId, isRegistration, sub
         return () => globalThis.clearTimeout(timeout);
     }, [isRegistration, submitted, recoveringRegistration, pollWindowExpired, isAccepted, reviewStatus]);
 
+    return { pollWindowExpired, resetPollWindow: () => setPollWindowExpired(false) };
+};
+
+/**
+ * Keeps a self-service registration's durable status fresh: bounds the polling window and refreshes the
+ * status query until a decision, acceptance or the window's end.
+ * @param options The registration being tracked and the state the polling decisions depend on.
+ * @returns Whether the polling window expired, and the action that starts a fresh window.
+ */
+export const useRegistrationStatusPolling = (options: RegistrationStatusPollingOptions) => {
+    const { invitationId, isRegistration, submitted, recoveringRegistration, registrationStatus, refreshRegistration, recoveryPhase } = options;
+    const initialQueryPending = useInitialQueryPending(invitationId, registrationStatus);
+    const pollRef = useRef({ refreshRegistration, initialQueryPending });
+    pollRef.current = { refreshRegistration, initialQueryPending };
+    const isOperation = submitted || recoveringRegistration;
+    const window = usePollingWindow(options);
+    const { pollWindowExpired } = window;
+
     useEffect(() => {
         if (!shouldRecheckRegistrationStatus(
             isRegistration, isOperation,
@@ -74,5 +87,5 @@ export const useRegistrationStatusPolling = ({ invitationId, isRegistration, sub
             () => pollRef.current.initialQueryPending);
     }, [isRegistration, submitted, recoveringRegistration, pollWindowExpired, recoveryPhase, registrationStatus.hasData, registrationStatus.data?.status, invitationId]);
 
-    return { pollWindowExpired, resetPollWindow: () => setPollWindowExpired(false) };
+    return window;
 };
