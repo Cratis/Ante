@@ -11,7 +11,7 @@ namespace Ante.Invitations.Issuing.for_InvitationTokenMetadataEndpoints;
 
 public class when_serving_jwks : given.a_metadata_host
 {
-    readonly Dictionary<string, (string Modulus, string Exponent)> _expected = new(StringComparer.Ordinal);
+    readonly Dictionary<string, (string Modulus, string Exponent)> _expected = [with(StringComparer.Ordinal)];
     HttpResponseMessage _response = null!;
     JsonDocument _document = null!;
 
