@@ -54,6 +54,13 @@ public class and_legal_terms_are_accepted_with_the_current_version : Specificati
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
 
     [Fact]
+    void should_preserve_the_attempt_setup_and_legal_acceptance_order() =>
+        Assert.Collection(_scenario.AppendedEvents,
+            e => Assert.IsType<OnboardingAttemptClaimed>(e.Event.Content),
+            e => Assert.IsType<OrganizationSetupCompleted>(e.Event.Content),
+            e => Assert.IsType<LegalTermsAcceptanceRecorded>(e.Event.Content));
+
+    [Fact]
     async Task should_have_appended_the_legal_terms_accepted_event() =>
         await _scenario.ShouldHaveAppendedEvent<SetupOrganization, LegalTermsAcceptanceRecorded>(
             _invitationId,
