@@ -6,6 +6,14 @@ using Cratis.Chronicle.Events.Migrations;
 namespace Ante.Invitations.OrganizationSetup;
 
 /// <summary>Generation 1 of <see cref="OrganizationSetupCompleted"/>, before the identity provider key and issuer were carried.</summary>
+/// <param name="TenantName">The TenantName carried by generation 1.</param>
+/// <param name="IdentityProvider">The IdentityProvider carried by generation 1.</param>
+/// <param name="IdentityProviderSubject">The IdentityProviderSubject carried by generation 1.</param>
+/// <param name="FirstName">The FirstName carried by generation 1.</param>
+/// <param name="MiddleName">The MiddleName carried by generation 1.</param>
+/// <param name="LastName">The LastName carried by generation 1.</param>
+/// <param name="Email">The Email carried by generation 1.</param>
+/// <param name="Roles">The Roles carried by generation 1.</param>
 [EventTypeGenerationFor<OrganizationSetupCompleted>(1)]
 public record OrganizationSetupCompletedV1(
     TenantName TenantName,

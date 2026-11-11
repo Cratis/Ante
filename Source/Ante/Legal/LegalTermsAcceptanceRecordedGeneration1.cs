@@ -1,11 +1,16 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Ante.Contracts.Legal;
 using Cratis.Chronicle.Events.Migrations;
 
 namespace Ante.Legal;
 
 /// <summary>Generation 1 of <see cref="LegalTermsAcceptanceRecorded"/>, before the identity provider key and issuer were carried.</summary>
+/// <param name="TenantName">The TenantName carried by generation 1.</param>
+/// <param name="IdentityProvider">The IdentityProvider carried by generation 1.</param>
+/// <param name="IdentityProviderSubject">The IdentityProviderSubject carried by generation 1.</param>
+/// <param name="Version">The Version carried by generation 1.</param>
 [EventTypeGenerationFor<LegalTermsAcceptanceRecorded>(1)]
 public record LegalTermsAcceptanceRecordedV1(
     TenantName TenantName,

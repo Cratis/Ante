@@ -7,6 +7,14 @@ using Cratis.Chronicle.Events.Migrations;
 namespace Ante.Organization.Registration;
 
 /// <summary>Generation 1 of <see cref="OrganizationRegistrationRecorded"/>, before the identity provider key and issuer were carried.</summary>
+/// <param name="TenantName">The TenantName carried by generation 1.</param>
+/// <param name="Subject">The Subject carried by generation 1.</param>
+/// <param name="IdentityProvider">The IdentityProvider carried by generation 1.</param>
+/// <param name="FirstName">The FirstName carried by generation 1.</param>
+/// <param name="MiddleName">The MiddleName carried by generation 1.</param>
+/// <param name="LastName">The LastName carried by generation 1.</param>
+/// <param name="Email">The Email carried by generation 1.</param>
+/// <param name="SignupContext">The SignupContext carried by generation 1.</param>
 [EventTypeGenerationFor<OrganizationRegistrationRecorded>(1)]
 public record OrganizationRegistrationRecordedV1(
     TenantName TenantName,
