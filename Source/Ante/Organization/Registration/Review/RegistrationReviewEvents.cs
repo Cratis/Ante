@@ -18,7 +18,7 @@ namespace Ante.Organization.Registration.Review;
 /// <param name="LastName">The last name of the registering user.</param>
 /// <param name="Email">The email address of the registering user.</param>
 /// <param name="SignupContext">The allowlisted signup context.</param>
-[EventType]
+[EventType(generation: 2)]
 public record OrganizationRegistrationHeld(
     TenantName TenantName,
     string Subject,

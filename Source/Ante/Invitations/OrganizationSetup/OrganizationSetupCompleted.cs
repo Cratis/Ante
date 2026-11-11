@@ -3,7 +3,7 @@
 
 namespace Ante.Invitations.OrganizationSetup;
 
-[EventType]
+[EventType(generation: 2)]
 public record OrganizationSetupCompleted(
     TenantName TenantName,
     IdentityProviderName IdentityProvider,

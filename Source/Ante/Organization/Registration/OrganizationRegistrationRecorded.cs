@@ -6,7 +6,7 @@ using Ante.Organization.Registration.Review;
 
 namespace Ante.Organization.Registration;
 
-[EventType]
+[EventType(generation: 2)]
 public record OrganizationRegistrationRecorded(
     TenantName TenantName,
     string Subject,

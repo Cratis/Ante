@@ -5,7 +5,7 @@ using Ante.Contracts.Legal;
 
 namespace Ante.Legal;
 
-[EventType]
+[EventType(generation: 2)]
 public record LegalTermsAcceptanceRecorded(TenantName TenantName, IdentityProviderName IdentityProvider, string IdentityProviderSubject, LegalVersion Version)
 {
     /// <summary>Gets the canonical provider key the user authenticated with; empty when unknown.</summary>
