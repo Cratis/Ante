@@ -263,7 +263,14 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         }
 
         var issuer = signedInIdentity.ResolveIssuer(InvitationId);
-        var legalResolution = await ResolveLegalAcceptance(legalDocumentSource, identityProviderValue, complianceSubject, issuer);
+        var legalResolution = await LegalAcceptanceEvidence.ResolveWithScope(
+            legalDocumentSource,
+            AcceptedLegalTerms,
+            AcceptedLegalVersion,
+            OrganizationName,
+            identityProviderValue,
+            complianceSubject.ToString(),
+            issuer);
         if (!legalResolution.TryGetResult(out var legalEvidence))
         {
             legalResolution.TryGetError(out var legalError);
@@ -281,8 +288,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
             return ValidationResult.Error(Messages.Get("SetupNotPending"));
         }
 
-        var completed = CreateSetupEvent(pendingInvitation, identityProviderValue, complianceSubject, issuer);
-        var events = CreateEvents(completed, owner, legalEvidence);
+        var events = CreateEvents(pendingInvitation, identityProviderValue, complianceSubject, issuer, owner, legalEvidence);
         var scope = await acceptanceFence.For(InvitationId, InvitationFlowType.CreateTenant);
         if (scope is null)
         {
@@ -292,12 +298,30 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         return (complianceSubject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence, scope));
     }
 
-    static List<object> CreateEvents(OrganizationSetupCompleted completed, InvitedAcceptanceOwnerRecorded? owner, LegalAcceptanceSnapshot legalEvidence)
+    List<object> CreateEvents(
+        PendingInvitationToCreateOrganization pendingInvitation,
+        IdentityProviderName identityProviderValue,
+        Cratis.Chronicle.Subject complianceSubject,
+        IdentityIssuerEvidence issuer,
+        InvitedAcceptanceOwnerRecorded? owner,
+        LegalAcceptanceSnapshot legalEvidence)
     {
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
-            completed,
+            new OrganizationSetupCompleted(
+                OrganizationName,
+                identityProviderValue,
+                complianceSubject.ToString(),
+                FirstName,
+                MiddleName ?? MiddleName.NotSet,
+                LastName,
+                pendingInvitation.Email,
+                pendingInvitation.Roles)
+            {
+                IdentityProviderKey = issuer.Key,
+                IdentityIssuer = issuer.IssuerValue,
+            },
         };
         if (owner is not null)
         {
@@ -307,31 +331,6 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         events.AddRange(legalEvidence.Events);
         return events;
     }
-
-    Task<Result<LegalAcceptanceSnapshot, ValidationResult>> ResolveLegalAcceptance(
-        ILegalDocumentSource source,
-        IdentityProviderName provider,
-        Cratis.Chronicle.Subject subject,
-        IdentityIssuerEvidence issuer) =>
-        LegalAcceptanceEvidence.ResolveWithScope(source, AcceptedLegalTerms, AcceptedLegalVersion, OrganizationName, provider, subject.ToString(), issuer);
-
-    OrganizationSetupCompleted CreateSetupEvent(
-        PendingInvitationToCreateOrganization invitation,
-        IdentityProviderName provider,
-        Cratis.Chronicle.Subject subject,
-        IdentityIssuerEvidence issuer) => new(
-            OrganizationName,
-            provider,
-            subject.ToString(),
-            FirstName,
-            MiddleName ?? MiddleName.NotSet,
-            LastName,
-            invitation.Email,
-            invitation.Roles)
-        {
-            IdentityProviderKey = issuer.Key,
-            IdentityIssuer = issuer.IssuerValue,
-        };
 }
 
 /// <summary>
@@ -386,13 +385,10 @@ public record OrganizationSetupAcceptanceStatusView(InvitationId InvitationId, O
         }
 
         var actor = signedInIdentity.CaptureRecoveryActor();
-        if (actor is null)
-        {
-            return new BehaviorSubject<OrganizationSetupAcceptanceStatusView>(new(invitationId, OrganizationSetupAcceptanceStatus.Pending, TenantName.NotSet));
-        }
-
-        return new InvitationStatusOwnerFilter<OrganizationSetupAcceptanceStatusView>(
-            status, invitationId, actor, eventStore, view => view.Status == OrganizationSetupAcceptanceStatus.Pending);
+        return actor is null
+            ? new BehaviorSubject<OrganizationSetupAcceptanceStatusView>(new(invitationId, OrganizationSetupAcceptanceStatus.Pending, TenantName.NotSet))
+            : new InvitationStatusOwnerFilter<OrganizationSetupAcceptanceStatusView>(
+                status, invitationId, actor, eventStore, view => view.Status == OrganizationSetupAcceptanceStatus.Pending);
     }
 
     /// <summary>
