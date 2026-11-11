@@ -235,30 +235,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
             return ValidationResult.Error(Messages.Get("AcceptNotPending"));
         }
 
-        var events = new List<object>
-        {
-            new OnboardingAttemptClaimed(),
-            new UserSetupCompleted(
-                pendingInvitation.TenantName,
-                identity.Provider,
-                identity.Subject.ToString(),
-                FirstName,
-                MiddleName ?? MiddleName.NotSet,
-                LastName,
-                pendingInvitation.Email,
-                pendingInvitation.Roles)
-            {
-                IdentityProviderKey = issuer.Key,
-                IdentityIssuer = issuer.IssuerValue,
-            },
-        };
-        if (owner is not null)
-        {
-            events.Add(owner);
-        }
-
-        events.AddRange(legalEvidence.Events);
-
+        var events = CreateEvents(CompleteSetup(pendingInvitation, identity, issuer), owner, legalEvidence);
         var scope = await acceptanceFence.For(InvitationId, InvitationFlowType.JoinTenant);
         if (scope is null)
         {
@@ -267,6 +244,37 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
 
         return (identity.Subject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence, scope));
     }
+
+    static List<object> CreateEvents(UserSetupCompleted completed, InvitedAcceptanceOwnerRecorded? owner, LegalAcceptanceSnapshot legalEvidence)
+    {
+        var events = new List<object>
+        {
+            new OnboardingAttemptClaimed(),
+            completed,
+        };
+        if (owner is not null)
+        {
+            events.Add(owner);
+        }
+
+        events.AddRange(legalEvidence.Events);
+        return events;
+    }
+
+    UserSetupCompleted CompleteSetup(PendingInvitationToJoin pendingInvitation, AcceptingUserIdentity identity, IdentityIssuerEvidence issuer) =>
+        new(
+            pendingInvitation.TenantName,
+            identity.Provider,
+            identity.Subject.ToString(),
+            FirstName,
+            MiddleName ?? MiddleName.NotSet,
+            LastName,
+            pendingInvitation.Email,
+            pendingInvitation.Roles)
+        {
+            IdentityProviderKey = issuer.Key,
+            IdentityIssuer = issuer.IssuerValue,
+        };
 }
 
 /// <summary>
