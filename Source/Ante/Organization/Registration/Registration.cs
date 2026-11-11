@@ -179,16 +179,10 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             return ValidationResult.Error(Messages.Get("RegisterIdentityRequired"));
         }
 
-        if (!await RegistrationSourceAvailability.IsAvailable(RegistrationId, eventStore))
+        var startError = await ValidateStart(owner, eventStore);
+        if (startError is not null)
         {
-            return ValidationResult.Error(Messages.Get("AttemptAlreadySubmitted"), reasonDetail: OnboardingAttemptConstraintNames.OneUseAttempt);
-        }
-
-        // Recheck the authoritative start at submission, not merely during /validate. A registration
-        // id is browser-generated and therefore cannot establish ownership without this local fact.
-        if (!await RegistrationStartHistory.BelongsTo(RegistrationId, owner, eventStore))
-        {
-            return ValidationResult.Error(Messages.Get("RegistrationOwnedByAnotherSignIn"));
+            return startError;
         }
 
         var quota = await RegistrationQuota.Check(eventStore, options.Value.Registration, owner, timeProvider.GetUtcNow());
@@ -215,15 +209,41 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             return legalError;
         }
 
+        var events = CreateEvents(owner, email, issuer, options.Value.Registration, legalEvidence);
+        var append = await LegalAcceptanceEvidence.ForAppend(eventStore, RegistrationId, events, legalEvidence);
+        return new EventsWithConcurrencyScopes(
+            [.. append.Events, new EventForEventSourceId(quota.Key, new RegistrationQuotaConsumed())],
+            [.. append.ConcurrencyScopes, new(quota.Key, quota.Scope)]);
+    }
+
+    async Task<ValidationResult?> ValidateStart(RegistrationOwner owner, IEventStore eventStore)
+    {
+        if (!await RegistrationSourceAvailability.IsAvailable(RegistrationId, eventStore))
+        {
+            return ValidationResult.Error(Messages.Get("AttemptAlreadySubmitted"), reasonDetail: OnboardingAttemptConstraintNames.OneUseAttempt);
+        }
+
+        // Recheck the authoritative start at submission, not merely during /validate. A registration
+        // id is browser-generated and therefore cannot establish ownership without this local fact.
+        if (!await RegistrationStartHistory.BelongsTo(RegistrationId, owner, eventStore))
+        {
+            return ValidationResult.Error(Messages.Get("RegistrationOwnedByAnotherSignIn"));
+        }
+
+        return null;
+    }
+
+    List<object> CreateEvents(RegistrationOwner owner, Email email, IdentityIssuerEvidence issuer, RegistrationOptions options, LegalAcceptanceSnapshot legalEvidence)
+    {
         var recorded = new OrganizationRegistrationRecorded(
             OrganizationName,
-            subject,
-            identityProviderValue,
+            owner.Subject.Value,
+            owner.Provider,
             FirstName,
             MiddleName ?? MiddleName.NotSet,
             LastName,
             email,
-            SignupContextRules.Filter(options.Value.Registration, SignupContext))
+            SignupContextRules.Filter(options, SignupContext))
         {
             IdentityProviderKey = issuer.Key,
             IdentityIssuer = issuer.IssuerValue,
@@ -233,15 +253,11 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             new OnboardingAttemptClaimed(),
 
             // A sign-up held for review is not a registration yet: nothing is published to the host until a reviewer approves it.
-            options.Value.Registration.Review ? recorded.ToHeld() : recorded,
+            options.Review ? recorded.ToHeld() : recorded,
             new RegistrationOwnerRecorded(owner.Subject, owner.Provider),
         };
         events.AddRange(legalEvidence.Events);
-
-        var append = await LegalAcceptanceEvidence.ForAppend(eventStore, RegistrationId, events, legalEvidence);
-        return new EventsWithConcurrencyScopes(
-            [.. append.Events, new EventForEventSourceId(quota.Key, new RegistrationQuotaConsumed())],
-            [.. append.ConcurrencyScopes, new(quota.Key, quota.Scope)]);
+        return events;
     }
 }
 

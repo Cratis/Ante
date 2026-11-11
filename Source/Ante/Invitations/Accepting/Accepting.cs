@@ -251,17 +251,7 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
         if (HttpMethods.IsPost(context.Request.Method)
             && context.Request.Path.Equals("/_invite/exchange", StringComparison.OrdinalIgnoreCase))
         {
-            ExchangeInviteRequest? request;
-            try
-            {
-                request = await context.Request.ReadFromJsonAsync<ExchangeInviteRequest>();
-            }
-            catch (Exception)
-            {
-                context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                return;
-            }
-
+            var request = await ReadRequest(context);
             if (request is null)
             {
                 context.Response.StatusCode = StatusCodes.Status400BadRequest;
@@ -287,6 +277,18 @@ public class InviteExchangeBypassMiddleware(RequestDelegate next)
         }
 
         await next(context);
+    }
+
+    static async Task<ExchangeInviteRequest?> ReadRequest(HttpContext context)
+    {
+        try
+        {
+            return await context.Request.ReadFromJsonAsync<ExchangeInviteRequest>();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 }
 
@@ -315,36 +317,46 @@ public class AttestedInviteExchangeMiddleware(RequestDelegate next)
 
         if (context.Request.Path.Equals("/_invite/stage", StringComparison.OrdinalIgnoreCase))
         {
-            var stage = await InvitationStageRequestBody.Read(context);
-            if (stage is null)
-            {
-                context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                return;
-            }
-
-            context.Response.StatusCode = await staging.TryStage(context.Request.Headers.Authorization.ToString(), stage)
-                ? StatusCodes.Status200OK
-                : StatusCodes.Status404NotFound;
+            await Stage(context, staging);
             return;
         }
 
         if (context.Request.Path.Equals("/_invite/exchange", StringComparison.OrdinalIgnoreCase))
         {
             // Never pass an attested request through the legacy processor, even during rollout.
-            var request = await InvitationCompletionRequestBody.Read(context);
-            if (request is null)
-            {
-                context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                return;
-            }
-
-            context.Response.StatusCode = await completion.TryComplete(context.Request.Headers.Authorization.ToString(), request)
-                ? StatusCodes.Status200OK
-                : StatusCodes.Status400BadRequest;
+            await Complete(context, completion);
             return;
         }
 
         await next(context);
+    }
+
+    static async Task Stage(HttpContext context, AttestedInvitationStaging staging)
+    {
+        var stage = await InvitationStageRequestBody.Read(context);
+        if (stage is null)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return;
+        }
+
+        context.Response.StatusCode = await staging.TryStage(context.Request.Headers.Authorization.ToString(), stage)
+            ? StatusCodes.Status200OK
+            : StatusCodes.Status404NotFound;
+    }
+
+    static async Task Complete(HttpContext context, AttestedInvitationCompletion completion)
+    {
+        var request = await InvitationCompletionRequestBody.Read(context);
+        if (request is null)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return;
+        }
+
+        context.Response.StatusCode = await completion.TryComplete(context.Request.Headers.Authorization.ToString(), request)
+            ? StatusCodes.Status200OK
+            : StatusCodes.Status400BadRequest;
     }
 }
 
@@ -432,22 +444,7 @@ public class InvitationIdentityProvider(
     {
         if (exchangeConfig?.Value.Mode == InvitationExchangeMode.Attested)
         {
-            var report = AuthProxySignInReport.FromClaims(context.Claims);
-            var attestedSubject = context.Claims.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:subject").Value;
-            var scope = exchangeConfig.Value.Attestation.LobbyScope;
-            if (attestedSessions is null || string.IsNullOrWhiteSpace(scope) || string.IsNullOrWhiteSpace(attestedSubject) ||
-                string.IsNullOrWhiteSpace(report.ProviderKey) || string.IsNullOrWhiteSpace(report.Issuer))
-            {
-                return new IdentityDetails(true, new InvitationIdentityDetails(InvitationId.NotSet, InvitationFlowType.JoinTenant));
-            }
-
-            var candidates = await attestedSessions.Find(Builders<AttestedInvitationSession>.Filter.Eq(row => row.ProviderSubject, attestedSubject)).ToListAsync();
-            var claimed = context.Claims.FirstOrDefault(claim => claim.Key == JwtRegisteredClaimNames.Jti).Value;
-            var id = Guid.TryParse(claimed, out var guid) ? (InvitationId)guid : InvitationId.NotSet;
-            var session = SignedInIdentity.SelectAttestedSession(candidates, scope, id, report.ProviderKey, report.Issuer, attestedSubject, DateTime.UtcNow);
-            return session is null
-                ? new IdentityDetails(true, new InvitationIdentityDetails(InvitationId.NotSet, InvitationFlowType.JoinTenant))
-                : new IdentityDetails(true, new InvitationIdentityDetails(session.InvitationId, session.FlowType));
+            return await ProvideAttested(context);
         }
 
         var jtiValue = context.Claims
@@ -465,6 +462,36 @@ public class InvitationIdentityProvider(
             return new IdentityDetails(true, new InvitationIdentityDetails(invitationGuid, flowType));
         }
 
+        return await ProvideAcceptedSession(context);
+    }
+
+    static bool HasCanonicalProvider(AuthProxySignInReport report) =>
+        !string.IsNullOrWhiteSpace(report.ProviderKey) && !string.IsNullOrWhiteSpace(report.Issuer);
+
+    async Task<IdentityDetails> ProvideAttested(IdentityProviderContext context)
+    {
+        var report = AuthProxySignInReport.FromClaims(context.Claims);
+        var attestedSubject = context.Claims.FirstOrDefault(claim => claim.Key == "urn:cratis:identity:subject").Value;
+        var scope = exchangeConfig!.Value.Attestation.LobbyScope;
+        if (!CanReadAttestedSessions(scope, attestedSubject) || !HasCanonicalProvider(report))
+        {
+            return new IdentityDetails(true, new InvitationIdentityDetails(InvitationId.NotSet, InvitationFlowType.JoinTenant));
+        }
+
+        var candidates = await attestedSessions!.Find(Builders<AttestedInvitationSession>.Filter.Eq(row => row.ProviderSubject, attestedSubject)).ToListAsync();
+        var claimed = context.Claims.FirstOrDefault(claim => claim.Key == JwtRegisteredClaimNames.Jti).Value;
+        var id = Guid.TryParse(claimed, out var guid) ? (InvitationId)guid : InvitationId.NotSet;
+        var session = SignedInIdentity.SelectAttestedSession(candidates, scope, id, report.ProviderKey!, report.Issuer!, attestedSubject, DateTime.UtcNow);
+        return session is null
+            ? new IdentityDetails(true, new InvitationIdentityDetails(InvitationId.NotSet, InvitationFlowType.JoinTenant))
+            : new IdentityDetails(true, new InvitationIdentityDetails(session.InvitationId, session.FlowType));
+    }
+
+    bool CanReadAttestedSessions(string scope, string? subject) =>
+        attestedSessions is not null && !string.IsNullOrWhiteSpace(scope) && !string.IsNullOrWhiteSpace(subject);
+
+    async Task<IdentityDetails> ProvideAcceptedSession(IdentityProviderContext context)
+    {
         var subject = ForwardedIdentitySubject.Resolve(context.Claims, context.Id.Value);
         var provider = ForwardedIdentityProvider.Resolve(context.Claims, identityProviderResolver);
         if (subject is null || string.IsNullOrWhiteSpace(provider))

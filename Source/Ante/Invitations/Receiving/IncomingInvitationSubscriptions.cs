@@ -102,53 +102,7 @@ public class IncomingInvitationSubscriptions(
         {
             if (!_registeredReactors.Contains(source))
             {
-                var handler = new IncomingInvitationReactor(
-                    store,
-                    logger,
-                    exchange,
-                    source,
-                    new LegalDocumentSetReceiver(store, Options.Create(options)),
-                    options.Registration.Review ? new RegistrationReviewReceiver(store, logger) : null,
-                    new ProvisioningCompletionReceiver(store, logger, source, _durableOutcomesRequired),
-                    options.OperatorAudience,
-                    _durableOutcomesRequired ? new HostProvisioningOutcomeReceiver(store, logger, source, new HostProvisioningProofVerifier(hostOutcomes!)) : null);
-                var receivesLegal = options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore;
-                await store.Reactors.Register(
-                    ReactorIdFor(source),
-                    definition =>
-                    {
-                        var configured = definition.OnEventSequence(InboxFor(source))
-                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToJoinTenant)))
-                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToCreateTenant)))
-                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationRevoked)))
-                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationReissueRequested)))
-                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReserved)))
-                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReleased)))
-                            .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OnboardingProvisioningCompleted)));
-                        if (_durableOutcomesRequired)
-                        {
-                            configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningAttemptStarted)))
-                                .WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningSucceeded)))
-                                .WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningFailed)))
-                                .WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningRequiresNewInvitation)));
-                        }
-
-                        if (receivesLegal)
-                        {
-                            configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(LegalDocumentSetPublished)));
-                        }
-
-                        if (options.Registration.Review)
-                        {
-                            configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationRegistrationApproved)))
-                                .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationRegistrationDeclineRequested)));
-                        }
-                    },
-                    async (delivery, _) =>
-                    {
-                        await using var scope = scopeFactory.CreateAsyncScope();
-                        await handler.Handle(delivery, scope.ServiceProvider.GetRequiredService<IEventSerializer>());
-                    }).WaitAsync(cancellationToken);
+                await RegisterReactor(store, source, options, cancellationToken);
                 lock (_readinessLock)
                 {
                     _registeredReactors.Add(source);
@@ -160,46 +114,7 @@ public class IncomingInvitationSubscriptions(
                 continue;
             }
 
-            // Registration opens the observation stream; subscribing after it has been installed
-            // prevents delivering events before there is a consumer. Reusing the source id retains
-            // the existing Direct subscription rather than creating a second delivery path.
-            await store.Subscriptions.Subscribe(
-                SubscriptionIdFor(source),
-                source,
-                definition =>
-                {
-                    // Audience routing: only what the host addressed to this lobby crosses; unset keeps the whole outbox.
-                    if (!string.IsNullOrEmpty(options.Audience))
-                    {
-                        definition.ForAudience(options.Audience);
-                    }
-
-                    definition.WithEventType<UserInvitedToJoinTenant>()
-                        .WithEventType<UserInvitedToCreateTenant>()
-                        .WithEventType<InvitationRevoked>()
-                        .WithEventType<InvitationReissueRequested>()
-                        .WithEventType<OrganizationNameReserved>()
-                        .WithEventType<OrganizationNameReleased>()
-                        .WithEventType<OnboardingProvisioningCompleted>();
-                    if (_durableOutcomesRequired)
-                    {
-                        definition.WithEventType<HostProvisioningAttemptStarted>()
-                            .WithEventType<HostProvisioningSucceeded>()
-                            .WithEventType<HostProvisioningFailed>()
-                            .WithEventType<HostProvisioningRequiresNewInvitation>();
-                    }
-
-                    if (options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore)
-                    {
-                        definition.WithEventType<LegalDocumentSetPublished>();
-                    }
-
-                    if (options.Registration.Review)
-                    {
-                        definition.WithEventType<OrganizationRegistrationApproved>()
-                            .WithEventType<OrganizationRegistrationDeclineRequested>();
-                    }
-                }).WaitAsync(cancellationToken);
+            await SubscribeToSource(store, source, options, cancellationToken);
             lock (_readinessLock)
             {
                 _subscribed.Add(source);
@@ -276,6 +191,101 @@ public class IncomingInvitationSubscriptions(
     }
 
     static string Describe(EventStoreName source, string reason) => $"Host event store '{source}', reactor '{ReactorIdFor(source)}': {reason}.";
+
+    Task<IReactorHandler> RegisterReactor(IEventStore store, string source, AnteOptions options, CancellationToken cancellationToken)
+    {
+        var handler = new IncomingInvitationReactor(
+            store,
+            logger,
+            exchange,
+            source,
+            new LegalDocumentSetReceiver(store, Options.Create(options)),
+            options.Registration.Review ? new RegistrationReviewReceiver(store, logger) : null,
+            new ProvisioningCompletionReceiver(store, logger, source, _durableOutcomesRequired),
+            options.OperatorAudience,
+            _durableOutcomesRequired ? new HostProvisioningOutcomeReceiver(store, logger, source, new HostProvisioningProofVerifier(hostOutcomes!)) : null);
+        var receivesLegal = options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore;
+        return store.Reactors.Register(
+            ReactorIdFor(source),
+            definition =>
+            {
+                var configured = definition.OnEventSequence(InboxFor(source))
+                    .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToJoinTenant)))
+                    .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToCreateTenant)))
+                    .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationRevoked)))
+                    .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationReissueRequested)))
+                    .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReserved)))
+                    .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReleased)))
+                    .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OnboardingProvisioningCompleted)));
+                if (_durableOutcomesRequired)
+                {
+                    configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningAttemptStarted)))
+                        .WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningSucceeded)))
+                        .WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningFailed)))
+                        .WithEventType(store.EventTypes.GetEventTypeFor(typeof(HostProvisioningRequiresNewInvitation)));
+                }
+
+                if (receivesLegal)
+                {
+                    configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(LegalDocumentSetPublished)));
+                }
+
+                if (options.Registration.Review)
+                {
+                    configured.WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationRegistrationApproved)))
+                        .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationRegistrationDeclineRequested)));
+                }
+            },
+            async (delivery, _) =>
+            {
+                await using var scope = scopeFactory.CreateAsyncScope();
+                await handler.Handle(delivery, scope.ServiceProvider.GetRequiredService<IEventSerializer>());
+            }).WaitAsync(cancellationToken);
+    }
+
+    Task SubscribeToSource(IEventStore store, string source, AnteOptions options, CancellationToken cancellationToken)
+    {
+        // Registration opens the observation stream; subscribing after it has been installed
+        // prevents delivering events before there is a consumer. Reusing the source id retains
+        // the existing Direct subscription rather than creating a second delivery path.
+        return store.Subscriptions.Subscribe(
+            SubscriptionIdFor(source),
+            source,
+            definition =>
+            {
+                // Audience routing: only what the host addressed to this lobby crosses; unset keeps the whole outbox.
+                if (!string.IsNullOrEmpty(options.Audience))
+                {
+                    definition.ForAudience(options.Audience);
+                }
+
+                definition.WithEventType<UserInvitedToJoinTenant>()
+                    .WithEventType<UserInvitedToCreateTenant>()
+                    .WithEventType<InvitationRevoked>()
+                    .WithEventType<InvitationReissueRequested>()
+                    .WithEventType<OrganizationNameReserved>()
+                    .WithEventType<OrganizationNameReleased>()
+                    .WithEventType<OnboardingProvisioningCompleted>();
+                if (_durableOutcomesRequired)
+                {
+                    definition.WithEventType<HostProvisioningAttemptStarted>()
+                        .WithEventType<HostProvisioningSucceeded>()
+                        .WithEventType<HostProvisioningFailed>()
+                        .WithEventType<HostProvisioningRequiresNewInvitation>();
+                }
+
+                if (options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore)
+                {
+                    definition.WithEventType<LegalDocumentSetPublished>();
+                }
+
+                if (options.Registration.Review)
+                {
+                    definition.WithEventType<OrganizationRegistrationApproved>()
+                        .WithEventType<OrganizationRegistrationDeclineRequested>();
+                }
+            }).WaitAsync(cancellationToken);
+    }
 
     async Task<string?> CheckReadiness(AnteOptions options)
     {
