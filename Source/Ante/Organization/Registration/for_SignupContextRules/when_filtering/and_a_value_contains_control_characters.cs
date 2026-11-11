@@ -6,7 +6,7 @@ namespace Ante.Organization.Registration.for_SignupContextRules.when_filtering;
 
 public class and_a_value_contains_control_characters : Specification
 {
-    IReadOnlyList<Ante.Contracts.Organization.SignupContextEntry> _result = null!;
+    IReadOnlyList<Contracts.Organization.SignupContextEntry> _result = null!;
 
     void Because() => _result = SignupContextRules.Filter(
         new RegistrationOptions { ContextKeys = ["offer"] },

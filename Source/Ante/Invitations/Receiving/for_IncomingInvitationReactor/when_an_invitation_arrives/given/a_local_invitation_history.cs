@@ -29,11 +29,11 @@ public class a_local_invitation_history : Specification
         LocalLog = Substitute.For<IEventLog>();
         Store.EventLog.Returns(LocalLog);
         LocalLog.GetForEventSourceIdAndEventTypes(Id, Arg.Any<IEnumerable<EventType>>(), Arg.Any<EventStreamType>(), Arg.Any<EventStreamId>(), Arg.Any<EventSourceType>())
-            .Returns(call => Task.FromResult<IImmutableList<AppendedEvent>>(Filter(History, (IEnumerable<EventType>)call[1])));
+            .Returns(call => Task.FromResult(Filter(History, (IEnumerable<EventType>)call[1])));
         Outbox = Substitute.For<IEventSequence>();
         Store.GetEventSequence(EventSequenceId.Outbox).Returns(Outbox);
         Outbox.GetForEventSourceIdAndEventTypes(Id, Arg.Any<IEnumerable<EventType>>(), Arg.Any<EventStreamType>(), Arg.Any<EventStreamId>(), Arg.Any<EventSourceType>())
-            .Returns(call => Task.FromResult<IImmutableList<AppendedEvent>>(Filter(Published, (IEnumerable<EventType>)call[1])));
+            .Returns(call => Task.FromResult(Filter(Published, (IEnumerable<EventType>)call[1])));
         Outbox.Append(
             Arg.Any<EventSourceId>(),
             Arg.Any<object>(),

@@ -20,7 +20,7 @@ public class and_the_claimed_attested_invitation_has_no_actor_session : Specific
         { CompletedAtUtc = DateTime.UtcNow };
         var provider = new InvitationIdentityProvider(
             Substitute.For<IMongoCollection<AcceptedInvitation>>(),
-            Substitute.For<Ante.IdentityProviders.IIdentityProviderResolver>(),
+            Substitute.For<IdentityProviders.IIdentityProviderResolver>(),
             Options.Create(new InvitationExchangeConfig { Mode = InvitationExchangeMode.Attested, Attestation = new() { LobbyScope = "lobby" } }),
             QueryCollections.With(session));
         _details = (InvitationIdentityDetails)(await provider.Provide(new IdentityProviderContext("actor", "actor", [

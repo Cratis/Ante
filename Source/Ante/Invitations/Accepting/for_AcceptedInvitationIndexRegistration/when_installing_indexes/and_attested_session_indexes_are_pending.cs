@@ -50,7 +50,7 @@ public class and_attested_session_indexes_are_pending : Specification
         await _registration.StartAsync(CancellationToken.None);
         _readyBeforeCompletion = _registration.IsReady;
         _sessionIndexesInstalled.SetResult(["session"]);
-        await _registration.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(5));
+        await _registration.ExecuteTask.WaitAsync(TimeSpan.FromSeconds(5));
         _readyAfterCompletion = _registration.IsReady;
     }
 

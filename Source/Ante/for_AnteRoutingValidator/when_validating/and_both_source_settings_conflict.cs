@@ -19,7 +19,7 @@ public class and_both_source_settings_conflict : Specification
             ["Ante:HostStores:0"] = "Studio",
             ["Ante:InboxSourceStore"] = "Direct",
         }).Build();
-        _options = _configuration.GetSection("Ante").Get<AnteOptions>()!;
+        _options = _configuration.GetSection("Ante").Get<AnteOptions>();
     }
 
     void Because() => _result = Cratis.Specifications.Catch.Exception(() => AnteRoutingValidator.Validate(_options, _configuration.GetSection("Ante")));

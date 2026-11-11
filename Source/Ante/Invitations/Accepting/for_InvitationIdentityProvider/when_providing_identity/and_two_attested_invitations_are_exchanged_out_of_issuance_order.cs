@@ -25,7 +25,7 @@ public class and_two_attested_invitations_are_exchanged_out_of_issuance_order : 
             "last", "lobby", _lastIssued, InvitationFlowType.CreateTenant, "github", "https://github.example", "actor", ["last-assertion"], now.AddHours(1))
         { CompletedAtUtc = now };
         var accepted = Substitute.For<IMongoCollection<AcceptedInvitation>>();
-        var resolver = Substitute.For<Ante.IdentityProviders.IIdentityProviderResolver>();
+        var resolver = Substitute.For<IdentityProviders.IIdentityProviderResolver>();
         var options = Options.Create(new InvitationExchangeConfig { Mode = InvitationExchangeMode.Attested, Attestation = new() { LobbyScope = "lobby" } });
         var firstProvider = new InvitationIdentityProvider(accepted, resolver, options, QueryCollections.With(first));
         var provider = new InvitationIdentityProvider(accepted, resolver, options, QueryCollections.WithMany(first, last));

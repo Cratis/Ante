@@ -21,9 +21,9 @@ public class and_the_signed_in_identity_is_missing_in_bokmal : Specification
             CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("nb-NO");
             _result = await new BeginRegistration(InvitationId.NotSet).Handle(
                 Substitute.For<IHttpContextAccessor>(),
-                Substitute.For<Ante.IdentityProviders.IIdentityProviderResolver>(),
+                Substitute.For<IdentityProviders.IIdentityProviderResolver>(),
                 Substitute.For<IEventStore>(),
-                Microsoft.Extensions.Options.Options.Create(new AnteOptions()),
+                Options.Create(new AnteOptions()),
                 TimeProvider.System);
         }
         finally

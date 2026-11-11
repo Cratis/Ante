@@ -41,7 +41,7 @@ public class and_a_transient_server_error_occurs : Specification
     {
         await _registration.StartAsync(CancellationToken.None);
         await _retried.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await _registration.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(5));
+        await _registration.ExecuteTask.WaitAsync(TimeSpan.FromSeconds(5));
         _ready = _registration.IsReady;
     }
 

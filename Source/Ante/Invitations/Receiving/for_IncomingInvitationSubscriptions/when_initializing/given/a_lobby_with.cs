@@ -13,7 +13,7 @@ public class a_lobby_with : Specification
 {
     protected readonly List<EventStoreSubscriptionDefinition> _subscriptions = [];
     protected AnteOptions _options = new() { EventStore = "Lobby", HostStores = ["Operator"] };
-    protected Ante.Onboarding.Provisioning.HostOutcomesConfig? _hostOutcomes;
+    protected Onboarding.Provisioning.HostOutcomesConfig? _hostOutcomes;
     IChronicleClient _client = null!;
 
     void Establish()
@@ -50,7 +50,7 @@ public class a_lobby_with : Specification
             Substitute.For<IServiceScopeFactory>(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<IncomingInvitationReactor>.Instance,
             IncomingInvitationTestOptions.Legacy,
-            _hostOutcomes is null ? null : Microsoft.Extensions.Options.Options.Create(_hostOutcomes));
+            _hostOutcomes is null ? null : Options.Create(_hostOutcomes));
         await routing.Initialize(_options);
     }
 }

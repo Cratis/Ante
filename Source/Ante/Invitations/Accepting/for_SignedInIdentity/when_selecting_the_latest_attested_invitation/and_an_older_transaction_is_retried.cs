@@ -21,11 +21,11 @@ public class and_an_older_transaction_is_retried : Specification
         // new completion; its ordering time and original expiry remain unchanged.
         var retry = first with { AssertionIds = ["first-jti", "retry-jti"] };
         _afterRetry = SignedInIdentity.SelectAttestedSession(
-            [retry, second], "lobby", InvitationId.NotSet, "provider", "https://issuer.example", "actor", now)!.InvitationId;
+            [retry, second], "lobby", InvitationId.NotSet, "provider", "https://issuer.example", "actor", now).InvitationId;
 
         var newTransaction = retry with { LatestTransactionId = "new-transaction", LatestNewCompletionAtUtc = now };
         _afterNewTransaction = SignedInIdentity.SelectAttestedSession(
-            [newTransaction, second], "lobby", InvitationId.NotSet, "provider", "https://issuer.example", "actor", now)!.InvitationId;
+            [newTransaction, second], "lobby", InvitationId.NotSet, "provider", "https://issuer.example", "actor", now).InvitationId;
     }
 
     static AttestedInvitationSession Session(InvitationId id, DateTime firstCompletion, DateTime latestCompletion) =>

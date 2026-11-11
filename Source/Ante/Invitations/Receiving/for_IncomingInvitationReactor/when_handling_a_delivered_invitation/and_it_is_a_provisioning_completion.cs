@@ -9,7 +9,7 @@ using Ante.Onboarding.Provisioning;
 
 namespace Ante.Invitations.Receiving.for_IncomingInvitationReactor.when_handling_a_delivered_invitation;
 
-public class and_it_is_a_provisioning_completion : Ante.Onboarding.Provisioning.for_ProvisioningCompletionReceiver.given.a_provisioning_completion
+public class and_it_is_a_provisioning_completion : Onboarding.Provisioning.for_ProvisioningCompletionReceiver.given.a_provisioning_completion
 {
     IEventSerializer _serializer = null!;
     IncomingInvitationReactor _handler = null!;

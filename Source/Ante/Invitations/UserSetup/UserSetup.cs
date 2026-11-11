@@ -243,7 +243,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
                 identity.Provider,
                 identity.Subject.ToString(),
                 FirstName,
-                MiddleName ?? Contracts.Invitations.MiddleName.NotSet,
+                MiddleName ?? MiddleName.NotSet,
                 LastName,
                 pendingInvitation.Email,
                 pendingInvitation.Roles)

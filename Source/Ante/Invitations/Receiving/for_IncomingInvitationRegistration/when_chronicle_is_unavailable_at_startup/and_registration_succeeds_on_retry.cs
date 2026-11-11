@@ -73,7 +73,7 @@ public class and_registration_succeeds_on_retry : Specification
             await _attemptStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
             _before = await _health.CheckHealthAsync(new HealthCheckContext());
             _firstAttempt.SetException(new Exception("Chronicle temporarily unavailable"));
-            await _registration.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(5)); // The retry backoff is infrastructure readiness, not a test sleep.
+            await _registration.ExecuteTask.WaitAsync(TimeSpan.FromSeconds(5)); // The retry backoff is infrastructure readiness, not a test sleep.
             _after = await _health.CheckHealthAsync(new HealthCheckContext());
         }
         finally

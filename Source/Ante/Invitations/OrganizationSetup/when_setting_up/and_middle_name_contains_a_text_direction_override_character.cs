@@ -30,7 +30,7 @@ public class and_middle_name_contains_a_text_direction_override_character : Spec
         var signedInIdentity = Substitute.For<ISignedInIdentity>();
         signedInIdentity.IsVerifiedOwnerOf(invitationId).Returns(true);
 
-        var validator = new SetupOrganizationValidator(new NoLegalDocumentSource(), acceptedNames, signedInIdentity, Microsoft.Extensions.Options.Options.Create(new AnteOptions()));
+        var validator = new SetupOrganizationValidator(new NoLegalDocumentSource(), acceptedNames, signedInIdentity, Options.Create(new AnteOptions()));
         _result = await validator.ValidateAsync(new SetupOrganization(invitationId, "Acme", "Jane", _middleNameWithDirectionOverride, "Doe", false, LegalVersion.NotSet));
     }
 

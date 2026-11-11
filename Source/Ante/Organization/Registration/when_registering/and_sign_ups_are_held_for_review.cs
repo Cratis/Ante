@@ -43,7 +43,7 @@ public class and_sign_ups_are_held_for_review : Specification
         _scenario.Services.AddSingleton(resolver);
         _scenario.Services.AddSingleton<ILegalDocumentSource>(new NoLegalDocumentSource());
         _scenario.Services.AddSingleton(new OrganizationSetupStatusSubscriptions());
-        _scenario.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new AnteOptions { Registration = new RegistrationOptions { Review = true } }));
+        _scenario.Services.AddSingleton(Options.Create(new AnteOptions { Registration = new RegistrationOptions { Review = true } }));
     }
 
     async Task Because() =>

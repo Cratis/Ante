@@ -85,10 +85,10 @@ builder.Services.AddScopedEventSerializer();
 builder.Services.AddControllers();
 builder.Services.AddMvc();
 builder.Services.AddOpenApi();
-builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o => o.SuppressModelStateInvalidFilter = true);
+builder.Services.Configure<ApiBehaviorOptions>(o => o.SuppressModelStateInvalidFilter = true);
 
-builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(anteOptions));
-builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(hostOutcomesOptions));
+builder.Services.AddSingleton(Options.Create(anteOptions));
+builder.Services.AddSingleton(Options.Create(hostOutcomesOptions));
 builder.Services.TryAddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IncomingInvitationSubscriptions>();
 builder.Services.AddHostedService<IncomingInvitationRegistration>();

@@ -53,7 +53,7 @@ public enum HostOutcomeStatus
 /// API-verification-gated on trust/protocol decisions
 /// (<see href="https://github.com/Cratis/Ante/issues/11">Cratis/Ante#11</see>) that remain open. This
 /// pull-based lookup mirrors the already-shipped
-/// <see cref="Ante.Invitations.UserSetup.IIdentityBackchannel"/> pattern instead, so it needs no new wire
+/// <see cref="UserSetup.IIdentityBackchannel"/> pattern instead, so it needs no new wire
 /// contract to agree on.
 /// </remarks>
 public interface IHostOutcomeBackchannel
@@ -84,7 +84,7 @@ public record HostOutcomeAnswer(string Status, string? ReasonCode);
 /// Asks the configured host outcome backchannel over HTTP what happened to a specific onboarding attempt.
 /// </summary>
 /// <remarks>
-/// Mirrors <see cref="Ante.Invitations.UserSetup.IdentityBackchannel"/>'s fail-safe shape deliberately: an
+/// Mirrors <see cref="UserSetup.IdentityBackchannel"/>'s fail-safe shape deliberately: an
 /// unconfigured or unreachable host must never block or fail onboarding, because the host outcome is
 /// informational only - Ante's own publication is already the definition of success by the time this is
 /// ever queried.

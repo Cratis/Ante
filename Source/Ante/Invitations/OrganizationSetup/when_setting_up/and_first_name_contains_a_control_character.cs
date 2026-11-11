@@ -29,7 +29,7 @@ public class and_first_name_contains_a_control_character : Specification
         var signedInIdentity = Substitute.For<ISignedInIdentity>();
         signedInIdentity.IsVerifiedOwnerOf(invitationId).Returns(true);
 
-        var validator = new SetupOrganizationValidator(new NoLegalDocumentSource(), acceptedNames, signedInIdentity, Microsoft.Extensions.Options.Options.Create(new AnteOptions()));
+        var validator = new SetupOrganizationValidator(new NoLegalDocumentSource(), acceptedNames, signedInIdentity, Options.Create(new AnteOptions()));
         _result = await validator.ValidateAsync(new SetupOrganization(invitationId, "Acme", _firstNameWithControlCharacter, null, "Doe", false, LegalVersion.NotSet));
     }
 

@@ -12,7 +12,7 @@ namespace Ante.Organization.Registration;
 
 /// <summary>
 /// Applies <see cref="RegistrationOptions.RequestsPerMinutePerClient"/> to the registration endpoints and
-/// <see cref="Invitations.InvitationOptions.RequestsPerMinutePerClient"/> to the invitation endpoints, as independent budgets.
+/// <see cref="InvitationOptions.RequestsPerMinutePerClient"/> to the invitation endpoints, as independent budgets.
 /// </summary>
 public static class RegistrationRateLimiting
 {

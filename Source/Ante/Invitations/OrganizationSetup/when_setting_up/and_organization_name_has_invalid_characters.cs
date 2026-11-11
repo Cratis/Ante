@@ -24,7 +24,7 @@ public class and_organization_name_has_invalid_characters : Specification
         var signedInIdentity = Substitute.For<ISignedInIdentity>();
         signedInIdentity.IsVerifiedOwnerOf(invitationId).Returns(true);
 
-        var validator = new SetupOrganizationValidator(new NoLegalDocumentSource(), acceptedNames, signedInIdentity, Microsoft.Extensions.Options.Options.Create(new AnteOptions()));
+        var validator = new SetupOrganizationValidator(new NoLegalDocumentSource(), acceptedNames, signedInIdentity, Options.Create(new AnteOptions()));
         _result = await validator.ValidateAsync(new SetupOrganization(invitationId, "Acme/Corp", "Jane", null, "Doe", false, LegalVersion.NotSet));
     }
 

@@ -296,7 +296,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
                 identityProviderValue,
                 complianceSubject.ToString(),
                 FirstName,
-                MiddleName ?? Contracts.Invitations.MiddleName.NotSet,
+                MiddleName ?? MiddleName.NotSet,
                 LastName,
                 pendingInvitation.Email,
                 pendingInvitation.Roles)
