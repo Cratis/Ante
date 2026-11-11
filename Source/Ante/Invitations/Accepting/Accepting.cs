@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using Ante.IdentityProviders;
 using Ante.Invitations.Issuing;
@@ -334,30 +335,34 @@ public class AttestedInviteExchangeMiddleware(RequestDelegate next)
     static async Task Stage(HttpContext context, AttestedInvitationStaging staging)
     {
         var stage = await InvitationStageRequestBody.Read(context);
-        if (stage is null)
+        if (HasBody(context, stage))
         {
-            context.Response.StatusCode = StatusCodes.Status400BadRequest;
-            return;
+            Respond(context, await staging.TryStage(context.Request.Headers.Authorization.ToString(), stage), StatusCodes.Status404NotFound);
         }
-
-        context.Response.StatusCode = await staging.TryStage(context.Request.Headers.Authorization.ToString(), stage)
-            ? StatusCodes.Status200OK
-            : StatusCodes.Status404NotFound;
     }
 
     static async Task Complete(HttpContext context, AttestedInvitationCompletion completion)
     {
         var request = await InvitationCompletionRequestBody.Read(context);
-        if (request is null)
+        if (HasBody(context, request))
         {
-            context.Response.StatusCode = StatusCodes.Status400BadRequest;
-            return;
+            Respond(context, await completion.TryComplete(context.Request.Headers.Authorization.ToString(), request), StatusCodes.Status400BadRequest);
+        }
+    }
+
+    static bool HasBody(HttpContext context, [NotNullWhen(true)] object? body)
+    {
+        if (body is not null)
+        {
+            return true;
         }
 
-        context.Response.StatusCode = await completion.TryComplete(context.Request.Headers.Authorization.ToString(), request)
-            ? StatusCodes.Status200OK
-            : StatusCodes.Status400BadRequest;
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        return false;
     }
+
+    static void Respond(HttpContext context, bool succeeded, int failureStatus) =>
+        context.Response.StatusCode = succeeded ? StatusCodes.Status200OK : failureStatus;
 }
 
 /// <summary>
