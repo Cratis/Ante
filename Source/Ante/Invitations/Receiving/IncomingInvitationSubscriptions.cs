@@ -167,7 +167,32 @@ public class IncomingInvitationSubscriptions(
         }
     }
 
-    Task RegisterReactor(IEventStore store, string source, AnteOptions options, CancellationToken cancellationToken)
+    static async Task<bool> IsHealthy(Task<string?> probe) => await probe is null;
+
+    static async Task<string?> CheckInbox(IEventStore store, string source)
+    {
+        try
+        {
+            var handler = store.Reactors.GetHandlerById(ReactorIdFor(source));
+            var state = await handler.GetState();
+            return state.IsSubscribed && state.RunningState is ObserverRunningState.Active or ObserverRunningState.Replaying
+                ? null
+                : Describe(source, $"handler not running (subscribed: {state.IsSubscribed}, state: {state.RunningState})");
+        }
+        catch (UnknownReactorId)
+        {
+            return Describe(source, "handler missing");
+        }
+        catch (Exception)
+        {
+            // Dependency exception text may contain connection details. Report only the route identity.
+            return Describe(source, "handler state unavailable");
+        }
+    }
+
+    static string Describe(EventStoreName source, string reason) => $"Host event store '{source}', reactor '{ReactorIdFor(source)}': {reason}.";
+
+    Task<IReactorHandler> RegisterReactor(IEventStore store, string source, AnteOptions options, CancellationToken cancellationToken)
     {
         var handler = new IncomingInvitationReactor(
             store,
@@ -261,31 +286,6 @@ public class IncomingInvitationSubscriptions(
                 }
             }).WaitAsync(cancellationToken);
     }
-
-    static async Task<bool> IsHealthy(Task<string?> probe) => await probe is null;
-
-    static async Task<string?> CheckInbox(IEventStore store, string source)
-    {
-        try
-        {
-            var handler = store.Reactors.GetHandlerById(ReactorIdFor(source));
-            var state = await handler.GetState();
-            return state.IsSubscribed && state.RunningState is ObserverRunningState.Active or ObserverRunningState.Replaying
-                ? null
-                : Describe(source, $"handler not running (subscribed: {state.IsSubscribed}, state: {state.RunningState})");
-        }
-        catch (UnknownReactorId)
-        {
-            return Describe(source, "handler missing");
-        }
-        catch (Exception)
-        {
-            // Dependency exception text may contain connection details. Report only the route identity.
-            return Describe(source, "handler state unavailable");
-        }
-    }
-
-    static string Describe(EventStoreName source, string reason) => $"Host event store '{source}', reactor '{ReactorIdFor(source)}': {reason}.";
 
     async Task<string?> CheckReadiness(AnteOptions options)
     {
