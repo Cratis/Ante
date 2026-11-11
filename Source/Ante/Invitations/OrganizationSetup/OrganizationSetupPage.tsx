@@ -2,36 +2,32 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
-import { Button } from '@cratis/components/Common';
-import { ProgressSpinner } from '@cratis/components/Display';
-import { InputTextField } from '@cratis/components/CommandForm';
-import { CommandStepper, StepperPanel } from '@cratis/components/CommandDialog';
-import { useIdentity } from '@cratis/arc.react/identity';
 import { Guid } from '@cratis/fundamentals';
 import { SetupOrganization } from './OrganizationSetup';
 import { useOrganizationSetupHandoff } from './useOrganizationSetupHandoff';
+import { useInvitationId } from './useInvitationId';
 import { OrganizationNameStepValidation } from '../../Organization/OrganizationNameStepValidation';
-import { OrganizationNameStepError } from '../../Organization/OrganizationNameStepError';
-import { InitialNameErrors } from '../InitialNameErrors';
 import { initialOrganizationSetupValues } from '../initialOnboardingValues';
-import { validateChangedName } from '../NameFieldValidation';
 import { localeHttpHeaders } from '../../Locale/localeHttpHeaders';
 import { useLocale } from '../../Locale/LocaleContext';
-import { HostOutcomeCompletion } from './HostOutcomeCompletion';
 import { useFreshLegalDocuments } from '../../Legal/useFreshLegalDocuments';
 import { OrganizationSetupFrame } from './OrganizationSetupFrame';
 import { useInvitationContent } from '../useInvitationContent';
 import { invitationCompletionMessage } from '../invitationCompletionMessage';
-import { InvitationIdentityDetails } from '../Accepting/Accepting';
-import { getInvitationIdFromToken } from '../Accepting/invitationToken';
-import { LegalAcceptanceField } from '../../Legal/LegalAcceptanceField';
-import { LegalDocumentsUnavailable } from '../../Legal/LegalDocumentsUnavailable';
-import { LegalVersionValues } from '../../Legal/LegalVersionValues';
 import { useLegalDocumentViewer } from '../../Legal/useLegalDocumentViewer';
-import { ErrorSummary } from '../../Accessibility/ErrorSummary';
-import { FieldError } from '../../Accessibility/FieldError';
+import { LegalGatedForm } from '../../Legal/LegalGatedForm';
 import { LiveRegion } from '../../Accessibility/LiveRegion';
 import { useAccessibleStepper } from '../../Accessibility/useAccessibleStepper';
+import { OrganizationSetupWizard } from './OrganizationSetupWizard';
+import {
+    OrganizationSetupErrorScreen,
+    OrganizationSetupHostOutcomeScreen,
+    OrganizationSetupLegalCheckingScreen,
+    OrganizationSetupLegalUnavailableScreen,
+    OrganizationSetupResolvingScreen,
+    OrganizationSetupSettingUpScreen,
+    OrganizationSetupTimedOutScreen
+} from './OrganizationSetupScreens';
 import strings from 'Strings';
 
 type OrganizationSetupPageProps = {
@@ -40,18 +36,7 @@ type OrganizationSetupPageProps = {
 
 export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPageProps) => {
     const content = useInvitationContent('organizationSetup');
-    const identity = useIdentity(InvitationIdentityDetails);
-    const invitationIdentityDetails = identity.details as unknown as InvitationIdentityDetails | undefined;
-    const invitationId = useMemo(() => {
-        const invitationIdFromToken = getInvitationIdFromToken(invitationToken);
-        if (invitationIdFromToken) return invitationIdFromToken;
-
-        if (!identity.isSet || !identity.details) return null;
-        const id = invitationIdentityDetails?.invitationId;
-        if (!id) return null;
-        const str = id.toString();
-        return Guid.isGuid(str) ? Guid.parse(str) : null;
-    }, [identity.isSet, invitationIdentityDetails, invitationToken]);
+    const { invitationId, isIdentitySet } = useInvitationId(invitationToken);
     const resolvedInvitationId = invitationId ?? Guid.empty;
     const invitationIdText = resolvedInvitationId.toString();
     const { documents: availableDocuments, lastAvailableDocuments, isChecking: checkingLegalDocuments, refresh: refreshLegalDocuments } = useFreshLegalDocuments();
@@ -89,61 +74,20 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
         idPrefix: 'organization-setup',
         announcementTemplate: strings.accessibility.stepAnnouncement
     });
+    const refreshDocuments = () => { void refreshLegalDocuments(); };
 
-    if (handoff.errorMessages.length > 0) {
-        return (
-            <OrganizationSetupFrame content={content}>
-                <div className='organization-setup-card__content'>
-                    <ErrorSummary
-                        messages={handoff.errorMessages}
-                        className='organization-setup-errors'
-                        itemClassName='organization-setup-errors__item'
-                    />
-                </div>
-            </OrganizationSetupFrame>
-        );
-    }
+    if (handoff.errorMessages.length > 0) return <OrganizationSetupErrorScreen content={content} messages={handoff.errorMessages} />;
 
     // Identity/invitation resolution and the first durable status read both have to complete before it
     // is safe to decide between the form and the waiting phase - showing the form even briefly beforehand
     // would let a recovered, already-submitted operation flash a form it must never resubmit.
-    if ((!invitationId && !identity.isSet) || !handoff.hasStatus) {
-        return (
-            <OrganizationSetupFrame content={content}>
-                <div className='organization-setup-card__content'>
-                    <div className='organization-setup-waiting'>
-                        <ProgressSpinner className='organization-setup-waiting__spinner' />
-                    </div>
-                </div>
-            </OrganizationSetupFrame>
-        );
-    }
+    const isResolving = (!invitationId && !isIdentitySet) || !handoff.hasStatus;
+    if (isResolving) return <OrganizationSetupResolvingScreen content={content} />;
 
-    if (handoff.phase === 'timedOut') {
-        return (
-            <OrganizationSetupFrame content={content}>
-                <div className='organization-setup-card__content'>
-                    <div className='organization-setup-waiting' role='status' aria-live='polite'>
-                        <p className='organization-setup-waiting__message'>{strings.onboarding.notYetConfirmed}</p>
-                        <Button label={strings.onboarding.checkAgain} onClick={handoff.checkAgain} />
-                        <p className='organization-setup-waiting__message'>{strings.onboarding.contactSupport}</p>
-                    </div>
-                </div>
-            </OrganizationSetupFrame>
-        );
-    }
+    if (handoff.phase === 'timedOut') return <OrganizationSetupTimedOutScreen content={content} onCheckAgain={handoff.checkAgain} />;
 
     if (handoff.phase === 'waiting') {
-        return (
-            <OrganizationSetupFrame content={content}>
-                <div className='organization-setup-card__content'>
-                    <div className='organization-setup-waiting'>
-                        <ProgressSpinner className='organization-setup-waiting__spinner' aria-label={strings.organizationSetup.settingUp} />
-                        <p className='organization-setup-waiting__message'>{strings.organizationSetup.settingUp}</p>
-                    </div>
-                </div>
-            </OrganizationSetupFrame>
-        );
+        return <OrganizationSetupSettingUpScreen content={content} message={strings.organizationSetup.settingUp} />;
     }
 
     // Only reached when this deployment has a host outcome backchannel configured - see
@@ -151,97 +95,28 @@ export const OrganizationSetupPage = ({ invitationToken }: OrganizationSetupPage
     // this point regardless of what (if anything) is shown here; a failed or still-pending host outcome
     // never blocks the Continue action below.
     if (handoff.phase === 'hostOutcome') {
-        return (
-            <OrganizationSetupFrame content={content}>
-                <div className='organization-setup-card__content'>
-                    <HostOutcomeCompletion handoff={handoff} succeededMessage={invitationCompletionMessage(content, strings.organizationSetup.hostOutcomeSucceeded)} />
-                </div>
-            </OrganizationSetupFrame>
-        );
+        return <OrganizationSetupHostOutcomeScreen content={content} handoff={handoff} succeededMessage={invitationCompletionMessage(content, strings.organizationSetup.hostOutcomeSucceeded)} />;
     }
 
-    if (checkingLegalDocuments && !displayedDocuments) {
-        return (
-            <OrganizationSetupFrame content={content}>
-                <div className='organization-setup-card__content'>
-                    <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
-                </div>
-            </OrganizationSetupFrame>
-        );
-    }
+    if (checkingLegalDocuments && !displayedDocuments) return <OrganizationSetupLegalCheckingScreen content={content} />;
 
-    if (!displayedDocuments) {
-        return (
-            <OrganizationSetupFrame content={content}>
-                <div className='organization-setup-card__content'>
-                    <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />
-                </div>
-            </OrganizationSetupFrame>
-        );
-    }
+    if (!displayedDocuments) return <OrganizationSetupLegalUnavailableScreen content={content} onRetry={refreshDocuments} />;
 
     return (
         <OrganizationSetupFrame content={content}>
             <div className='organization-setup-card__content organization-setup-card__content--stepper' ref={stepperContainerRef}>
-                {!availableDocuments && (checkingLegalDocuments
-                    ? <ProgressSpinner aria-label={strings.onboarding.legalDocumentsChecking} />
-                    : <LegalDocumentsUnavailable onRetry={() => { void refreshLegalDocuments(); }} />)}
-                <div hidden={!availableDocuments} inert={!availableDocuments}>
-                <CommandStepper<SetupOrganization>
-                    key={invitationIdText}
-                    command={SetupOrganization}
-                    validateOnInit
-                    errorDisplayComponent={FieldError}
-                    onFieldValidate={validateChangedName}
-                    isBusy={isNameValidating}
-                    onFieldChange={nameValidation.onFieldChange}
-                    okLabel={strings.organizationSetup.setupOrganization}
-                    initialValues={initialValues}
-                    onBeforeExecute={(values) => {
-                        handoff.captureOrganizationName(values.organizationName ?? '');
-                        return values;
-                    }}
-                    onSuccess={async () => { handoff.markSubmitted(); }}
-                >
-                    <StepperPanel header={strings.organizationSetup.stepOrganization}>
-                        <InitialNameErrors includeOrganization />
-                        <InputTextField<SetupOrganization>
-                            value={c => c.organizationName}
-                            title={strings.organizationSetup.organizationName}
-                            placeholder={strings.organizationSetup.organizationNamePlaceholder}
-                            pt={{ root: { autoComplete: 'organization' } }}
-                        />
-                        <OrganizationNameStepError validation={nameValidation} />
-                    </StepperPanel>
-                    <StepperPanel header={strings.organizationSetup.stepUserInformation}>
-                        <InputTextField<SetupOrganization>
-                            value={c => c.firstName}
-                            title={strings.organizationSetup.firstName}
-                            placeholder={strings.organizationSetup.firstNamePlaceholder}
-                            pt={{ root: { autoComplete: 'given-name' } }}
-                        />
-                        <InputTextField<SetupOrganization>
-                            value={c => c.middleName}
-                            title={strings.organizationSetup.middleName}
-                            placeholder={strings.organizationSetup.middleNamePlaceholder}
-                            pt={{ root: { autoComplete: 'additional-name' } }}
-                        />
-                        <InputTextField<SetupOrganization>
-                            value={c => c.lastName}
-                            title={strings.organizationSetup.lastName}
-                            placeholder={strings.organizationSetup.lastNamePlaceholder}
-                            pt={{ root: { autoComplete: 'family-name' } }}
-                        />
-                    </StepperPanel>
-                    {displayedDocuments.isConfigured && (
-                        <StepperPanel header={strings.organizationSetup.stepTermsConditions}>
-                            <LegalVersionValues version={displayedDocuments.version} />
-                            <LegalAcceptanceField<SetupOrganization> value={c => c.acceptedLegalTerms} onShowDocument={legalDocuments.showDocument} />
-                        </StepperPanel>
-                    )}
-                </CommandStepper>
-                </div>
-                {availableDocuments && legalDocuments.dialog}
+                <LegalGatedForm isAvailable={!!availableDocuments} isChecking={checkingLegalDocuments} onRetry={refreshDocuments} dialog={legalDocuments.dialog}>
+                    <OrganizationSetupWizard
+                        invitationKey={invitationIdText}
+                        initialValues={initialValues}
+                        nameValidation={nameValidation}
+                        isNameValidating={isNameValidating}
+                        legal={displayedDocuments}
+                        onShowDocument={legalDocuments.showDocument}
+                        onOrganizationName={handoff.captureOrganizationName}
+                        onSuccess={async () => { handoff.markSubmitted(); }}
+                    />
+                </LegalGatedForm>
             </div>
             <LiveRegion message={announcement} />
             <LiveRegion message={nameValidationError ?? ''} />

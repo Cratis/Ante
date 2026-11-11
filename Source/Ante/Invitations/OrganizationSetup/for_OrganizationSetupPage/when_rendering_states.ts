@@ -229,7 +229,7 @@ describe('when the wizard form is shown', () => {
     it('should capture the organization name before execution and keep the values', () => {
         render();
         const values = { organizationName: 'Acme' };
-        (state.stepperProps!.onBeforeExecute as (v: unknown) => unknown)(values).should.equal(values);
+        ((state.stepperProps!.onBeforeExecute as (v: unknown) => unknown)(values) === values).should.be.true;
         state.calls.should.deep.equal(['capture:Acme']);
     });
 
