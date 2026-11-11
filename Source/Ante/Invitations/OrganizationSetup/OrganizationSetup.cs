@@ -288,6 +288,24 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
             return ValidationResult.Error(Messages.Get("SetupNotPending"));
         }
 
+        var events = CreateEvents(pendingInvitation, identityProviderValue, complianceSubject, issuer, owner, legalEvidence);
+        var scope = await acceptanceFence.For(InvitationId, InvitationFlowType.CreateTenant);
+        if (scope is null)
+        {
+            return ValidationResult.Error(Messages.Get("SetupNotPending"));
+        }
+
+        return (complianceSubject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence, scope));
+    }
+
+    List<object> CreateEvents(
+        PendingInvitationToCreateOrganization pendingInvitation,
+        IdentityProviderName identityProviderValue,
+        Cratis.Chronicle.Subject complianceSubject,
+        IdentityIssuerEvidence issuer,
+        InvitedAcceptanceOwnerRecorded? owner,
+        LegalAcceptanceSnapshot legalEvidence)
+    {
         var events = new List<object>
         {
             new OnboardingAttemptClaimed(),
@@ -311,14 +329,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         }
 
         events.AddRange(legalEvidence.Events);
-
-        var scope = await acceptanceFence.For(InvitationId, InvitationFlowType.CreateTenant);
-        if (scope is null)
-        {
-            return ValidationResult.Error(Messages.Get("SetupNotPending"));
-        }
-
-        return (complianceSubject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence, scope));
+        return events;
     }
 }
 
