@@ -101,7 +101,7 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
 /// </summary>
 /// <param name="RegistrationId">
 /// A client-generated identifier used as the event source id and as the key for polling
-/// setup status (not the correlation id, which is separate event metadata) - reuses <see cref="Invitations.InvitationId"/>'s shape since self-service registration
+/// setup status (not the correlation id, which is separate event metadata) - reuses <see cref="InvitationId"/>'s shape since self-service registration
 /// shares the same "submit, then watch status" flow as an invitation acceptance.
 /// </param>
 /// <param name="OrganizationName">The name of the organization (tenant) to create.</param>
@@ -220,7 +220,7 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             subject,
             identityProviderValue,
             FirstName,
-            MiddleName ?? Contracts.Invitations.MiddleName.NotSet,
+            MiddleName ?? MiddleName.NotSet,
             LastName,
             email,
             SignupContextRules.Filter(options.Value.Registration, SignupContext))

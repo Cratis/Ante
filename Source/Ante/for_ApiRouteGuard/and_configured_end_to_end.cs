@@ -34,7 +34,7 @@ public class and_configured_end_to_end : Invitations.Receiving.for_IncomingInvit
         builder.Services.AddOpenApi();
         builder.Services.AddAnteHealthChecks();
         builder.Services.AddSingleton(_routing);
-        builder.Services.AddSingleton<IOptions<AnteOptions>>(Options.Create(_options));
+        builder.Services.AddSingleton(Options.Create(_options));
 
         // Overrides AddAnteHealthChecks' own MongoConnectivityProbe registration - the last registration
         // for a service type wins - so nothing here ever needs a real MongoDB.

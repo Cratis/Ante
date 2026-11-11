@@ -16,8 +16,8 @@ public class when_observing_a_persisted_generation_one_payload : Specification
 
     // Chronicle 19.4.7's EventSerializer deserializes JsonObject with
     // PropertyNameCaseInsensitive=true. Existing inbox/outbox rows are not migrated.
-    void Because() => _observed = JsonNode.Parse("""{"flowType":0,"token":"historical-jwt"}""")!
-        .Deserialize<InvitationTokenIssued>(_options)!;
+    void Because() => _observed = JsonNode.Parse("""{"flowType":0,"token":"historical-jwt"}""")
+        .Deserialize<InvitationTokenIssued>(_options);
 
     [Fact] void should_read_the_original_flow_and_token() => Assert.Equal((InvitationFlowType.JoinTenant, "historical-jwt"), (_observed.FlowType, _observed.Token));
     [Fact] void should_use_an_unusable_expiry_sentinel() => Assert.Equal(DateTimeOffset.UnixEpoch, _observed.ExpiresAt);

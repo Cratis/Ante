@@ -18,7 +18,7 @@ public class and_the_legacy_key_is_explicitly_empty : Specification
         {
             ["Ante:InboxSourceStore"] = string.Empty,
         }).Build();
-        _options = _configuration.GetSection("Ante").Get<AnteOptions>()!;
+        _options = _configuration.GetSection("Ante").Get<AnteOptions>();
     }
 
     void Because() => _result = Cratis.Specifications.Catch.Exception(() => AnteRoutingValidator.Validate(_options, _configuration.GetSection("Ante")));

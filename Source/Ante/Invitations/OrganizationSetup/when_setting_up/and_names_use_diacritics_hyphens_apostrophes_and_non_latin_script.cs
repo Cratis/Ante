@@ -24,7 +24,7 @@ public class and_names_use_diacritics_hyphens_apostrophes_and_non_latin_script :
         var signedInIdentity = Substitute.For<ISignedInIdentity>();
         signedInIdentity.IsVerifiedOwnerOf(invitationId).Returns(true);
 
-        var validator = new SetupOrganizationValidator(new NoLegalDocumentSource(), acceptedNames, signedInIdentity, Microsoft.Extensions.Options.Options.Create(new AnteOptions()));
+        var validator = new SetupOrganizationValidator(new NoLegalDocumentSource(), acceptedNames, signedInIdentity, Options.Create(new AnteOptions()));
 
         // "Zoë-Renée" (diacritics + hyphen), "田中" (non-Latin script) and "O'Brien" (apostrophe) are all
         // real, legitimate name shapes that must not be treated as invalid input.

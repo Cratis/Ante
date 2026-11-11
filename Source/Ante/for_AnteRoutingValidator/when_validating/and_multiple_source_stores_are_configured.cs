@@ -19,7 +19,7 @@ public class and_multiple_source_stores_are_configured : Specification
             ["Ante:HostStores:0"] = "Studio",
             ["Ante:HostStores:1"] = "StudioAdmin",
         }).Build();
-        _options = _configuration.GetSection("Ante").Get<AnteOptions>()!;
+        _options = _configuration.GetSection("Ante").Get<AnteOptions>();
     }
 
     void Because() => AnteRoutingValidator.Validate(_options, _configuration.GetSection("Ante"));

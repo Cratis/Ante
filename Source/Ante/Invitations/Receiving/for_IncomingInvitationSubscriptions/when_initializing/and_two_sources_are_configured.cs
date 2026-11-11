@@ -79,7 +79,7 @@ public class and_two_sources_are_configured : Specification
             var source = entry.Id.Value.EndsWith("StudioAdmin", StringComparison.Ordinal) ? "StudioAdmin" : "Studio";
             builder.Received(1).OnEventSequence(IncomingInvitationSubscriptions.InboxFor(source));
             builder.Received(7).WithEventType(Arg.Any<EventType>());
-            builder.Received(1).WithEventType(typeof(Ante.Contracts.Onboarding.OnboardingProvisioningCompleted).GetEventType());
+            builder.Received(1).WithEventType(typeof(Contracts.Onboarding.OnboardingProvisioningCompleted).GetEventType());
         }
     }
 
@@ -91,7 +91,7 @@ public class and_two_sources_are_configured : Specification
             entry.Configure(builder);
             var eventTypes = builder.Build().EventTypes.ToArray();
             Assert.Equal(7, eventTypes.Length);
-            Assert.Contains(typeof(Ante.Contracts.Onboarding.OnboardingProvisioningCompleted).GetEventType().Id, eventTypes);
+            Assert.Contains(typeof(Contracts.Onboarding.OnboardingProvisioningCompleted).GetEventType().Id, eventTypes);
         });
 
     [Fact] void should_have_stable_ids_independent_of_list_order() =>

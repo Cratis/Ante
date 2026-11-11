@@ -13,7 +13,7 @@ public class and_the_reserved_name_is_already_held : a_name_delivery
     void Establish() => AppendOutcome = new AppendResult
     {
         ConstraintViolations = [new ConstraintViolation(
-            typeof(Ante.Organization.Names.OrganizationNameReservationReceived).GetEventType().Id,
+            typeof(Organization.Names.OrganizationNameReservationReceived).GetEventType().Id,
             EventSequenceNumber.First,
             ConstraintType.Unique,
             OrganizationSetupConstraintNames.UniqueOrganizationName,

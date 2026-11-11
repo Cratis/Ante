@@ -57,7 +57,7 @@ public class and_the_upgrade_window_cannot_be_loaded_yet : Specification
         await _registration.StartAsync(CancellationToken.None);
         await _loadAttempted.Task.WaitAsync(TimeSpan.FromSeconds(5));
         _readyAfterFirstFailure = _registration.IsReady;
-        await _registration.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(10));
+        await _registration.ExecuteTask.WaitAsync(TimeSpan.FromSeconds(10));
         _readyAfterRecovery = _registration.IsReady;
     }
 
