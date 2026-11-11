@@ -5,6 +5,9 @@ import { afterEach, describe, it, vi } from 'vitest';
 import { Guid } from '@cratis/fundamentals';
 import { useRegistrationStatusPolling } from '../useRegistrationStatusPolling';
 
+// The CI runner shares its module cache across files; reload the hook after installing this file's mocks.
+vi.hoisted(() => { vi.resetModules(); });
+
 // Drive the real hook's state/effects with a small synchronous dispatcher: the project's node test
 // environment has no DOM renderer. Effects and their cleanup run on dependency changes as in React.
 const harness = vi.hoisted(() => {
