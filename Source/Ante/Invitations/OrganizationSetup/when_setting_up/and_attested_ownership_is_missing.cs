@@ -4,6 +4,7 @@
 #if DEBUG
 using Ante.Contracts.Legal;
 using Ante.Invitations.Accepting;
+using Ante.Invitations.Accepting.for_InvitationAcceptanceFence;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
 using Ante.Organization.Names;
@@ -30,7 +31,7 @@ public class and_attested_ownership_is_missing : Specification
         identity.Resolve(_id, Arg.Any<Cratis.Chronicle.Subject>()).Returns(((IdentityProviderName)"github", new Cratis.Chronicle.Subject("subject")));
         _scenario.Services.AddSingleton(names);
         _scenario.Services.AddSingleton(identity);
-        _scenario.Services.AddSingleton(Substitute.For<IInvitationAcceptanceFence>());
+        _scenario.Services.AddSingleton(AcceptanceFenceForSpecs.Allow(_id, InvitationFlowType.CreateTenant));
         _scenario.Services.AddSingleton<ILegalDocumentSource>(new NoLegalDocumentSource());
         _scenario.Services.AddSingleton(Substitute.For<IHttpContextAccessor>());
         _scenario.Services.AddSingleton(new OrganizationSetupStatusSubscriptions());

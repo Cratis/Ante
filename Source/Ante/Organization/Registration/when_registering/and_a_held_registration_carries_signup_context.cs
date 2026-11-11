@@ -5,6 +5,7 @@
 using Ante.Contracts.Organization;
 using Ante.Invitations;
 using Ante.Organization.Registration.Review;
+using Ante.Organization.Registration.Start;
 using Ante.Organization.Registration.when_registering.given;
 
 namespace Ante.Organization.Registration.when_registering;
@@ -30,6 +31,7 @@ public class and_a_held_registration_carries_signup_context : a_started_registra
     [Fact]
     void should_preserve_the_attempt_registration_owner_and_quota_order() =>
         Assert.Collection(Scenario.AppendedEvents,
+            e => Assert.IsType<RegistrationStarted>(e.Event.Content),
             e => Assert.IsType<OnboardingAttemptClaimed>(e.Event.Content),
             e => Assert.IsType<OrganizationRegistrationHeld>(e.Event.Content),
             e => Assert.IsType<RegistrationOwnerRecorded>(e.Event.Content),
