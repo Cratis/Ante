@@ -20,8 +20,10 @@ export type RegistrationStatusPollingOptions = {
     invitationId: Guid;
     /** Whether this handoff tracks a self-service registration at all. */
     isRegistration: boolean;
-    /** True once the command succeeded or a recovered registration id may already be an operation. */
-    isOperation: boolean;
+    /** True once the registration command succeeded. */
+    submitted: boolean;
+    /** True when a registration id recovered after reload may already be an operation. */
+    recoveringRegistration: boolean;
     /** The registration status query result. */
     registrationStatus: RegistrationStatusResult;
     /** Re-runs the registration status query. */
@@ -40,7 +42,7 @@ export type RegistrationStatusPollingOptions = {
  * @param options The registration being tracked and the state the polling decisions depend on.
  * @returns Whether the polling window expired, and the action that starts a fresh window.
  */
-export const useRegistrationStatusPolling = ({ invitationId, isRegistration, isOperation, registrationStatus, refreshRegistration, isAccepted, reviewStatus, recoveryPhase }: RegistrationStatusPollingOptions) => {
+export const useRegistrationStatusPolling = ({ invitationId, isRegistration, submitted, recoveringRegistration, registrationStatus, refreshRegistration, isAccepted, reviewStatus, recoveryPhase }: RegistrationStatusPollingOptions) => {
     const [pollWindowExpired, setPollWindowExpired] = useState(false);
     const firstRegistrationResultRef = useRef({ id: invitationId.toString(), result: registrationStatus });
     if (firstRegistrationResultRef.current.id !== invitationId.toString()) {
@@ -51,15 +53,17 @@ export const useRegistrationStatusPolling = ({ invitationId, isRegistration, isO
     const initialQueryPending = registrationStatus === firstRegistrationResultRef.current.result || registrationStatus.isPerforming;
     const pollRef = useRef({ refreshRegistration, initialQueryPending });
     pollRef.current = { refreshRegistration, initialQueryPending };
+    const isOperation = submitted || recoveringRegistration;
 
     // A fresh registration id is not an operation yet: never poll it until the command succeeds.
     // A pointer recovered after reload may already have an owner, so recheck its initial snapshot.
     // Stop after the recovery window; Check Again starts a fresh window for a pending operation.
+    // The effect depends on submitted and recoveringRegistration separately: a submission after recovery restarts the window.
     useEffect(() => {
         if (!isRegistration || !isOperation || pollWindowExpired || isAccepted || isDecidedByReview(reviewStatus)) return;
         const timeout = globalThis.setTimeout(() => setPollWindowExpired(true), pollWindowMilliseconds);
         return () => globalThis.clearTimeout(timeout);
-    }, [isRegistration, isOperation, pollWindowExpired, isAccepted, reviewStatus]);
+    }, [isRegistration, submitted, recoveringRegistration, pollWindowExpired, isAccepted, reviewStatus]);
 
     useEffect(() => {
         if (!shouldRecheckRegistrationStatus(
@@ -68,7 +72,7 @@ export const useRegistrationStatusPolling = ({ invitationId, isRegistration, isO
         return startRegistrationStatusPolling(
             () => pollRef.current.refreshRegistration({ registrationId: invitationId }),
             () => pollRef.current.initialQueryPending);
-    }, [isRegistration, isOperation, pollWindowExpired, recoveryPhase, registrationStatus.hasData, registrationStatus.data?.status, invitationId]);
+    }, [isRegistration, submitted, recoveringRegistration, pollWindowExpired, recoveryPhase, registrationStatus.hasData, registrationStatus.data?.status, invitationId]);
 
     return { pollWindowExpired, resetPollWindow: () => setPollWindowExpired(false) };
 };

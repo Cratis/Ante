@@ -90,7 +90,7 @@ export const useOrganizationSetupHandoff = ({ invitationId, hostAppUnavailableMe
     const recovery = useOnboardingRecovery(isRecorded, isAccepted);
     const [submitted, setSubmitted] = useState(false);
     const { resetPollWindow } = useRegistrationStatusPolling({
-        invitationId, isRegistration, isOperation: submitted || recoveringRegistration,
+        invitationId, isRegistration, submitted, recoveringRegistration,
         registrationStatus, refreshRegistration, isAccepted, reviewStatus, recoveryPhase: recovery.phase
     });
 
