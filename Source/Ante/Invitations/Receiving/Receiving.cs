@@ -211,34 +211,6 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         }
     }
 
-    async Task ReceiveOnboardingOutcome(object content, EventContext context)
-    {
-        switch (content)
-        {
-            case OnboardingProvisioningCompleted:
-                await (provisioningReceiver ?? throw new InvalidOperationException("Provisioning completion receiver is not registered.")).Receive(context);
-                break;
-            case HostProvisioningAttemptStarted or HostProvisioningSucceeded or HostProvisioningFailed or HostProvisioningRequiresNewInvitation:
-                await ReceiveHostProvisioningOutcome(content, context);
-                break;
-            case OrganizationRegistrationApproved:
-                await RequireReviewReceiver().Approve(context);
-                break;
-            case OrganizationRegistrationDeclineRequested declined:
-                await RequireReviewReceiver().Decline(declined, context);
-                break;
-        }
-    }
-
-    async Task ReceiveHostProvisioningOutcome(object content, EventContext context)
-    {
-        // Without durable host outcomes these are not subscribed; a stray one changes nothing.
-        if (hostProvisioningReceiver is not null)
-        {
-            await hostProvisioningReceiver.Receive(content, context);
-        }
-    }
-
     static bool SameReceipt(object existing, object incoming) => (existing, incoming) switch
     {
         (JoinTenantInvitationReceived first, JoinTenantInvitationReceived second) =>
@@ -302,6 +274,34 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         var clrType = _deliverableEventTypes.FirstOrDefault(type => delivery.Context.EventType == type.GetEventType())
             ?? throw new InvalidOperationException($"Unexpected incoming invitation event type {delivery.Context.EventType}.");
         return serializer.Deserialize(clrType, delivery.Content);
+    }
+
+    async Task ReceiveOnboardingOutcome(object content, EventContext context)
+    {
+        switch (content)
+        {
+            case OnboardingProvisioningCompleted:
+                await (provisioningReceiver ?? throw new InvalidOperationException("Provisioning completion receiver is not registered.")).Receive(context);
+                break;
+            case HostProvisioningAttemptStarted or HostProvisioningSucceeded or HostProvisioningFailed or HostProvisioningRequiresNewInvitation:
+                await ReceiveHostProvisioningOutcome(content, context);
+                break;
+            case OrganizationRegistrationApproved:
+                await RequireReviewReceiver().Approve(context);
+                break;
+            case OrganizationRegistrationDeclineRequested declined:
+                await RequireReviewReceiver().Decline(declined, context);
+                break;
+        }
+    }
+
+    async Task ReceiveHostProvisioningOutcome(object content, EventContext context)
+    {
+        // Without durable host outcomes these are not subscribed; a stray one changes nothing.
+        if (hostProvisioningReceiver is not null)
+        {
+            await hostProvisioningReceiver.Receive(content, context);
+        }
     }
 
     RegistrationReviewReceiver RequireReviewReceiver() =>
