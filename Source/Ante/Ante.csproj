@@ -48,4 +48,8 @@
         <Content Remove="package.json" />
         <None Remove="package.json" />
     </ItemGroup>
+
+    <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+        <None Include="Events/for_RestoredGenerations/Release1.9.0Schemas.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 </Project>
