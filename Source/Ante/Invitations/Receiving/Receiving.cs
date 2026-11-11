@@ -205,16 +205,21 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             case InvitationRevoked revoked:
                 await AppendRevocation(revoked, context);
                 break;
+            default:
+                await ReceiveOnboardingOutcome(content, context);
+                break;
+        }
+    }
+
+    async Task ReceiveOnboardingOutcome(object content, EventContext context)
+    {
+        switch (content)
+        {
             case OnboardingProvisioningCompleted:
                 await (provisioningReceiver ?? throw new InvalidOperationException("Provisioning completion receiver is not registered.")).Receive(context);
                 break;
             case HostProvisioningAttemptStarted or HostProvisioningSucceeded or HostProvisioningFailed or HostProvisioningRequiresNewInvitation:
-                // Without durable host outcomes these are not subscribed; a stray one changes nothing.
-                if (hostProvisioningReceiver is not null)
-                {
-                    await hostProvisioningReceiver.Receive(content, context);
-                }
-
+                await ReceiveHostProvisioningOutcome(content, context);
                 break;
             case OrganizationRegistrationApproved:
                 await RequireReviewReceiver().Approve(context);
@@ -222,6 +227,15 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             case OrganizationRegistrationDeclineRequested declined:
                 await RequireReviewReceiver().Decline(declined, context);
                 break;
+        }
+    }
+
+    async Task ReceiveHostProvisioningOutcome(object content, EventContext context)
+    {
+        // Without durable host outcomes these are not subscribed; a stray one changes nothing.
+        if (hostProvisioningReceiver is not null)
+        {
+            await hostProvisioningReceiver.Receive(content, context);
         }
     }
 
