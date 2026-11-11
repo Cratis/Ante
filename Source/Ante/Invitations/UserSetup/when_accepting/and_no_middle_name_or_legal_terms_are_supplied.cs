@@ -41,7 +41,7 @@ public class and_no_middle_name_or_legal_terms_are_supplied : Specification
             e => Assert.IsType<UserSetupCompleted>(e.Event.Content));
 
     [Fact]
-    async Task should_default_the_middle_name_to_empty() =>
-        await _scenario.ShouldHaveAppendedEvent<AcceptInvitation, UserSetupCompleted>(_id, e => e.MiddleName == MiddleName.Empty);
+    async Task should_default_the_middle_name_to_not_set() =>
+        await _scenario.ShouldHaveAppendedEvent<AcceptInvitation, UserSetupCompleted>(_id, e => e.MiddleName == MiddleName.NotSet);
 }
 #endif
