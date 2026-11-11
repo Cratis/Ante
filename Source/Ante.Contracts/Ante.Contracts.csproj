@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <!-- Library: multi-targets so net10.0 consumers keep a native asset. The root props default TargetFramework to net11.0;
+             clear it so TargetFrameworks takes effect. -->
+        <TargetFramework></TargetFramework>
+        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <!-- Must match PackageId below. Cratis.Types' project-reference discovery (used to find
              [EventType] records for Chronicle) resolves a referenced project by the library name

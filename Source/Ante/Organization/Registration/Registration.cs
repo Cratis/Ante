@@ -276,7 +276,7 @@ public static class RegistrationSourceAvailability
                 typeof(UserSetupCompleted).GetEventType(),
                 typeof(RegistrationOwnerRecorded).GetEventType(),
             ]);
-        return !events.Any();
+        return events.Count == 0;
     }
 }
 

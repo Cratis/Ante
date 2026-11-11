@@ -162,6 +162,35 @@ public sealed class AnteApplication(
         // The fixture owns the transport and supplies the trusted proxy's identity headers.
         using var signingKey = RSA.Create();
         signingKey.ImportFromPem(AttestationPrivateKeyPem);
+        ApplyCoreSettings(builder, signingKey);
+        ApplyTrustedProxyDefault(builder);
+        if (attestedExchange)
+        {
+            ApplyAttestedExchange(builder, signingKey);
+        }
+
+        ApplyLegalSource(builder);
+        ApplyIndexedSettings(builder);
+        ApplyDebugLogging(builder);
+
+        // The Debug build of Ante carries Cratis.Chronicle.Testing, whose in-process kernel commands are authorized with
+        // the Chronicle administrator policy that Arc's startup validation looks for. Chronicle's own host registers it
+        // with AddChronicleAdministratorAuthorization; Ante's test host registers the same policy rather than turning the
+        // validation off. Ante does not host the kernel and Release carries neither, so production authorization is unchanged.
+        builder.ConfigureTestServices(ChronicleAdministratorAuthorization.Register);
+
+        ApplyWebRoot(builder);
+        if (validateScopes is not null)
+        {
+            builder.UseDefaultServiceProvider(options => options.ValidateScopes = validateScopes.Value);
+        }
+
+        ApplySpecificationSettings(builder);
+        ApplyServiceOverrides(builder);
+    }
+
+    void ApplyCoreSettings(IWebHostBuilder builder, RSA signingKey)
+    {
         builder
             .UseEnvironment(environmentName)
             .UseSetting("Ante:Invitations:Token:PrivateKeyPem", SigningKeyConfigured ? AttestationPrivateKeyPem : string.Empty)
@@ -171,35 +200,45 @@ public sealed class AnteApplication(
             .UseSetting("Cratis:MongoDB:Database", EventStore)
             .UseSetting("Ante:EventStore", EventStore)
             .UseSetting("IdentityProviders:Providers:0:Name", IdentityProvider);
+    }
 
+    void ApplyTrustedProxyDefault(IWebHostBuilder builder)
+    {
         // The fixture supplies the trusted proxy's identity headers unless a specification sets (or deliberately omits) the key.
         if (settings?.ContainsKey("Cratis:Arc:TrustForwardedIdentityHeaders") != true)
         {
             builder.UseSetting("Cratis:Arc:TrustForwardedIdentityHeaders", "true");
         }
+    }
 
-        if (attestedExchange)
+    static void ApplyAttestedExchange(IWebHostBuilder builder, RSA signingKey) =>
+        builder
+            .UseSetting("Ante:Invitations:Token:Issuer", "integration-ante")
+            .UseSetting("Ante:Invitations:Token:Audience", "integration-lobby")
+            .UseSetting("Ante:Invitations:Exchange:Mode", "Attested")
+            .UseSetting("Ante:Invitations:Exchange:Attestation:Issuer", "integration-proxy")
+            .UseSetting("Ante:Invitations:Exchange:Attestation:Audience", "integration-lobby")
+            .UseSetting("Ante:Invitations:Exchange:Attestation:LobbyScope", "integration-lobby")
+            .UseSetting("Ante:Invitations:Exchange:Attestation:PublicKeys:0:KeyId", "integration-key")
+            .UseSetting("Ante:Invitations:Exchange:Attestation:PublicKeys:0:PublicKeyPem", signingKey.ExportSubjectPublicKeyInfoPem())
+            .UseSetting("Ante:Invitations:Exchange:Attestation:Providers:0:Key", "integration-provider")
+            .UseSetting("Ante:Invitations:Exchange:Attestation:Providers:0:Issuer", "https://integration.example")
+            .UseSetting("Ante:Invitations:Exchange:Attestation:Providers:0:AcceptableAssurances:0", "oidc");
+
+    void ApplyLegalSource(IWebHostBuilder builder)
+    {
+        if (legalDocumentSetId is null)
         {
-            builder
-                .UseSetting("Ante:Invitations:Token:Issuer", "integration-ante")
-                .UseSetting("Ante:Invitations:Token:Audience", "integration-lobby")
-                .UseSetting("Ante:Invitations:Exchange:Mode", "Attested")
-                .UseSetting("Ante:Invitations:Exchange:Attestation:Issuer", "integration-proxy")
-                .UseSetting("Ante:Invitations:Exchange:Attestation:Audience", "integration-lobby")
-                .UseSetting("Ante:Invitations:Exchange:Attestation:LobbyScope", "integration-lobby")
-                .UseSetting("Ante:Invitations:Exchange:Attestation:PublicKeys:0:KeyId", "integration-key")
-                .UseSetting("Ante:Invitations:Exchange:Attestation:PublicKeys:0:PublicKeyPem", signingKey.ExportSubjectPublicKeyInfoPem())
-                .UseSetting("Ante:Invitations:Exchange:Attestation:Providers:0:Key", "integration-provider")
-                .UseSetting("Ante:Invitations:Exchange:Attestation:Providers:0:Issuer", "https://integration.example")
-                .UseSetting("Ante:Invitations:Exchange:Attestation:Providers:0:AcceptableAssurances:0", "oidc");
-        }
-        if (legalDocumentSetId is not null)
-        {
-            builder.UseSetting("Ante:Legal:Source", "Inbox")
-                .UseSetting("Ante:Legal:PublisherStore", hostStores[0])
-                .UseSetting("Ante:Legal:DocumentSetId", legalDocumentSetId);
+            return;
         }
 
+        builder.UseSetting("Ante:Legal:Source", "Inbox")
+            .UseSetting("Ante:Legal:PublisherStore", hostStores[0])
+            .UseSetting("Ante:Legal:DocumentSetId", legalDocumentSetId);
+    }
+
+    void ApplyIndexedSettings(IWebHostBuilder builder)
+    {
         for (var index = 0; index < hostStores.Count; index++)
         {
             builder.UseSetting($"Ante:HostStores:{index}", hostStores[index]);
@@ -209,33 +248,32 @@ public sealed class AnteApplication(
         {
             builder.UseSetting($"Ante:Registration:ContextKeys:{index}", registrationContextKeys![index]);
         }
+    }
 
+    static void ApplyDebugLogging(IWebHostBuilder builder)
+    {
         // ANTE_INTEGRATION_DEBUG_LOG=Cratis (any logging category) turns on debug logging for that category.
         if (Environment.GetEnvironmentVariable("ANTE_INTEGRATION_DEBUG_LOG") is { Length: > 0 } diagnosticCategory)
         {
             builder.UseSetting($"Logging:LogLevel:{diagnosticCategory}", "Debug");
         }
+    }
 
-        // The Debug build of Ante carries Cratis.Chronicle.Testing, whose in-process kernel commands are authorized with
-        // the Chronicle administrator policy that Arc's startup validation looks for. Chronicle's own host registers it
-        // with AddChronicleAdministratorAuthorization; Ante's test host registers the same policy rather than turning the
-        // validation off. Ante does not host the kernel and Release carries neither, so production authorization is unchanged.
-        builder.ConfigureTestServices(ChronicleAdministratorAuthorization.Register);
-
+    void ApplyWebRoot(IWebHostBuilder builder)
+    {
         if (webRootPath is not null)
         {
             builder.UseWebRoot(webRootPath);
+
             // Development's static-web-assets manifest can overlay a frontend built in Source/Ante/wwwroot
             // onto this root. An explicit test root must serve only its own files, whether or not the
             // frontend was built before the specifications ran.
             builder.ConfigureServices((context, _) => context.HostingEnvironment.WebRootFileProvider = new PhysicalFileProvider(webRootPath));
         }
+    }
 
-        if (validateScopes is not null)
-        {
-            builder.UseDefaultServiceProvider(options => options.ValidateScopes = validateScopes.Value);
-        }
-
+    void ApplySpecificationSettings(IWebHostBuilder builder)
+    {
         foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
         {
             // A null value leaves the key unset, as opposed to an empty string, which configuration binding rejects.
@@ -244,7 +282,10 @@ public sealed class AnteApplication(
                 builder.UseSetting(key, value);
             }
         }
+    }
 
+    void ApplyServiceOverrides(IWebHostBuilder builder)
+    {
         if (remoteIpAddress is not null)
         {
             // First in line, so the address is there for any middleware ahead of Ante's own - the forwarded-headers

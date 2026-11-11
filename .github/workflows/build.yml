@@ -37,19 +37,20 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: |
+            10.0.x
+            11.0.x
 
-      - name: Setup Node (proxy generation runs during the Debug build)
+      - name: Setup Node (the Test step parses the specification results with node)
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
 
-      # Debug regenerates the TypeScript proxies and builds Ante with inline specs and the Contracts runner. Release is a
-      # build-only check; CratisProxiesOutputPath is cleared so the proxy generator's MSBuild target
-      # no-ops instead of re-running against a second compilation of already-correct generated files.
+      # CI never generates the TypeScript proxies; the committing client generates and commits them. Debug builds Ante with
+      # inline specs and the Contracts runner, and Release is a build-only check.
       - name: Build (Debug)
         if: matrix.configuration == 'Debug'
-        run: dotnet build Ante.slnx --configuration Debug
+        run: dotnet build Ante.slnx --configuration Debug -p:CratisProxiesOutputPath=
 
       - name: Build (Release)
         if: matrix.configuration == 'Release'
@@ -58,9 +59,10 @@ jobs:
       - name: Test
         if: matrix.configuration == 'Debug'
         run: |
-          ./Source/Ante/bin/Debug/net10.0/Ante --specifications -result-xml Ante.xml
+          ./Source/Ante/bin/Debug/net11.0/Ante --specifications -result-xml Ante.xml
           node -e 'const fs = require("node:fs"); const xml = fs.readFileSync("Ante.xml", "utf8"); const total = [...xml.matchAll(/<assembly\b[^>]*\btotal="(\d+)"/g)].reduce((sum, match) => sum + Number(match[1]), 0); if (total === 0) throw new Error("Ante specifications reported no tests");'
           ./Source/Ante.Contracts.Specs/bin/Debug/net10.0/Ante.Contracts.Specs
+          ./Source/Ante.Contracts.Specs/bin/Debug/net11.0/Ante.Contracts.Specs
 
   frontend:
     name: Frontend
@@ -70,13 +72,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # The Debug backend build regenerates the TypeScript proxies; the frontend gate needs them
-      # present on disk (they are committed, but a PR that changes backend contracts without
-      # rebuilding would otherwise pass a stale proxy through lint/tsc).
+      # CI never generates the TypeScript proxies; the frontend gates run against the committed proxies.
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "11.0.x"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -84,8 +84,8 @@ jobs:
           node-version: 22.x
           registry-url: https://registry.npmjs.org
 
-      - name: Regenerate proxies (Debug build, no test execution needed here)
-        run: dotnet build Ante.slnx --configuration Debug
+      - name: Build backend (proxy generation off, no test execution needed here)
+        run: dotnet build Ante.slnx --configuration Debug -p:CratisProxiesOutputPath=
 
       - name: Corepack enable
         run: corepack enable

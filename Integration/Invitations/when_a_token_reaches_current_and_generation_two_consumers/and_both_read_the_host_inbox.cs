@@ -94,7 +94,7 @@ public class and_both_read_the_host_inbox : Specification
 
     async Task<string?> RunOlderHost(string operation, Guid id)
     {
-        var dll = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "LegacyConsumer", "bin", "Debug", "net10.0", "LegacyConsumer.dll");
+        var dll = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "LegacyConsumer", "bin", "Debug", "net11.0", "LegacyConsumer.dll");
         var start = new ProcessStartInfo("dotnet") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var argument in new[] { dll, operation, _infrastructure.ChronicleConnectionString, OldHost, AnteStore, id.ToString("D") })
         {

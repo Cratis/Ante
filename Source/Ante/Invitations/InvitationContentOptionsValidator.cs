@@ -6,11 +6,13 @@ namespace Ante.Invitations;
 /// <summary>Rejects invalid host-authored invitation copy before serving requests.</summary>
 public static class InvitationContentOptionsValidator
 {
-    static readonly HashSet<string> _contentKeys = new(StringComparer.OrdinalIgnoreCase)
-    {
-        nameof(InvitationContent.Title), nameof(InvitationContent.Intro),
-        nameof(InvitationContent.CompletionMessage), nameof(InvitationContent.SupportUrl),
-    };
+    static readonly HashSet<string> _contentKeys = [
+        with(StringComparer.OrdinalIgnoreCase),
+        nameof(InvitationContent.Title),
+        nameof(InvitationContent.Intro),
+        nameof(InvitationContent.CompletionMessage),
+        nameof(InvitationContent.SupportUrl),
+    ];
 
     /// <summary>Validates each invitation journey independently of self-registration.</summary>
     /// <param name="options">The bound Ante options.</param>

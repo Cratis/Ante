@@ -13,7 +13,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
 
 env:
-  DOTNET_VERSION: "10.0.x"
+  DOTNET_VERSION: "11.0.x"
   NODE_VERSION: "22.x"
   NUGET_OUTPUT: ./Artifacts/NuGet
 

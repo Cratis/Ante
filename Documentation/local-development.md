@@ -7,7 +7,7 @@ The repository includes container-backed [end-to-end specifications](#run-the-en
 
 ## Check backend and frontend
 
-CI uses .NET 10 and Node 22. From the repository root, run its exact backend commands:
+CI uses .NET 11 and Node 22. From the repository root, run its exact backend commands:
 
 ```bash
 dotnet build Ante.slnx --configuration Debug
@@ -89,7 +89,7 @@ The `Browser end-to-end` job in `.github/workflows/integration.yml` runs the sui
 
 `Fixture/compose.yml` runs Ante built from this revision with Chronicle, a MongoDB replica set, a host stub and a stub signing/validating proxy. The proxy includes a stub sign-in form: it is **not** AuthProxy or a real identity provider/proxy, and this is not a production topology. Connecting a real provider remains separate work ([#123](https://github.com/Cratis/Ante/issues/123)). The `Fixture first invitation` CI job runs the API journey without the licensed SPA, alongside the integration and browser jobs.
 
-Prepare artifacts and images while online, from the repository root with .NET 10, Node 22 and Docker Compose available:
+Prepare artifacts and images while online, from the repository root with .NET 11, Node 22 and Docker Compose available:
 
 ```bash
 dotnet publish Source/Ante/Ante.csproj --configuration Release --self-contained false -p:UseAppHost=false -p:CratisProxiesOutputPath= -o Source/Ante/out
