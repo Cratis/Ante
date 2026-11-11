@@ -36,8 +36,8 @@ public class IncomingInvitationSubscriptions(
 {
     const string LegacyReactorId = "Ante.Invitations.Receiving.IncomingInvitationReactor";
     readonly bool _durableOutcomesRequired = hostOutcomes?.Value.Mode == HostOutcomesMode.DurableRequired;
-    readonly HashSet<string> _registeredReactors = new(StringComparer.Ordinal);
-    readonly HashSet<string> _subscribed = new(StringComparer.Ordinal);
+    readonly HashSet<string> _registeredReactors = [with(StringComparer.Ordinal)];
+    readonly HashSet<string> _subscribed = [with(StringComparer.Ordinal)];
     readonly Lock _readinessLock = new();
     IEventStore? _registeredStore;
     bool _initialized;

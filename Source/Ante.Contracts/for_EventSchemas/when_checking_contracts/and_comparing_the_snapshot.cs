@@ -61,7 +61,7 @@ public class and_comparing_the_snapshot : Specification
         Assert.NotEmpty(schemas);
         var existing = File.Exists(path)
             ? JsonSerializer.Deserialize<Dictionary<string, JsonNode>>(File.ReadAllText(path))!
-            : new Dictionary<string, JsonNode>(StringComparer.Ordinal);
+            : [with(StringComparer.Ordinal)];
         var releasedPath = Path.Combine(directory.FullName, ReleasedName);
         Assert.True(File.Exists(releasedPath), $"Missing released-generation marker: {releasedPath}");
         var released = JsonSerializer.Deserialize<string[]>(File.ReadAllText(releasedPath))!;
