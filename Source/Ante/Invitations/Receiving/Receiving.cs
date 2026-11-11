@@ -187,26 +187,14 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             case LegalDocumentSetPublished published:
                 await ReceiveLegal(published, context);
                 break;
-            case UserInvitedToJoinTenant join:
-                await AppendReceipt(await On(join, context), context);
-                break;
-            case UserInvitedToCreateTenant create:
-                await AppendReceipt(await On(create, context), context);
-                break;
-            case InvitationReissueRequested:
-                await Reissue(context);
-                break;
             case OrganizationNameReserved reserved:
                 await Reserve(reserved, context);
                 break;
             case OrganizationNameReleased released:
                 await Release(released, context);
                 break;
-            case InvitationRevoked revoked:
-                await AppendRevocation(revoked, context);
-                break;
             default:
-                await ReceiveOnboardingOutcome(content, context);
+                await ReceiveInvitation(content, context);
                 break;
         }
     }
@@ -274,6 +262,28 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         var clrType = _deliverableEventTypes.FirstOrDefault(type => delivery.Context.EventType == type.GetEventType())
             ?? throw new InvalidOperationException($"Unexpected incoming invitation event type {delivery.Context.EventType}.");
         return serializer.Deserialize(clrType, delivery.Content);
+    }
+
+    async Task ReceiveInvitation(object content, EventContext context)
+    {
+        switch (content)
+        {
+            case UserInvitedToJoinTenant join:
+                await AppendReceipt(await On(join, context), context);
+                break;
+            case UserInvitedToCreateTenant create:
+                await AppendReceipt(await On(create, context), context);
+                break;
+            case InvitationReissueRequested:
+                await Reissue(context);
+                break;
+            case InvitationRevoked revoked:
+                await AppendRevocation(revoked, context);
+                break;
+            default:
+                await ReceiveOnboardingOutcome(content, context);
+                break;
+        }
     }
 
     async Task ReceiveOnboardingOutcome(object content, EventContext context)
