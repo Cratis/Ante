@@ -12,6 +12,7 @@ public class an_invitation_awaiting_a_key : Specification
 {
     protected static readonly InvitationId Invitation = InvitationId.New();
     protected IEventLog Log = null!;
+    protected IReadModels ReadModels = null!;
     protected List<AppendedEvent> History = null!;
     protected InvitationTokenIssuanceResumer Resumer = null!;
     protected int Resumed;
@@ -20,11 +21,11 @@ public class an_invitation_awaiting_a_key : Specification
     {
         History = [At(4, new InvitationTokenIssuanceDeferred(3))];
         var eventStore = Substitute.For<IEventStore>();
-        var readModels = Substitute.For<IReadModels>();
+        ReadModels = Substitute.For<IReadModels>();
         Log = Substitute.For<IEventLog>();
-        eventStore.ReadModels.Returns(readModels);
+        eventStore.ReadModels.Returns(ReadModels);
         eventStore.EventLog.Returns(Log);
-        readModels.GetInstances<InvitationAwaitingSigningKey>(Arg.Any<EventCount?>())
+        ReadModels.GetInstances<InvitationAwaitingSigningKey>(Arg.Any<EventCount?>())
             .Returns(Task.FromResult<IEnumerable<InvitationAwaitingSigningKey>>([new(Invitation, 3)]));
         Log.GetForEventSourceIdAndEventTypes(Arg.Any<EventSourceId>(), Arg.Any<IEnumerable<EventType>>(), Arg.Any<EventStreamType>(), Arg.Any<EventStreamId>(), Arg.Any<EventSourceType>())
             .Returns(_ => Task.FromResult<IImmutableList<AppendedEvent>>(History.ToImmutableList()));

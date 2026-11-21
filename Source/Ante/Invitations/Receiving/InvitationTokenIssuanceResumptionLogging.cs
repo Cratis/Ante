@@ -10,4 +10,7 @@ internal static partial class InvitationTokenIssuanceResumptionLogging
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Resuming invitations that waited for a signing key failed; retrying on the next pass")]
     internal static partial void LogResumptionFailed(this ILogger<InvitationTokenIssuanceResumption> logger, Exception error);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Resuming invitations that waited for a signing key did not finish within {Timeout}; retrying on the next pass")]
+    internal static partial void LogResumptionTimedOut(this ILogger<InvitationTokenIssuanceResumption> logger, TimeSpan timeout);
 }
