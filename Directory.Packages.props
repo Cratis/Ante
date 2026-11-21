@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <ArcVersion>22.179.0</ArcVersion>
+    <ArcVersion>22.185.1</ArcVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- Keep the Arc family on one release, including the metapackage and its transitive dependencies. -->
