@@ -36,7 +36,8 @@ public interface IMongoConnectivityProbe
 /// period. <c language="csharp">/healthz/ready</c> checks whether this instance can serve traffic right now.
 /// It runs the tagged dependency checks, each individually bounded by
 /// <see cref="DependencyTimeout"/>, so one stuck dependency can never hang the whole probe or accumulate
-/// blocked work behind it.
+/// blocked work behind it. Background passes such as <see cref="InvitationTokenIssuanceResumption"/> are
+/// best-effort and are not readiness inputs.
 /// </remarks>
 public static class AnteHealthChecks
 {
