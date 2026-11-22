@@ -15,10 +15,10 @@ using Ante.Organization.Registration.Review;
 using Ante.Organization.Registration.Start;
 using Ante.Outbox;
 using Ante.Resources;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Validation;
 using Cratis.Types;
 using Microsoft.AspNetCore.Http;
-using MongoDB.Driver;
 
 namespace Ante.Organization.Registration;
 
@@ -36,10 +36,9 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
     /// <param name="identityProviderResolver">Resolver of the current sign-in provider.</param>
     /// <param name="eventStore">The current namespace's read models for checking prior use of the registration id.</param>
     /// <param name="options">The deployment's options, deciding whether registration is offered and which names are reserved.</param>
-    [SuppressMessage("Arc.Chronicle", "ARCCHR0026:Chronicle model read through a MongoDB collection", Justification = ClaimedOrganizationNames.SearchIsAdvisory)]
     public RegisterOrganizationValidator(
         ILegalDocumentSource legalDocumentSource,
-        IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
+        IClaimedOrganizationNameSearch acceptedOrganizationNames,
         IHttpContextAccessor httpContextAccessor,
         IIdentityProviderResolver identityProviderResolver,
         IEventStore eventStore,
@@ -61,7 +60,7 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
         // reports is attributed to the organization name field, so the rejection lands on the step that
         // owns the field instead of only surfacing once the final submit has already failed.
         RuleFor(c => (string)c.OrganizationName)
-            .MustAsync(async (organizationName, _) => !await ClaimedOrganizationNames.Contains(acceptedOrganizationNames, organizationName))
+            .MustAsync(async (organizationName, _) => !await acceptedOrganizationNames.Contains(organizationName))
             .WithMessage(_ => Messages.Get("OrganizationNameExists"));
 
         RuleFor(c => (string)c.FirstName).MustBeARequiredName("First name");
@@ -115,6 +114,7 @@ public class RegisterOrganizationValidator : CommandValidator<RegisterOrganizati
 /// <c language="csharp">Ante:Registration:ContextKeys</c> are dropped; the host must treat what remains as untrusted input.
 /// </param>
 [Command]
+[Unprotected("Start ownership is immutable under OneRegistrationStart; unique constraints and explicit onboarding, legal and quota scopes guard the append.")]
 public record RegisterOrganization(InvitationId RegistrationId, TenantName OrganizationName, FirstName FirstName, MiddleName? MiddleName, LastName LastName, bool AcceptedLegalTerms, LegalVersion AcceptedLegalVersion, IEnumerable<SignupContextEntry>? SignupContext = null)
 {
     /// <summary>
@@ -139,24 +139,19 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
     /// forwarded to the outbox. <see cref="OrganizationRegistrationOutbox"/> marks it once registration is
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
-    [SuppressMessage("Arc.Chronicle", "ARCCHR0026:Chronicle model read through a MongoDB collection", Justification = ClaimedOrganizationNames.SearchIsAdvisory)]
     public async Task<Result<ValidationResult, EventsWithConcurrencyScopes>> Handle(
         IHttpContextAccessor httpContextAccessor,
-        IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
+        IClaimedOrganizationNameSearch acceptedOrganizationNames,
         IIdentityProviderResolver identityProviderResolver,
         ILegalDocumentSource legalDocumentSource,
         IEventStore eventStore,
         IOptions<AnteOptions> options,
         TimeProvider timeProvider)
     {
-        if (!options.Value.Registration.Enabled)
+        var availabilityError = ValidateAvailability(options.Value);
+        if (availabilityError is not null)
         {
-            return ValidationResult.Error(Messages.Get("RegistrationClosed"));
-        }
-
-        if (ReservedOrganizationNames.IsReserved(options.Value, OrganizationName))
-        {
-            return ValidationResult.Error(Messages.Get("OrganizationNameReserved"), ["organizationName"]);
+            return availabilityError;
         }
 
         var httpContext = httpContextAccessor.HttpContext;
@@ -169,12 +164,12 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
         // it, because a result composed here is passed through as written - only failures a validator
         // reports get camelCased for the client - and without it the wizard cannot put the message on
         // the field.
-        if (await ClaimedOrganizationNames.Contains(acceptedOrganizationNames, OrganizationName))
+        if (await acceptedOrganizationNames.Contains(OrganizationName))
         {
             return ValidationResult.Error(Messages.Get("OrganizationNameInUse"), ["organizationName"]);
         }
 
-        if (owner is null || string.IsNullOrWhiteSpace(owner.Provider.Value))
+        if (IsMissingOwner(owner))
         {
             return ValidationResult.Error(Messages.Get("RegisterIdentityRequired"));
         }
@@ -215,6 +210,21 @@ public record RegisterOrganization(InvitationId RegistrationId, TenantName Organ
             [.. append.Events, new EventForEventSourceId(quota.Key, new RegistrationQuotaConsumed())],
             [.. append.ConcurrencyScopes, new(quota.Key, quota.Scope)]);
     }
+
+    ValidationResult? ValidateAvailability(AnteOptions options)
+    {
+        if (!options.Registration.Enabled)
+        {
+            return ValidationResult.Error(Messages.Get("RegistrationClosed"));
+        }
+
+        return ReservedOrganizationNames.IsReserved(options, OrganizationName)
+            ? ValidationResult.Error(Messages.Get("OrganizationNameReserved"), ["organizationName"])
+            : null;
+    }
+
+    static bool IsMissingOwner([NotNullWhen(false)] RegistrationOwner? owner) =>
+        owner is null || string.IsNullOrWhiteSpace(owner.Provider.Value);
 
     async Task<ValidationResult?> ValidateStart(RegistrationOwner owner, IEventStore eventStore)
     {

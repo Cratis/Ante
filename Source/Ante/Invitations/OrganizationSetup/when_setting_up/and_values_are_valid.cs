@@ -4,13 +4,13 @@
 #if DEBUG
 using Ante.Contracts.Legal;
 using Ante.Invitations.Accepting;
-using Ante.Invitations.Accepting.for_InvitationAcceptanceFence;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
 using Ante.Organization.Names;
+using Cratis.Arc.Chronicle.ReadModels;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using MongoDB.Driver;
+using Microsoft.Extensions.Options;
 
 namespace Ante.Invitations.OrganizationSetup.when_setting_up;
 
@@ -22,13 +22,14 @@ public class and_values_are_valid : Specification
     readonly CommandScenario<SetupOrganization> _scenario = new();
     CommandResult _result = null!;
 
-    void Establish()
+    async Task Establish()
     {
+        await _scenario.EventLog.Append(_invitationId, new CreateTenantInvitationReceived("jane@example.com", ["Owner"]));
         var pending = new PendingInvitationToCreateOrganization(_invitationId, Guid.NewGuid(), "jane@example.com", ["Owner"]);
         _scenario.Given.ForEventSource(_invitationId).ReadModel(pending);
 
-        var acceptedNames = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
-        acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var acceptedNames = Substitute.For<IClaimedOrganizationNameSearch>();
+        acceptedNames.Contains(Arg.Any<string>()).Returns(false);
 
         var signedInIdentity = Substitute.For<ISignedInIdentity>();
         signedInIdentity.Resolve(_invitationId, Arg.Any<Cratis.Chronicle.Subject>()).Returns(((IdentityProviderName)"github", _subject));
@@ -36,7 +37,8 @@ public class and_values_are_valid : Specification
 
         _scenario.Services.AddSingleton(acceptedNames);
         _scenario.Services.AddSingleton(signedInIdentity);
-        _scenario.Services.AddSingleton(AcceptanceFenceForSpecs.Allow(_invitationId, InvitationFlowType.CreateTenant));
+        _scenario.Services.AddSingleton<IInvitationAcceptanceFence>(services => new InvitationAcceptanceFence(
+            services.GetRequiredService<IEventStore>(), Options.Create(new InvitationExchangeConfig())));
         _scenario.Services.AddSingleton<ILegalDocumentSource>(new NoLegalDocumentSource());
         _scenario.Services.AddSingleton(Substitute.For<IHttpContextAccessor>());
         _scenario.Services.AddSingleton(new OrganizationSetupStatusSubscriptions());
@@ -46,6 +48,8 @@ public class and_values_are_valid : Specification
         _result = await _scenario.Execute(new SetupOrganization(_invitationId, "Acme", "Jane", null, "Doe", false, LegalVersion.NotSet));
 
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
+
+    [Fact] void should_declare_its_authoritative_history_reads() => typeof(SetupOrganization).IsDefined(typeof(UnprotectedAttribute), false).ShouldBeTrue();
 
     [Fact]
     async Task should_have_appended_the_create_tenant_accepted_event() =>

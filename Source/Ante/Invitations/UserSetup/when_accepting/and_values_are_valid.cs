@@ -4,10 +4,11 @@
 #if DEBUG
 using Ante.Contracts.Legal;
 using Ante.Invitations.Accepting;
-using Ante.Invitations.Accepting.for_InvitationAcceptanceFence;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
+using Cratis.Arc.Chronicle.ReadModels;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Ante.Invitations.UserSetup.when_accepting;
 
@@ -19,8 +20,9 @@ public class and_values_are_valid : Specification
     readonly CommandScenario<AcceptInvitation> _scenario = new();
     CommandResult _result = null!;
 
-    void Establish()
+    async Task Establish()
     {
+        await _scenario.EventLog.Append(_invitationId, new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]));
         var pending = new PendingInvitationToJoin(_invitationId, Guid.NewGuid(), "jane@example.com", "Acme", ["Member"]);
         _scenario.Given.ForEventSource(_invitationId).ReadModel(pending);
 
@@ -33,7 +35,8 @@ public class and_values_are_valid : Specification
 
         _scenario.Services.AddSingleton(signedInIdentity);
         _scenario.Services.AddSingleton(backchannel);
-        _scenario.Services.AddSingleton(AcceptanceFenceForSpecs.Allow(_invitationId, InvitationFlowType.JoinTenant));
+        _scenario.Services.AddSingleton<IInvitationAcceptanceFence>(services => new InvitationAcceptanceFence(
+            services.GetRequiredService<IEventStore>(), Options.Create(new InvitationExchangeConfig())));
         _scenario.Services.AddSingleton<ILegalDocumentSource>(new NoLegalDocumentSource());
         _scenario.Services.AddSingleton(new UserSetupStatusSubscriptions());
     }
@@ -42,6 +45,8 @@ public class and_values_are_valid : Specification
         _result = await _scenario.Execute(new AcceptInvitation(_invitationId, "Jane", null, "Doe", false, LegalVersion.NotSet));
 
     [Fact] void should_succeed() => _result.ShouldBeSuccessful();
+
+    [Fact] void should_declare_its_authoritative_history_reads() => typeof(AcceptInvitation).IsDefined(typeof(UnprotectedAttribute), false).ShouldBeTrue();
 
     [Fact]
     async Task should_have_appended_the_join_tenant_accepted_event() =>

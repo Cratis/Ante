@@ -13,7 +13,6 @@ using Ante.Organization.Names;
 using Ante.Organization.Registration.Start;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using MongoDB.Driver;
 
 namespace Ante.Organization.Registration.when_registering;
 
@@ -27,8 +26,8 @@ public class and_values_are_valid : Specification
     async Task Establish()
     {
         await _scenario.EventScenario.Given.ForEventSource(_registrationId).Events(new RegistrationStarted((RegistrationOwnerSubject)"sub-1", "github"));
-        var acceptedNames = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
-        acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var acceptedNames = Substitute.For<IClaimedOrganizationNameSearch>();
+        acceptedNames.Contains(Arg.Any<string>()).Returns(false);
 
         _scenario.Services.AddSingleton(acceptedNames);
         var accessor = Substitute.For<IHttpContextAccessor>();

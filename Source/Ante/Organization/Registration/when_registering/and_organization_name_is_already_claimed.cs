@@ -10,7 +10,6 @@ using Ante.Legal;
 using Ante.Organization.Names;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using MongoDB.Driver;
 
 namespace Ante.Organization.Registration.when_registering;
 
@@ -21,8 +20,8 @@ public class and_organization_name_is_already_claimed : Specification
 
     void Establish()
     {
-        var acceptedNames = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
-        acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(1L);
+        var acceptedNames = Substitute.For<IClaimedOrganizationNameSearch>();
+        acceptedNames.Contains(Arg.Any<string>()).Returns(true);
 
         _scenario.Services.AddSingleton(acceptedNames);
         _scenario.Services.AddSingleton(Substitute.For<IHttpContextAccessor>());

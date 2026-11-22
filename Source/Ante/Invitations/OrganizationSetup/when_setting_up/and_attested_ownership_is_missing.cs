@@ -10,7 +10,6 @@ using Ante.Legal;
 using Ante.Organization.Names;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using MongoDB.Driver;
 
 namespace Ante.Invitations.OrganizationSetup.when_setting_up;
 
@@ -23,8 +22,8 @@ public class and_attested_ownership_is_missing : Specification
     void Establish()
     {
         _scenario.Given.ForEventSource(_id).ReadModel(new PendingInvitationToCreateOrganization(_id, Guid.NewGuid(), "jane@example.com", ["Owner"]));
-        var names = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
-        names.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var names = Substitute.For<IClaimedOrganizationNameSearch>();
+        names.Contains(Arg.Any<string>()).Returns(false);
         var identity = Substitute.For<ISignedInIdentity>();
         identity.IsVerifiedOwnerOf(_id).Returns(true);
         identity.IsAttestedExchange.Returns(true);
