@@ -42,8 +42,7 @@ public abstract class a_stored_public_organization_claim : Specification
         var constraints = new Constraints(Store, [new definitions(Store.EventTypes)]);
         await constraints.Discover();
         await constraints.Register();
-        UnrelatedClaim = await Store.EventLog.Append(
-            Guid.NewGuid().ToString(), new OrganizationNameReservationReceived("Another organization"));
+        UnrelatedClaim = await AppendWhenConstraintIndexIsReady(new OrganizationNameReservationReceived("Another organization"));
     }
 
     async Task SeedStoredHistory()
@@ -52,7 +51,7 @@ public abstract class a_stored_public_organization_claim : Specification
         // Replace it at rest, not through Append/Outbox: public events can no longer be written to the log.
         var seed = await Store.EventLog.Append(
             Guid.NewGuid().ToString(), new OrganizationNameReservationReceived("Storage envelope"));
-        seed.IsSuccess.ShouldBeTrue();
+        Assert.True(seed.IsSuccess, AppendDetails(seed));
         var document = await _history.Find(FilterDefinition<BsonDocument>.Empty).SingleAsync();
         document["type"] = Store.EventTypes.GetEventTypeFor(LegacyEventType).Id.Value;
         document["content"] = new BsonDocument(LegacyGeneration, LegacyContent);
@@ -60,6 +59,41 @@ public abstract class a_stored_public_organization_claim : Specification
         document["appendedGeneration"] = int.Parse(LegacyGeneration, System.Globalization.CultureInfo.InvariantCulture);
         await _history.ReplaceOneAsync(new BsonDocument("_id", document["_id"]), document);
     }
+
+    protected async Task<IAppendResult> AppendWhenConstraintIndexIsReady(object content)
+    {
+        var eventSourceId = Guid.NewGuid().ToString();
+        IAppendResult? last = null;
+        try
+        {
+            await Eventually.Until(
+                async () =>
+                {
+                    last = await Store.EventLog.Append(eventSourceId, content);
+                    return !ConstraintIndexUnavailable(last);
+                },
+                what: "the unique organization name constraint index to become available");
+        }
+        catch (TimeoutException timeout)
+        {
+            Assert.Fail($"{timeout.Message} {AppendDetails(last)}");
+        }
+        return last!;
+    }
+
+    protected static string AppendDetails(IAppendResult? result) => result is null
+        ? "No append result was returned."
+        : $"Append success: {result.IsSuccess}; errors: [{string.Join(", ", result.Errors.Select(error => error.Value))}]; constraint violations: [{string.Join(", ", result.ConstraintViolations)}].";
+
+    protected static ConstraintViolation SingleConstraintViolation(IAppendResult result)
+    {
+        Assert.True(!result.HasErrors && result.ConstraintViolations.Count() == 1, AppendDetails(result));
+        return result.ConstraintViolations.Single();
+    }
+
+    static bool ConstraintIndexUnavailable(IAppendResult result) =>
+        !result.IsSuccess && result.HasErrors && !result.HasConstraintViolations && !result.HasConcurrencyViolations &&
+        result.Errors.All(error => error.Value == "ConstraintIndexUnavailable");
 
     protected async Task AssertLegacyHistoryWasPreserved()
     {
