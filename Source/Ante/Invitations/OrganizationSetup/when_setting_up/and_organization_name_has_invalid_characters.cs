@@ -6,7 +6,6 @@ using Ante.Contracts.Legal;
 using Ante.Invitations.Accepting;
 using Ante.Legal;
 using Ante.Organization.Names;
-using MongoDB.Driver;
 
 namespace Ante.Invitations.OrganizationSetup.when_setting_up;
 
@@ -18,8 +17,8 @@ public class and_organization_name_has_invalid_characters : Specification
     {
         var invitationId = InvitationId.New();
 
-        var acceptedNames = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
-        acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var acceptedNames = Substitute.For<IClaimedOrganizationNameSearch>();
+        acceptedNames.Contains(Arg.Any<string>()).Returns(false);
 
         var signedInIdentity = Substitute.For<ISignedInIdentity>();
         signedInIdentity.IsVerifiedOwnerOf(invitationId).Returns(true);

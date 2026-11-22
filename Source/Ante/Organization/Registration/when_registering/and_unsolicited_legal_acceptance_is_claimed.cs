@@ -11,7 +11,6 @@ using Ante.Legal;
 using Ante.Organization.Names;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using MongoDB.Driver;
 
 namespace Ante.Organization.Registration.when_registering;
 
@@ -24,8 +23,8 @@ public class and_unsolicited_legal_acceptance_is_claimed : Specification
 
     void Establish()
     {
-        var acceptedNames = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
-        acceptedNames.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var acceptedNames = Substitute.For<IClaimedOrganizationNameSearch>();
+        acceptedNames.Contains(Arg.Any<string>()).Returns(false);
 
         _scenario.Services.AddSingleton(acceptedNames);
         _scenario.Services.AddSingleton(Substitute.For<IHttpContextAccessor>());

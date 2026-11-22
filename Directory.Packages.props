@@ -1,20 +1,20 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <ArcVersion>22.185.1</ArcVersion>
+    <ArcVersion>23.15.1</ArcVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- Keep the Arc family on one release, including the metapackage and its transitive dependencies. -->
-    <PackageVersion Include="Cratis" Version="22.185.1" />
-    <PackageVersion Include="Cratis.Arc" Version="22.185.1" />
+    <PackageVersion Include="Cratis" Version="$(ArcVersion)" />
+    <PackageVersion Include="Cratis.Arc" Version="$(ArcVersion)" />
     <PackageVersion Include="Cratis.Arc.Core" Version="$(ArcVersion)" />
-    <PackageVersion Include="Cratis.Arc.ProxyGenerator.Build" Version="22.185.1" />
-    <PackageVersion Include="Cratis.Arc.Chronicle.Testing" Version="22.185.1" />
-    <PackageVersion Include="Cratis.Arc.MongoDB" Version="22.185.1" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.34.0" />
+    <PackageVersion Include="Cratis.Arc.ProxyGenerator.Build" Version="$(ArcVersion)" />
+    <PackageVersion Include="Cratis.Arc.Chronicle.Testing" Version="$(ArcVersion)" />
+    <PackageVersion Include="Cratis.Arc.MongoDB" Version="$(ArcVersion)" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.34.3" />
     <!-- Keep Chronicle clients and testing support on the same release. -->
-    <PackageVersion Include="Cratis.Chronicle" Version="19.155.0" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.155.0" />
+    <PackageVersion Include="Cratis.Chronicle" Version="19.181.2" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.181.2" />
     <!-- Referenced directly (Debug-only, see Source/Directory.Build.props) so the version lands in the
          test output directory: Cratis's generated type-discovery provider loads
          Microsoft.CodeAnalysis.CSharp at runtime, and without a direct reference it is absent from

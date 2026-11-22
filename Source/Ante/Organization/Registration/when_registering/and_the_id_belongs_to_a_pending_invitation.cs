@@ -12,7 +12,6 @@ using Ante.Legal;
 using Ante.Organization.Names;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using MongoDB.Driver;
 
 namespace Ante.Organization.Registration.when_registering;
 
@@ -24,10 +23,9 @@ public class and_the_id_belongs_to_a_pending_invitation : Specification
 
     async Task Establish()
     {
-        _scenario.Given.ForEventSource(_id).Events(new CreateTenantInvitationReceived("jane@example.com", ["Owner"]));
         await _scenario.EventScenario.Given.ForEventSource(_id).Events(new CreateTenantInvitationReceived("jane@example.com", ["Owner"]));
-        var names = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
-        names.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var names = Substitute.For<IClaimedOrganizationNameSearch>();
+        names.Contains(Arg.Any<string>()).Returns(false);
         var accessor = Substitute.For<IHttpContextAccessor>();
         accessor.HttpContext.Returns(new DefaultHttpContext
         {

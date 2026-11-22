@@ -7,6 +7,7 @@ using Ante.Invitations;
 using Ante.Invitations.Receiving;
 using Ante.Organization.Registration;
 using Ante.Resources;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Validation;
 using Cratis.Types;
 
@@ -27,6 +28,7 @@ public record RegistrationStarted([property: Subject] RegistrationOwnerSubject O
 /// </summary>
 /// <param name="RegistrationId">The registration's event source identifier.</param>
 [Command]
+[Unprotected("OneRegistrationStart enforces uniqueness; authoritative history resolves ownership and same-owner append races.")]
 public record BeginRegistration(InvitationId RegistrationId)
 {
     /// <summary>
@@ -69,6 +71,11 @@ public record BeginRegistration(InvitationId RegistrationId)
             return ValidationResult.Error(Messages.Get("RegistrationLimitReached"));
         }
 
+        return await RecordStart(owner, eventStore);
+    }
+
+    async Task<Result<ValidationResult, IEnumerable<object>>> RecordStart(RegistrationOwner owner, IEventStore eventStore)
+    {
         var starts = await RegistrationStartHistory.For(RegistrationId, eventStore);
         if (starts.Length == 1 && starts[0].OwnerSubject == owner.Subject && starts[0].OwnerProvider == owner.Provider)
         {
@@ -80,6 +87,11 @@ public record BeginRegistration(InvitationId RegistrationId)
             return ValidationResult.Error(Messages.Get("RegistrationOwnedByAnotherSignIn"));
         }
 
+        return await AppendStart(owner, eventStore);
+    }
+
+    async Task<Result<ValidationResult, IEnumerable<object>>> AppendStart(RegistrationOwner owner, IEventStore eventStore)
+    {
         // A second start can pass the history check before the first append commits. Append
         // here so only this command can interpret the OneRegistrationStart race after re-reading
         // the authoritative history; Arc's automatic append would return a failed command even
@@ -91,9 +103,7 @@ public record BeginRegistration(InvitationId RegistrationId)
             return Array.Empty<object>();
         }
 
-        if (append.HasConstraintViolations && !append.HasErrors && !append.HasConcurrencyViolations &&
-            append.ConstraintViolations.All(violation => violation.ConstraintName == "OneRegistrationStart") &&
-            await RegistrationStartHistory.BelongsTo(RegistrationId, owner, eventStore))
+        if (IsStartConflict(append) && await RegistrationStartHistory.BelongsTo(RegistrationId, owner, eventStore))
         {
             return Array.Empty<object>();
         }
@@ -105,6 +115,10 @@ public record BeginRegistration(InvitationId RegistrationId)
 
         return ValidationResult.Error(Messages.Get("RegistrationOwnedByAnotherSignIn"));
     }
+
+    static bool IsStartConflict(AppendResult append) =>
+        append.HasConstraintViolations && !append.HasErrors && !append.HasConcurrencyViolations &&
+        append.ConstraintViolations.All(violation => violation.ConstraintName == "OneRegistrationStart");
 }
 
 /// <summary>

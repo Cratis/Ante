@@ -4,6 +4,7 @@
 #if DEBUG
 using Ante.Contracts.Organization;
 using Ante.Organization.Registration.when_registering.given;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ante.Organization.Registration.when_registering;
 
@@ -12,9 +13,13 @@ public class and_the_sign_in_has_used_its_allowance : a_started_registration
     async Task Establish()
     {
         Options.Registration.MaxPerIdentity = 1;
-        await Scenario.EventScenario.Given
-            .ForEventSource(RegistrationQuota.KeyFor(new((RegistrationOwnerSubject)"sub-1", "github")))
-            .Events(new RegistrationQuotaConsumed());
+        var now = DateTimeOffset.UtcNow;
+        var clock = Substitute.For<TimeProvider>();
+        clock.GetUtcNow().Returns(now);
+        Scenario.Services.AddSingleton(clock);
+        var seeded = await Scenario.EventLog.Append(
+            RegistrationQuota.KeyFor(new((RegistrationOwnerSubject)"sub-1", "github")), new RegistrationQuotaConsumed(), occurred: now);
+        Assert.True(seeded.IsSuccess);
     }
 
     Task Because() => Register();

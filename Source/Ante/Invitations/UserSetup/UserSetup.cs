@@ -11,6 +11,7 @@ using Ante.Invitations.Receiving;
 using Ante.Legal;
 using Ante.Outbox;
 using Ante.Resources;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Validation;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Types;
@@ -145,7 +146,7 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     [SuppressMessage("Arc.Chronicle", "ARCCHR0011:Plain read model in event-producing command is unprotected", Justification = "Advisory read: it resolves the identity and asks the organization about it before Handle, which reads the invitation again and appends behind the acceptance fence.")]
     public async Task<Result<AcceptingUserIdentity, ValidationResult>> Provide(
         ISignedInIdentity signedInIdentity,
-        PendingInvitationToJoin? pendingInvitation,
+        [Unprotected("Identity lookup context; Handle rechecks the invitation behind the authoritative acceptance fence.")] PendingInvitationToJoin? pendingInvitation,
         IIdentityBackchannel identityBackchannel)
     {
         if (pendingInvitation is null)
@@ -193,8 +194,8 @@ public record AcceptInvitation(InvitationId InvitationId, FirstName FirstName, M
     [SuppressMessage("Arc.Chronicle", "ARCCHR0011:Plain read model in event-producing command is unprotected", Justification = "Advisory reads: they only reject early. The acceptance fence guards the invitation stream's revision at append time, and the one-use invitation and onboarding attempt constraints reject a second acceptance.")]
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
         AcceptingUserIdentity identity,
-        PendingInvitationToJoin? pendingInvitation,
-        OrganizationSetupProgress? existingSetup,
+        [Unprotected("The authoritative acceptance fence guards receipt and revocation at append time.")] PendingInvitationToJoin? pendingInvitation,
+        [Unprotected("Early rejection only; the acceptance fence and one-use constraints reject a reused invitation.")] OrganizationSetupProgress? existingSetup,
         ILegalDocumentSource legalDocumentSource,
         IInvitationAcceptanceFence acceptanceFence,
         ISignedInIdentity signedInIdentity,

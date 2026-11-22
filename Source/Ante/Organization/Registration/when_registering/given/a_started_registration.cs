@@ -13,7 +13,6 @@ using Ante.Organization.Names;
 using Ante.Organization.Registration.Start;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using MongoDB.Driver;
 
 namespace Ante.Organization.Registration.when_registering.given;
 
@@ -31,8 +30,8 @@ public class a_started_registration : Specification
         // The scenario appends seeded events against its own deterministic clock, not the real one. Resolving
         // Provide()'s TimeProvider to that same clock keeps "now" consistent with what was just seeded.
         Scenario.Services.AddSingleton<TimeProvider>(Scenario.EventScenario.Time);
-        var names = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
-        names.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var names = Substitute.For<IClaimedOrganizationNameSearch>();
+        names.Contains(Arg.Any<string>()).Returns(false);
         Scenario.Services.AddSingleton(names);
         var accessor = Substitute.For<IHttpContextAccessor>();
         accessor.HttpContext.Returns(new DefaultHttpContext

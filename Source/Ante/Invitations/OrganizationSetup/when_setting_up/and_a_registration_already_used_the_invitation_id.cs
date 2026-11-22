@@ -3,14 +3,13 @@
 
 #if DEBUG
 using Ante.Contracts.Legal;
-using Ante.Contracts.Organization;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
 using Ante.Organization.Names;
+using Ante.Organization.Registration;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using MongoDB.Driver;
 
 namespace Ante.Invitations.OrganizationSetup.when_setting_up;
 
@@ -22,11 +21,13 @@ public class and_a_registration_already_used_the_invitation_id : Specification
 
     void Establish()
     {
-        _scenario.Given.ForEventSource(_id).Events(new OrganizationRegistrationCompleted(
-            "Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
+        // Public completion notifications belong to the outbox; seed the durable registration facts.
+        _scenario.Given.ForEventSource(_id).Events(
+            new OnboardingAttemptClaimed(),
+            new OrganizationRegistrationRecorded("Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", []));
         _scenario.Given.ForEventSource(_id).ReadModel(new PendingInvitationToCreateOrganization(_id, Guid.NewGuid(), "jane@example.com", ["Owner"]));
-        var names = Substitute.For<IMongoCollection<OrganizationNameClaim>>();
-        names.CountDocumentsAsync(Arg.Any<FilterDefinition<OrganizationNameClaim>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>()).Returns(0L);
+        var names = Substitute.For<IClaimedOrganizationNameSearch>();
+        names.Contains(Arg.Any<string>()).Returns(false);
         var identity = Substitute.For<ISignedInIdentity>();
         identity.IsVerifiedOwnerOf(_id).Returns(true);
         _scenario.Services.AddSingleton(names);

@@ -3,11 +3,11 @@
 
 #if DEBUG
 using Ante.Contracts.Legal;
-using Ante.Contracts.Organization;
 using Ante.Invitations.Accepting;
 using Ante.Invitations.OrganizationSetup;
 using Ante.Invitations.Receiving;
 using Ante.Legal;
+using Ante.Organization.Registration;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
@@ -22,8 +22,10 @@ public class and_a_registration_already_used_the_invitation_id : Specification
 
     void Establish()
     {
-        _scenario.Given.ForEventSource(_id).Events(new OrganizationRegistrationCompleted(
-            "Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com"));
+        // Public completion notifications belong to the outbox; seed the durable registration facts.
+        _scenario.Given.ForEventSource(_id).Events(
+            new OnboardingAttemptClaimed(),
+            new OrganizationRegistrationRecorded("Acme", "sub-1", "github", "Jane", MiddleName.NotSet, "Doe", "jane@example.com", []));
         _scenario.Given.ForEventSource(_id).ReadModel(new PendingInvitationToJoin(_id, Guid.NewGuid(), "jane@example.com", "Acme", ["Member"]));
         var identity = Substitute.For<ISignedInIdentity>();
         identity.IsVerifiedOwnerOf(_id).Returns(true);

@@ -15,10 +15,10 @@ using Ante.Organization.Registration;
 using Ante.Organization.Registration.Review;
 using Ante.Outbox;
 using Ante.Resources;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Chronicle.Keys;
 using Cratis.Types;
-using MongoDB.Driver;
 
 namespace Ante.Invitations.OrganizationSetup;
 
@@ -87,10 +87,9 @@ public class SetupOrganizationValidator : CommandValidator<SetupOrganization>
     /// <param name="acceptedOrganizationNames">The organization names already claimed by accepted invitations.</param>
     /// <param name="signedInIdentity">The identity the user is signed in with for this request.</param>
     /// <param name="options">The deployment's options, holding the reserved organization names.</param>
-    [SuppressMessage("Arc.Chronicle", "ARCCHR0026:Chronicle model read through a MongoDB collection", Justification = ClaimedOrganizationNames.SearchIsAdvisory)]
     public SetupOrganizationValidator(
         ILegalDocumentSource legalDocumentSource,
-        IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
+        IClaimedOrganizationNameSearch acceptedOrganizationNames,
         ISignedInIdentity signedInIdentity,
         IOptions<AnteOptions> options)
     {
@@ -114,7 +113,7 @@ public class SetupOrganizationValidator : CommandValidator<SetupOrganization>
         // reports is attributed to the organization name field, so the rejection lands on the step that
         // owns the field instead of only surfacing once the final submit has already failed.
         RuleFor(c => (string)c.OrganizationName)
-            .MustAsync(async (organizationName, _) => !await ClaimedOrganizationNames.Contains(acceptedOrganizationNames, organizationName))
+            .MustAsync(async (organizationName, _) => !await acceptedOrganizationNames.Contains(organizationName))
             .WithMessage(_ => Messages.Get("OrganizationNameExists"));
 
         RuleFor(c => (string)c.FirstName).MustBeARequiredName("First name");
@@ -230,12 +229,11 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
     /// verifiably durable in Ante's own outbox instead.
     /// </remarks>
     [SuppressMessage("Arc.Chronicle", "ARCCHR0011:Plain read model in event-producing command is unprotected", Justification = "Advisory reads: they only reject early. The acceptance fence guards the invitation stream's revision at append time, and the one-use invitation and onboarding attempt constraints reject a second acceptance.")]
-    [SuppressMessage("Arc.Chronicle", "ARCCHR0026:Chronicle model read through a MongoDB collection", Justification = ClaimedOrganizationNames.SearchIsAdvisory)]
     public async Task<Result<ValidationResult, (Cratis.Chronicle.Subject, EventsWithConcurrencyScopes)>> Handle(
-        PendingInvitationToCreateOrganization? pendingInvitation,
-        OrganizationSetupProgress? existingSetup,
-        UserSetupProgress? existingJoin,
-        IMongoCollection<OrganizationNameClaim> acceptedOrganizationNames,
+        [Unprotected("The authoritative acceptance fence guards receipt and revocation at append time.")] PendingInvitationToCreateOrganization? pendingInvitation,
+        [Unprotected("Early rejection only; the acceptance fence and one-use constraints reject a reused invitation.")] OrganizationSetupProgress? existingSetup,
+        [Unprotected("Early rejection only; the acceptance fence and one-use constraints reject a reused invitation.")] UserSetupProgress? existingJoin,
+        IClaimedOrganizationNameSearch acceptedOrganizationNames,
         ISignedInIdentity signedInIdentity,
         ILegalDocumentSource legalDocumentSource,
         IInvitationAcceptanceFence acceptanceFence,
@@ -246,12 +244,12 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         // it, because a result composed here is passed through as written - only failures a validator
         // reports get camelCased for the client - and without it the wizard cannot put the message on
         // the field.
-        if (await ClaimedOrganizationNames.Contains(acceptedOrganizationNames, OrganizationName))
+        if (await acceptedOrganizationNames.Contains(OrganizationName))
         {
             return ValidationResult.Error(Messages.Get("OrganizationNameInUse"), ["organizationName"]);
         }
 
-        if (pendingInvitation is null || existingSetup is not null || existingJoin is not null)
+        if (IsNoLongerPending(pendingInvitation, existingSetup, existingJoin))
         {
             return ValidationResult.Error(Messages.Get("SetupNotPending"));
         }
@@ -283,7 +281,7 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
         }
 
         var owner = signedInIdentity.AttestedOwnerOf(InvitationId);
-        if (signedInIdentity.IsAttestedExchange && owner is null)
+        if (IsMissingAttestedOwner(signedInIdentity, owner))
         {
             return ValidationResult.Error(Messages.Get("SetupNotPending"));
         }
@@ -297,6 +295,15 @@ public record SetupOrganization(InvitationId InvitationId, TenantName Organizati
 
         return (complianceSubject, await LegalAcceptanceEvidence.ForAppend(eventStore, InvitationId, events, legalEvidence, scope));
     }
+
+    static bool IsNoLongerPending(
+        [NotNullWhen(false)] PendingInvitationToCreateOrganization? pendingInvitation,
+        OrganizationSetupProgress? existingSetup,
+        UserSetupProgress? existingJoin) =>
+        pendingInvitation is null || existingSetup is not null || existingJoin is not null;
+
+    static bool IsMissingAttestedOwner(ISignedInIdentity signedInIdentity, InvitedAcceptanceOwnerRecorded? owner) =>
+        signedInIdentity.IsAttestedExchange && owner is null;
 
     List<object> CreateEvents(
         PendingInvitationToCreateOrganization pendingInvitation,
