@@ -10,6 +10,7 @@ namespace Ante.Integration.LegacyConsumer;
 /// <param name="FlowType">The invitation flow.</param>
 /// <param name="Token">The signed capability.</param>
 /// <param name="ExpiresAt">The signed expiry.</param>
+[Public]
 [EventType("InvitationTokenIssued", generation: 2)]
 public record LegacyInvitationTokenIssued(int FlowType, string Token, DateTimeOffset ExpiresAt);
 
@@ -17,6 +18,7 @@ public record LegacyInvitationTokenIssued(int FlowType, string Token, DateTimeOf
 /// <param name="Email">Recipient address.</param>
 /// <param name="TenantName">Inviting organization.</param>
 /// <param name="Roles">Invited roles.</param>
+[Public]
 [EventType("UserInvitedToJoinTenant")]
 public record LegacyUserInvitedToJoinTenant(string Email, string TenantName, IReadOnlyList<string> Roles);
 

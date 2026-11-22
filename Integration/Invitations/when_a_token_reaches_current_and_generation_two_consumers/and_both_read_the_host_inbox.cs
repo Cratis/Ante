@@ -73,8 +73,12 @@ public class and_both_read_the_host_inbox : Specification
     [Fact] void should_not_store_the_jwt_in_antes_outbox() => Assert.DoesNotContain(_current.Token, _anteStoredContent.ToJson());
     [Fact] void should_not_store_the_jwt_in_the_current_host_inbox() => Assert.DoesNotContain(_current.Token, _currentStoredContent.ToJson());
     [Fact] void should_capture_the_old_host_copy() => Assert.NotEmpty(_olderStoredContent);
-    [Fact] void should_record_that_the_generation_two_only_host_stores_a_plaintext_jwt() => Assert.True(
-        _olderStoredContent["3"].AsBsonDocument["token"] is BsonString raw && raw.Value.Split('.').Length == 3 && raw.Value.StartsWith("eyJ", StringComparison.Ordinal));
+
+    // Which generations a store keeps depends on the kernel release, so look for the plaintext JWT in any of them.
+    [Fact] void should_record_that_the_generation_two_only_host_stores_a_plaintext_jwt() => Assert.Contains(
+        _olderStoredContent.Elements,
+        generation => generation.Value.AsBsonDocument.GetValue("token", BsonNull.Value) is BsonString raw &&
+            raw.Value.Split('.').Length == 3 && raw.Value.StartsWith("eyJ", StringComparison.Ordinal));
 
     async Task<BsonDocument> RawContent(string store, string sequence, Guid invitationId)
     {

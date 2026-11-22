@@ -10,7 +10,7 @@ on:
       chronicle-image:
         description: Chronicle development image to run the specifications against
         required: true
-        default: cratis/chronicle:19.23.0-development
+        default: cratis/chronicle:19.181.5-development
   schedule:
     - cron: '37 4 * * *'
   pull_request:
@@ -146,7 +146,7 @@ jobs:
         if: steps.license.outputs.available == 'true'
         env:
           ANTE_CHRONICLE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.chronicle-image || github.event_name == 'schedule' && 'cratis/chronicle:latest-development' || '' }}
-        run: docker pull "${ANTE_CHRONICLE_IMAGE:-cratis/chronicle:19.23.0-development}"
+        run: docker pull "${ANTE_CHRONICLE_IMAGE:-cratis/chronicle:19.181.5-development}"
 
       - name: Run the browser specifications
         if: steps.license.outputs.available == 'true'

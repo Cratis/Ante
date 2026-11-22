@@ -152,9 +152,11 @@ public static class KernelObservers
                         return null;
                     }
 
-                    var target = await LastOfTypes(store, last);
+                    var observed = await Observed(store, last);
+                    var target = observed.Count == 0 ? null : observed[^1].Context.SequenceNumber;
                     var handled = new EventSequenceNumber(last.LastHandledEventSequenceNumber);
-                    return target is null || (handled.IsActualValue && handled >= target) ? last : null;
+                    var caughtUp = target is null || (handled.IsActualValue && handled >= target);
+                    return caughtUp && last.HandledEventCount >= (ulong)observed.Count ? last : null;
                 },
                 what: $"{observerId} to be active and caught up");
         }
@@ -237,12 +239,6 @@ public static class KernelObservers
     /// <returns>The kernel services.</returns>
     public static Kernel.IServices Services(IEventStore store) =>
         ((Kernel.IChronicleServicesAccessor)store.Connection).Services;
-
-    static async Task<EventSequenceNumber?> LastOfTypes(IEventStore store, Kernel.Observation.ObserverInformation observer)
-    {
-        var observed = await Observed(store, observer);
-        return observed.Count == 0 ? null : observed[^1].Context.SequenceNumber;
-    }
 
     static async Task<IReadOnlyList<AppendedEvent>> Observed(IEventStore store, Kernel.Observation.ObserverInformation observer)
     {

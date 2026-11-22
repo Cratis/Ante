@@ -23,7 +23,7 @@ services:
       retries: 30
       start_period: 5s
   chronicle:
-    image: ${CHRONICLE_IMAGE:-cratis/chronicle:19.23.0-development-slim}
+    image: ${CHRONICLE_IMAGE:-cratis/chronicle:19.181.5-development-slim}
     networks: [backend]
     environment:
       Cratis__Chronicle__Storage__Type: MongoDB

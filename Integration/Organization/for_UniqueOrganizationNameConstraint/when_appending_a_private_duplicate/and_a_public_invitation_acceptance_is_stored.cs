@@ -25,14 +25,13 @@ public class and_a_public_invitation_acceptance_is_stored : given.a_stored_publi
         { "roles", new BsonArray { "Owner" } }
     };
 
-    async Task Because() => Result = await Store.EventLog.Append(
-        Guid.NewGuid().ToString(),
+    async Task Because() => Result = await AppendWhenConstraintIndexIsReady(
         new OrganizationRegistrationRecorded("Acme", "new-subject", "github", "John", MiddleName.NotSet, "Smith", "john@example.com", []));
 
-    [Fact] void should_reject_the_duplicate_private_registration() => Result.IsSuccess.ShouldBeFalse();
+    [Fact] void should_reject_the_duplicate_private_registration() => Assert.False(Result.IsSuccess, AppendDetails(Result));
     [Fact] void should_violate_unique_organization_name() =>
-        Result.ConstraintViolations.Single().ConstraintName.Value.ShouldEqual(OrganizationSetupConstraintNames.UniqueOrganizationName);
-    [Fact] void should_allow_an_unrelated_private_claim() => UnrelatedClaim.IsSuccess.ShouldBeTrue();
+        SingleConstraintViolation(Result).ConstraintName.Value.ShouldEqual(OrganizationSetupConstraintNames.UniqueOrganizationName);
+    [Fact] void should_allow_an_unrelated_private_claim() => Assert.True(UnrelatedClaim.IsSuccess, AppendDetails(UnrelatedClaim));
     [Fact] Task should_preserve_the_legacy_public_acceptance() => AssertLegacyHistoryWasPreserved();
     [Fact] Task should_not_publish_anything() => AssertNothingWasPublished();
 }
