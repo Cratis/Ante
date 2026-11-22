@@ -203,6 +203,7 @@ public class OneUseCreateTenantInvitationConstraint : IConstraint
 /// <param name="AcceptedLegalTerms">Whether the user has accepted the terms and conditions and the privacy policy.</param>
 /// <param name="AcceptedLegalVersion">The version of the legal document set that was presented and accepted.</param>
 [Command]
+[Unprotected("Authoritative invitation and legal history is read explicitly; acceptance/legal concurrency scopes and one-use constraints guard the append.")]
 public record SetupOrganization(InvitationId InvitationId, TenantName OrganizationName, FirstName FirstName, MiddleName? MiddleName, LastName LastName, bool AcceptedLegalTerms, LegalVersion AcceptedLegalVersion)
 {
     /// <summary>
