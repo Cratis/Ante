@@ -13,7 +13,7 @@ public class and_durable_host_outcomes_are_disabled : given.a_lobby_with
 
     Task Because() => Initialize();
 
-    [Fact] void should_keep_the_released_subscription() => Assert.Equal(7, _subscriptions[0].EventTypes.Count());
+    [Fact] void should_keep_the_released_subscription() => Assert.Equal(8, _subscriptions[0].EventTypes.Count());
     [Fact] void should_not_subscribe_to_host_outcomes() => Assert.DoesNotContain(typeof(HostProvisioningSucceeded).GetEventType().Id, _subscriptions[0].EventTypes);
 }
 #endif

@@ -6,12 +6,14 @@ using Ante.Invitations.Issuing;
 
 namespace Ante.Invitations.Accepting.for_InvitationExchangeConfigurationValidator.when_validating_configuration;
 
-public class and_legacy_mode_is_not_configured : Specification
+public class and_the_mode_is_not_configured : Specification
 {
     Exception? _error;
 
     void Because() => _error = Record.Exception(() => InvitationExchangeConfigurationValidator.Validate(new(), new InvitationTokenConfig()));
 
-    [Fact] void should_preserve_the_released_default() => Assert.Null(_error);
+    [Fact] void should_default_to_attested_exchange() => Assert.Equal(InvitationExchangeMode.Attested, new InvitationExchangeConfig().Mode);
+
+    [Fact] void should_refuse_to_start_without_the_attestation_trust() => Assert.IsType<InvitationExchangeMisconfigured>(_error);
 }
 #endif

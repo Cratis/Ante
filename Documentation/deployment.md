@@ -71,6 +71,8 @@ The `-e` flag without a value forwards that variable from the invoking environme
 
 ## Switch an invitation proxy to Attested mode
 
+`Attested` is now the default `Ante:Invitations:Exchange:Mode`. A deployment that relied on the previous default must set `Mode: Legacy` explicitly to keep the released exchange; one that already sets `Attested` changes nothing.
+
 **Before upgrading Ante in either exchange mode**, deploy host consumers that register and handle `InvitationTokenIssued` generation 3, then verify a real token reaches each host inbox and remains a usable JWT. Ante emits generation 3 even in Legacy mode. An isolated generation-2-only host read a usable generation-3 token across stores on Chronicle 19.22.1 in the integration suite, but its raw MongoDB inbox stored the bearer JWT in plaintext because it lacked generation-3 PII metadata. That observation is not a supported consumer-upgrade substitute or a promise about other server versions. Do not upgrade the producer first.
 
 1. Upgrade host token consumers for `InvitationTokenIssued` generation 3 before the producer changes. Pin Ante's capability-signing public key in AuthProxy and separately provision AuthProxy's attestation signing key plus the matching **public** key pins in Ante. Configure Ante's token issuer/audience/key and attestation issuer/audience/lobby scope/provider/assurance policy; confirm the proxy's `tenant_id` resolution equals that scope. For Direct, plan deployment changes and verified-email/assurance mapping for its providers. For Studio, plan replacing local token signing and adapting contract/store routing first; it does not consume Ante today.
