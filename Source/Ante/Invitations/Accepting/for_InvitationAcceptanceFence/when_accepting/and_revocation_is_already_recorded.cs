@@ -22,7 +22,7 @@ public class and_revocation_is_already_recorded : a_local_invitation_history
 
     async Task Because()
     {
-        var fence = new InvitationAcceptanceFence(Store, Options.Create(new InvitationExchangeConfig()));
+        var fence = new InvitationAcceptanceFence(Store, Options.Create(new InvitationExchangeConfig { Mode = InvitationExchangeMode.Legacy }));
         var id = (InvitationId)Guid.Parse(Id.Value);
         _join = await fence.For(id, InvitationFlowType.JoinTenant);
         _create = await fence.For(id, InvitationFlowType.CreateTenant);

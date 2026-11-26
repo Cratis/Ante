@@ -203,7 +203,8 @@ public class IncomingInvitationSubscriptions(
             options.Registration.Review ? new RegistrationReviewReceiver(store, logger) : null,
             new ProvisioningCompletionReceiver(store, logger, source, _durableOutcomesRequired),
             options.OperatorAudience,
-            _durableOutcomesRequired ? new HostProvisioningOutcomeReceiver(store, logger, source, new HostProvisioningProofVerifier(hostOutcomes!)) : null);
+            _durableOutcomesRequired ? new HostProvisioningOutcomeReceiver(store, logger, source, new HostProvisioningProofVerifier(hostOutcomes!)) : null,
+            new InvitationErasureReceiver(store, new MongoInvitationDocumentEraser(scopeFactory), logger));
         var receivesLegal = options.Legal.Source == "Inbox" && source == options.Legal.PublisherStore;
         return store.Reactors.Register(
             ReactorIdFor(source),
@@ -214,6 +215,7 @@ public class IncomingInvitationSubscriptions(
                     .WithEventType(store.EventTypes.GetEventTypeFor(typeof(UserInvitedToCreateTenant)))
                     .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationRevoked)))
                     .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationReissueRequested)))
+                    .WithEventType(store.EventTypes.GetEventTypeFor(typeof(InvitationErasureRequested)))
                     .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReserved)))
                     .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OrganizationNameReleased)))
                     .WithEventType(store.EventTypes.GetEventTypeFor(typeof(OnboardingProvisioningCompleted)));
@@ -263,6 +265,7 @@ public class IncomingInvitationSubscriptions(
                     .WithEventType<UserInvitedToCreateTenant>()
                     .WithEventType<InvitationRevoked>()
                     .WithEventType<InvitationReissueRequested>()
+                    .WithEventType<InvitationErasureRequested>()
                     .WithEventType<OrganizationNameReserved>()
                     .WithEventType<OrganizationNameReleased>()
                     .WithEventType<OnboardingProvisioningCompleted>();

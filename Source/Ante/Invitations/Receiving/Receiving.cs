@@ -79,7 +79,8 @@ public record InvitationSourceInboxEventRecorded(EventSequenceNumber InboxSequen
 /// <param name="provisioningReceiver">The receiver of host provisioning confirmations.</param>
 /// <param name="operatorAudience">The audience to address a rejection to when the request names no requester; <see langword="null"/> leaves it unaddressed.</param>
 /// <param name="hostProvisioningReceiver">The receiver of host-signed provisioning outcomes, present when durable host outcomes are required.</param>
-public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name, LegalDocumentSetReceiver? legalReceiver = null, RegistrationReviewReceiver? reviewReceiver = null, ProvisioningCompletionReceiver? provisioningReceiver = null, string? operatorAudience = null, HostProvisioningOutcomeReceiver? hostProvisioningReceiver = null)
+/// <param name="erasureReceiver">Erases an invitation's copy in Ante when the host asks; without it an erasure request is not deliverable.</param>
+public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingInvitationReactor> logger, IOptions<InvitationExchangeConfig> exchange, string sourceStore = InboxSourceStore.Name, LegalDocumentSetReceiver? legalReceiver = null, RegistrationReviewReceiver? reviewReceiver = null, ProvisioningCompletionReceiver? provisioningReceiver = null, string? operatorAudience = null, HostProvisioningOutcomeReceiver? hostProvisioningReceiver = null, InvitationErasureReceiver? erasureReceiver = null)
 {
     static readonly Type[] _deliverableEventTypes =
     [
@@ -87,6 +88,7 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         typeof(UserInvitedToCreateTenant),
         typeof(InvitationRevoked),
         typeof(InvitationReissueRequested),
+        typeof(InvitationErasureRequested),
         typeof(OrganizationNameReserved),
         typeof(OrganizationNameReleased),
         typeof(LegalDocumentSetPublished),
@@ -277,6 +279,9 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
             case InvitationReissueRequested:
                 await Reissue(context);
                 break;
+            case InvitationErasureRequested:
+                await Erase(context);
+                break;
             case InvitationRevoked revoked:
                 await AppendRevocation(revoked, context);
                 break;
@@ -361,6 +366,26 @@ public class IncomingInvitationReactor(IEventStore eventStore, ILogger<IncomingI
         {
             throw new InvalidOperationException($"Failed to record invitation from {sourceStore} for {context.EventSourceId}.");
         }
+    }
+
+    async Task Erase(EventContext context)
+    {
+        if (!InvitationIdentifier.TryParseCanonical(context.EventSourceId.Value, out var invitationGuid))
+        {
+            await Reject(context, InvitationRejectionReason.InvalidInvitationId);
+            return;
+        }
+
+        var receiver = erasureReceiver ?? throw new InvalidOperationException("Invitation erasure receiver is not registered.");
+        await receiver.Erase(new InvitationId(invitationGuid), context);
+
+        // The acknowledgement is published last and once per delivery, so a request interrupted anywhere earlier is
+        // retried from the top - every step is idempotent - and the host never hears "done" before it is.
+        var delivery = ReactorDelivery.For(
+            IncomingInvitationSubscriptions.ReactorIdFor(sourceStore),
+            IncomingInvitationSubscriptions.InboxFor(sourceStore),
+            context);
+        await eventStore.PublishToOutbox(delivery, context, new InvitationErasureAcknowledged(), [], logger, operatorAudience: operatorAudience);
     }
 
     async Task Reissue(EventContext context)

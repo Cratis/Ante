@@ -1,4 +1,12 @@
 {
+  "InvitationErasureAcknowledged:1": {
+    "type": "object",
+    "title": "InvitationErasureAcknowledged"
+  },
+  "InvitationErasureRequested:1": {
+    "type": "object",
+    "title": "InvitationErasureRequested"
+  },
   "InvitationReissueRequested:1": {
     "type": "object",
     "title": "InvitationReissueRequested"

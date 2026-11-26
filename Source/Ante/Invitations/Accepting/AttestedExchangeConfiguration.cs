@@ -27,7 +27,7 @@ public class InvitationExchangeConfig
     /// <summary>
     /// Gets or sets the selected exchange protocol. The default preserves existing installations.
     /// </summary>
-    public InvitationExchangeMode Mode { get; set; } = InvitationExchangeMode.Legacy;
+    public InvitationExchangeMode Mode { get; set; } = InvitationExchangeMode.Attested;
 
     /// <summary>
     /// Gets or sets the trusted AuthProxy assertion authority in attested mode.

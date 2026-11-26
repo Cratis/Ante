@@ -9,6 +9,6 @@ namespace Ante.Invitations.Receiving;
 
 internal static class IncomingInvitationTestOptions
 {
-    internal static IOptions<InvitationExchangeConfig> Legacy { get; } = Options.Create(new InvitationExchangeConfig());
+    internal static IOptions<InvitationExchangeConfig> Legacy { get; } = Options.Create(new InvitationExchangeConfig { Mode = InvitationExchangeMode.Legacy });
 }
 #endif

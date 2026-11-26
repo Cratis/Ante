@@ -78,7 +78,7 @@ public class and_two_sources_are_configured : Specification
             entry.Configure(builder);
             var source = entry.Id.Value.EndsWith("StudioAdmin", StringComparison.Ordinal) ? "StudioAdmin" : "Studio";
             builder.Received(1).OnEventSequence(IncomingInvitationSubscriptions.InboxFor(source));
-            builder.Received(7).WithEventType(Arg.Any<EventType>());
+            builder.Received(8).WithEventType(Arg.Any<EventType>());
             builder.Received(1).WithEventType(typeof(Contracts.Onboarding.OnboardingProvisioningCompleted).GetEventType());
         }
     }
@@ -90,7 +90,7 @@ public class and_two_sources_are_configured : Specification
             var builder = new EventStoreSubscriptionBuilder(_eventTypes, entry.Id, entry.Source);
             entry.Configure(builder);
             var eventTypes = builder.Build().EventTypes.ToArray();
-            Assert.Equal(7, eventTypes.Length);
+            Assert.Equal(8, eventTypes.Length);
             Assert.Contains(typeof(Contracts.Onboarding.OnboardingProvisioningCompleted).GetEventType().Id, eventTypes);
         });
 

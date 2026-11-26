@@ -37,7 +37,7 @@ public class and_revocation_lands_between_read_and_append : a_local_invitation_h
 
     async Task Because()
     {
-        var fence = new InvitationAcceptanceFence(Store, Options.Create(new InvitationExchangeConfig()));
+        var fence = new InvitationAcceptanceFence(Store, Options.Create(new InvitationExchangeConfig { Mode = InvitationExchangeMode.Legacy }));
         _join = await fence.For((InvitationId)Guid.Parse(Id.Value), InvitationFlowType.JoinTenant);
         _joinRejected = await RejectWithConcurrentRevocation(_join);
 

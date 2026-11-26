@@ -19,7 +19,7 @@ public class and_legacy_has_two_matching_receipts : a_local_invitation_history
         AlreadyRecorded(new JoinTenantInvitationReceived("jane@example.com", "Acme", ["Member"]));
     }
 
-    async Task Because() => _scope = await new InvitationAcceptanceFence(Store, Options.Create(new InvitationExchangeConfig()))
+    async Task Because() => _scope = await new InvitationAcceptanceFence(Store, Options.Create(new InvitationExchangeConfig { Mode = InvitationExchangeMode.Legacy }))
         .For((InvitationId)Guid.Parse(Id.Value), InvitationFlowType.JoinTenant);
 
     [Fact] void should_allow_legacy_acceptance() => Assert.NotNull(_scope);
