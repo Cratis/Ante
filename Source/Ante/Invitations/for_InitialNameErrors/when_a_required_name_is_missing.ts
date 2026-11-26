@@ -31,7 +31,8 @@ describe('when a required name is missing', () => {
                 command: AcceptInvitation,
                 validateOnInit: true,
                 onFieldValidate: validateChangedName,
-                errorDisplayComponent: FieldError
+                errorDisplayComponent: FieldError,
+                validationSummaryComponent: () => null
             },
                 React.createElement(InitialNameErrors),
                 React.createElement(InputTextField<AcceptInvitation>, { value: c => c.firstName, title: 'First name' })));
