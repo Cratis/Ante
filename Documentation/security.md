@@ -9,7 +9,7 @@ Ante verifies RS256 invitation JWT signatures, lifetime, issuer and audience at 
 
 ## Choose an exchange mode
 
-Choose `Legacy` only while your proxy and existing links still use the released capability-bearer exchange. It accepts a forwarded `jti` as invitation ownership and does **not** authenticate the body-supplied actor at exchange. Choose `Attested` for new recipient-bound links when AuthProxy is configured to sign staged exchanges and forward the **same** canonical provider key, authority and case-preserved subject on later requests. There is no fallback between modes. See [Configuration](./configuration.md#invitation-exchange-anteinvitationsexchange) and the [upgrade procedure](./deployment.md#switch-an-invitation-proxy-to-attested-mode).
+`Attested` is the default. Choose `Legacy` explicitly, and only while your proxy and existing links still use the released capability-bearer exchange. It accepts a forwarded `jti` as invitation ownership and does **not** authenticate the body-supplied actor at exchange. Choose `Attested` for new recipient-bound links when AuthProxy is configured to sign staged exchanges and forward the **same** canonical provider key, authority and case-preserved subject on later requests. There is no fallback between modes. See [Configuration](./configuration.md#invitation-exchange-anteinvitationsexchange) and the [upgrade procedure](./deployment.md#switch-an-invitation-proxy-to-attested-mode).
 
 ## Token and identity boundaries
 
@@ -42,8 +42,8 @@ The host sets retention deadlines and legal holds; Ante must remove its own copi
 
 Chronicle 19.4.7's cross-store subscriber copies a compliance subject's encryption key to a target store/namespace when absent. Erasing the key in the host does **not** erase Ante's copy. Forwarding can recreate a deleted copy **if deletion has not installed an effective erasure fence**; that subscriber checks a target erasure record with `NewKeyAllowed: false` and its key storage refuses prohibited writes. Account for every copy and the fence's behavior, not just one store. `[PII]` annotations do not retroactively erase older plaintext or protect raw identity strings; include host link storage, logs, exports, backups and restores in the policy.
 
-:::caution[Complete automated erasure is not available]
-Ante has no automated end-to-end erasure workflow or completion acknowledgement. Do not claim completion from a single key deletion. Rehearse the [quiesced manual erasure procedure](./operations.md#rehearse-a-quiesced-erasure) before use; resurrection-safe automation is tracked in [Ante #64](https://github.com/Cratis/Ante/issues/64).
+:::note[Erasing one invitation]
+A host that has decided to erase an invitation appends `InvitationErasureRequested` under the invitation's event source id, with the invitation's compliance subject, to its outbox. Ante revokes the invitation locally so nothing can accept or recreate it, deletes its `AcceptedInvitation`, `StagedInvitationTransaction` and `AttestedInvitationSession` documents, deletes the subject's encryption key in its own event store through Chronicle's erasure path (which records the fence), and only then publishes `InvitationErasureAcknowledged` under the same id. Every step is idempotent and a failed step is retried, so the acknowledgement is never published early. This covers the invitation and the people who accepted it; self-service registrations use the registration id as compliance subject and are not covered, and Ante does not decide retention periods or legal holds. Backups, exports, logs and the host's own copies stay the host's responsibility.
 :::
 
 ## Generated API exposure

@@ -43,7 +43,7 @@ Ante keeps no onboarding state in memory that a restart can lose. The integratio
 
 ## Rehearse a quiesced erasure
 
-This is a **manual procedure to rehearse before use**, not an automated or proven complete-erasure feature. Obtain the host's approved subject mapping, retention decision and legal-hold clearance, then:
+For one invitation, publish `InvitationErasureRequested` from the host (see [Security and trust](./security.md#personal-data-retention-and-erasure)) and wait for `InvitationErasureAcknowledged`. The steps below are the manual procedure for everything else, such as registrations, and a rehearsal aid; it is **not** an automated or proven complete-erasure feature. Obtain the host's approved subject mapping, retention decision and legal-hold clearance, then:
 
 1. Stop new writes from affected host/Ante operations, drain in-flight forwarding (including host relays), then pause those forwarders before deletion. Do not allow replay or reissuance during deletion.
 2. Inventory the subject's keys and plaintext/session/read-model copies in **every** affected event store and namespace, including host and Ante, and account for logs, links, exports, backups and restore paths. An invitation id need not equal the compliance subject.
